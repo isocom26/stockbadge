@@ -1852,7 +1852,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.10.19-1500';
+var APP_VERSION = '2026.10.19-1630';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -12199,6 +12199,8 @@ function depShowParsed(r, el){
       tag = ' <span title="Format non reconnu">⚠️</span>';
       if(c.sugg) fix = '<div style="margin-top:4px"><button onclick="depFixFormat('+i+')" style="padding:4px 10px;border-radius:7px;border:1.5px solid #f59e0b;background:transparent;color:#d97706;font-size:.76rem;font-weight:700;cursor:pointer">✏️ Corriger en '+esc(c.sugg)+'</button></div>';
       else fix = '<div style="font-size:.72rem;color:var(--mut);margin-top:2px">Aucune correction sûre trouvée</div>';
+      // Retirer ce format de la commande (ex : un texte qui n'est pas un format, comme « movember »)
+      fix += '<div style="margin-top:6px"><button onclick="depAskRemoveFormat('+i+')" style="padding:4px 10px;border-radius:7px;border:1.5px solid var(--red);background:transparent;color:var(--red);font-size:.76rem;font-weight:700;cursor:pointer">🗑️ Retirer ce format</button></div>';
     }
     return '<div style="padding:5px 0;border-top:1px solid var(--brd);font-size:.82rem">'+
       '<div style="display:flex;justify-content:space-between"><strong style="'+col+'">'+esc(f.format)+tag+'</strong><span style="color:var(--acc)">'+f.qty+' pcs</span></div>'+fix+'</div>';
@@ -12229,6 +12231,25 @@ function depFixFormat(i){
   var c = depFmtCheck(r.formats[i].format);
   if(c.kind==='bad' && c.sugg) r.formats[i].format = c.sugg;
   depShowParsed(r, el);
+}
+// Retire un format de l'aperçu (avant l'ajout), après confirmation. Rien n'est écrit en base ici.
+function depAskRemoveFormat(i){
+  var r = window._depParsed;
+  if(!r || !r.formats[i]) return;
+  if(depFmtCheck(r.formats[i].format).kind!=='bad') return;   // jamais sur un format reconnu
+  if(r.formats.length<=1){ toast('Impossible : la commande doit garder au moins un format', 1); return; }
+  var f = r.formats[i];
+  document.getElementById('cf-title').textContent = 'Retirer « '+f.format+' » ?';
+  document.getElementById('cf-msg').textContent = 'Ce format ('+f.qty+' pcs) ne sera pas ajouté à la commande. Les autres formats ne changent pas.';
+  cfCb = function(){ cm('m-confirm'); depRemoveFormat(i, f.format); };
+  om('m-confirm');
+}
+function depRemoveFormat(i, expected){
+  var r = window._depParsed, el = window._depParsedEl;
+  if(!r || !el || !r.formats[i] || r.formats[i].format!==expected || r.formats.length<=1 || depFmtCheck(expected).kind!=='bad') return;
+  r.formats.splice(i,1);
+  depShowParsed(r, el);
+  toast('🗑 Format retiré');
 }
 function depFixAllFormats(){
   var r = window._depParsed, el = window._depParsedEl;
