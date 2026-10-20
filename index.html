@@ -1760,11 +1760,11 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
       </select>
     </div>
 
-    <div class="ff"><label>Date d'impression initiale (Print le)</label><input type="date" id="rp-print-date"></div>
-    <div class="ff"><label>Date de départ commande</label><input type="date" id="rp-depart-date"></div>
+    <div class="ff"><label>Date d'impression initiale (Print le)</label><input type="date" id="rp-print-date" oninput="this.dataset.auto=''"></div>
+    <div class="ff"><label>Date de départ commande</label><input type="date" id="rp-depart-date" oninput="this.dataset.auto=''"></div>
     <div class="ff"><label>À faire le jour-même ?</label>
       <div style="display:flex;align-items:center;gap:10px;padding:10px 0">
-        <input type="checkbox" id="rp-urgent" style="width:22px;height:22px;accent-color:var(--red);cursor:pointer">
+        <input type="checkbox" id="rp-urgent" onchange="this.dataset.auto=''" style="width:22px;height:22px;accent-color:var(--red);cursor:pointer">
         <label for="rp-urgent" style="color:var(--red);font-weight:700;font-size:.9rem;cursor:pointer">⚡ Urgent — Jour même</label>
       </div>
     </div>
@@ -1852,7 +1852,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.10.19-1630';
+var APP_VERSION = '2026.10.20-1010';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -6956,7 +6956,56 @@ function rpSearchCommande(){
   rpSearchCommandeByText(site, cmd, resultEl, fromCmdEl, manualEl, addBtn);
 }
 
+// Pré-remplit les dates et « Urgent » à partir de la commande choisie (additif : rien n'est écrit en base).
+// On n'écrase jamais ce que l'utilisateur a saisi lui-même (marqueur data-auto sur les champs).
+function rpIsoLocal(d){
+  var m = d.getMonth()+1, j = d.getDate();
+  return d.getFullYear()+'-'+(m<10?'0':'')+m+'-'+(j<10?'0':'')+j;
+}
+// « 15/10 » (sans année) -> 'AAAA-MM-JJ' ; on prend l'année pour laquelle la date est la plus proche de la création de la commande
+function rpPrintIso(c){
+  var m = String(c.date||'').trim().match(/^(\d{1,2})[\/.\-](\d{1,2})(?:[\/.\-](\d{2,4}))?$/);
+  if(!m) return '';
+  var j = parseInt(m[1],10), mo = parseInt(m[2],10);
+  if(j<1||j>31||mo<1||mo>12) return '';
+  var y;
+  if(m[3]){ y = parseInt(m[3],10); if(y<100) y += 2000; }
+  else {
+    // année la plus proche de la date de création de la commande
+    var ref = c.createdAt ? new Date(c.createdAt) : new Date();
+    var best = null;
+    [ref.getFullYear()-1, ref.getFullYear(), ref.getFullYear()+1].forEach(function(yy){
+      var diff = Math.abs(new Date(yy, mo-1, j).getTime() - ref.getTime());
+      if(best === null || diff < best.diff) best = {y:yy, diff:diff};
+    });
+    y = best.y;
+  }
+  var d = new Date(y, mo-1, j);
+  if(d.getMonth() !== mo-1) return '';
+  return rpIsoLocal(d);
+}
+function rpAutoFillFromCommande(c){
+  if(!c) return;
+  function put(id, val){
+    var el = document.getElementById(id); if(!el) return;
+    if(el.value && el.dataset.auto !== '1') return;      // saisi à la main : on n'y touche pas
+    el.value = val || '';
+    el.dataset.auto = val ? '1' : '';
+  }
+  var printIso = rpPrintIso(c);
+  var dep = /^\d{4}-\d{2}-\d{2}$/.test(c.dateDepart||'') ? c.dateDepart : '';
+  put('rp-print-date', printIso);
+  put('rp-depart-date', dep);
+  var u = document.getElementById('rp-urgent');
+  if(u && (!u.checked || u.dataset.auto === '1')){
+    var urgent = !!c.urgent || (!!dep && dep <= rpIsoLocal(new Date()));
+    u.checked = urgent;
+    u.dataset.auto = urgent ? '1' : '';
+  }
+}
+
 function rpRenderFormats(c, resultEl, fromCmdEl, manualEl, addBtn){
+  rpAutoFillFromCommande(c);
   var fmts = (c.formats||[]).filter(function(f){ return !f.pole || f.pole==='badges'; });
   if(!fmts.length) fmts = c.formats||[];
   resultEl.innerHTML = '<div style="font-size:.78rem;color:var(--grn);margin-bottom:6px">✅ Commande trouvée — sélectionnez le(s) format(s) à réimprimer</div>';
@@ -7082,6 +7131,7 @@ function openReprintModal(){
   document.getElementById('rp-print-date').value='';
   document.getElementById('rp-depart-date').value='';
   document.getElementById('rp-urgent').checked=false;
+  ['rp-print-date','rp-depart-date','rp-urgent'].forEach(function(i){ document.getElementById(i).dataset.auto=''; });
   document.getElementById('rp-note').value='';
   rpPhotos=[];
   var prev = document.getElementById('rp-photos-preview');
