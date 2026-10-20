@@ -1852,7 +1852,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.10.20-1015';
+var APP_VERSION = '2026.10.20-1100';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -2473,6 +2473,7 @@ function ecranAutoOpen(tries){
 // Pas de correctif technique invisible ici. tag = qui est concerné :
 //   'all' (tout le monde), 'admin' (admin/direction), 'maint' (maintenance), 'stock' (ajout de stock), 'reprint' (réimpressions)
 var NEWS = [
+  {n:16, d:'20/10/2026', tag:'all', t:'Rapport : bouton « Saisie depuis planche » retiré', x:'Ce bouton n\'est plus affiché dans le Rapport. Pour ajouter une ligne, on utilise « + Ajouter une commande » comme d\'habitude ; pour scanner une planche, c\'est dans Dépiautage.'},
   {n:15, d:'20/10/2026', tag:'reprint', t:'Réimpression : dates et urgence pré-remplies', x:'Quand tu choisis une commande (depuis la fenêtre « Terminer », « Parcourir en cours » ou « Rechercher »), la date de print et la date de départ se remplissent toutes seules. « Urgent — Jour même » se coche si le départ est aujourd\'hui ou déjà passé, ou si la commande est déjà urgente. Tu peux tout modifier.'},
   {n:14, d:'19/10/2026', tag:'all', t:'Dépiautage : retirer un format non reconnu', x:'Dans l\'aperçu d\'une commande détectée, un format signalé « non reconnu » (par exemple un mot du nom de la commande) peut être retiré avec le bouton rouge « Retirer ce format », après confirmation.'},
   {n:13, d:'16/10/2026', tag:'all', t:'Manuel d\'utilisation', x:'Le manuel illustré de StockBadge Pro est disponible dans ton menu de profil (clique sur ton nom) : « Manuel » pour le consulter, « Télécharger » pour le garder sur ton appareil.'},
@@ -7692,9 +7693,7 @@ function rptRenderDays(data, wk, canEdit){
       });
       var halfIcon = hi===0 ? '☀️' : '🌙';
       html += '<div class="rpt-half">';
-      if(canEdit){
-        html += '<button class="scan-planche-btn" onclick="openScanPlanche()">📋 Saisie depuis planche</button>';
-      }
+      // Bouton « Saisie depuis planche » retiré le 20/10/2026 (la création de ligne passe par la liste des commandes).
       html += '<div class="rpt-half-lbl">'+halfIcon+' '+h+
         '<span id="rpt-half-total-'+di+'-'+hi+'" style="color:var(--grn);font-size:.8rem;font-weight:700;margin-left:4px">'+rptSecTotalsLabel(halfSecTotals)+'</span></div>';
 
