@@ -1852,7 +1852,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.10.20-1010';
+var APP_VERSION = '2026.10.20-1015';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -2473,6 +2473,8 @@ function ecranAutoOpen(tries){
 // Pas de correctif technique invisible ici. tag = qui est concerné :
 //   'all' (tout le monde), 'admin' (admin/direction), 'maint' (maintenance), 'stock' (ajout de stock), 'reprint' (réimpressions)
 var NEWS = [
+  {n:15, d:'20/10/2026', tag:'reprint', t:'Réimpression : dates et urgence pré-remplies', x:'Quand tu choisis une commande (depuis la fenêtre « Terminer », « Parcourir en cours » ou « Rechercher »), la date de print et la date de départ se remplissent toutes seules. « Urgent — Jour même » se coche si le départ est aujourd\'hui ou déjà passé, ou si la commande est déjà urgente. Tu peux tout modifier.'},
+  {n:14, d:'19/10/2026', tag:'all', t:'Dépiautage : retirer un format non reconnu', x:'Dans l\'aperçu d\'une commande détectée, un format signalé « non reconnu » (par exemple un mot du nom de la commande) peut être retiré avec le bouton rouge « Retirer ce format », après confirmation.'},
   {n:13, d:'16/10/2026', tag:'all', t:'Manuel d\'utilisation', x:'Le manuel illustré de StockBadge Pro est disponible dans ton menu de profil (clique sur ton nom) : « Manuel » pour le consulter, « Télécharger » pour le garder sur ton appareil.'},
   {n:12, d:'15/10/2026', tag:'all', t:'Barre d\'onglets réorganisée', x:'Nouvel ordre : Production, Stock, Tableau de bord, Maintenance, Réunions, Statistiques, Mon Espace, Admin. « Compte » est maintenant dans ton menu de profil (clique sur ton nom) : bouton « 🔐 Mon compte » pour changer ton mot de passe. La version de l\'app est affichée en bas de ce menu.'},
   {n:11, d:'15/10/2026', tag:'all', t:'Recherche : nouvelle place et filtres par statut', x:'« Recherche » (commandes uniquement) est maintenant le dernier sous-onglet de Production. Les filtres sont les mêmes statuts que le Tableau de bord : En attente, En cours, Produite, Réimpression, Terminée. Les commandes pas encore commencées sont aussi retrouvées. La recherche de produits se fait dans Stock.'},
