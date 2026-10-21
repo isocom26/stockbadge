@@ -1563,6 +1563,15 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
   </div>
 </div>
 
+<!-- MODAL DÉTAIL DES LIGNES D'UNE COMMANDE (admin, lecture seule) -->
+<div class="mover" id="m-cmd-lines" onclick="cm('m-cmd-lines')">
+  <div class="cmod" onclick="event.stopPropagation()" style="max-height:88vh;overflow-y:auto">
+    <div class="dh" style="margin:0 auto 14px"></div>
+    <h3 id="cl-title" style="font-family:Open Sans,sans-serif;font-weight:800;margin-bottom:4px">🔎 Détail des lignes</h3>
+    <div id="cl-body" style="font-size:.8rem"></div>
+    <div class="macts"><button class="btn bsec" onclick="cm('m-cmd-lines')">Fermer</button></div>
+  </div>
+</div>
 <div class="mover" id="m-confirm" onclick="cm('m-confirm')">
   <div class="cmod" onclick="event.stopPropagation()">
     <div class="dh" style="margin:0 auto 20px"></div>
@@ -1852,7 +1861,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.10.20-1100';
+var APP_VERSION = '2026.10.21-1710';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -2473,6 +2482,7 @@ function ecranAutoOpen(tries){
 // Pas de correctif technique invisible ici. tag = qui est concerné :
 //   'all' (tout le monde), 'admin' (admin/direction), 'maint' (maintenance), 'stock' (ajout de stock), 'reprint' (réimpressions)
 var NEWS = [
+  {n:17, d:'21/10/2026', tag:'admin', t:'Détail des lignes d\'une commande', x:'Dans la fiche d\'une commande (Recherche, Tableau de bord), le bouton « 🔎 Détail des lignes » liste qui a produit quoi : jour, matin ou après-midi, producteur, poste, format, quantité, statut, avec les totaux par format et le signalement des doublons possibles.'},
   {n:16, d:'20/10/2026', tag:'all', t:'Rapport : bouton « Saisie depuis planche » retiré', x:'Ce bouton n\'est plus affiché dans le Rapport. Pour ajouter une ligne, on utilise « + Ajouter une commande » comme d\'habitude ; pour scanner une planche, c\'est dans Dépiautage.'},
   {n:15, d:'20/10/2026', tag:'reprint', t:'Réimpression : dates et urgence pré-remplies', x:'Quand tu choisis une commande (depuis la fenêtre « Terminer », « Parcourir en cours » ou « Rechercher »), la date de print et la date de départ se remplissent toutes seules. « Urgent — Jour même » se coche si le départ est aujourd\'hui ou déjà passé, ou si la commande est déjà urgente. Tu peux tout modifier.'},
   {n:14, d:'19/10/2026', tag:'all', t:'Dépiautage : retirer un format non reconnu', x:'Dans l\'aperçu d\'une commande détectée, un format signalé « non reconnu » (par exemple un mot du nom de la commande) peut être retiré avec le bouton rouge « Retirer ce format », après confirmation.'},
@@ -5006,8 +5016,103 @@ function buildCommandeCardHtml(g, cmdRef, extraFooterHtml){
       (isDone && doneStr ? ' · Terminé : <strong style="color:var(--grn)">'+doneStr+'</strong>' : '')+
       cqInfoHtml+
     '</div>'+
+    (iAm
+      ? '<button onclick="cmdLinesOpen(\''+(g.cmdId||'')+'\',\''+encodeURIComponent(g.cmd||'').replace(/\'/g,'%27')+'\',\''+encodeURIComponent(g.site||'').replace(/\'/g,'%27')+'\')" '+
+        'style="margin-top:8px;padding:6px 10px;border-radius:8px;border:1.5px solid var(--brd);background:var(--sur);color:var(--mut);font-size:.75rem;font-weight:700;cursor:pointer;font-family:inherit">🔎 Détail des lignes</button>'
+      : '')+
     (extraFooterHtml||'')+
   '</div>';
+}
+
+// ── Détail des lignes d'une commande (admin, lecture seule) : qui a produit quoi, ligne par ligne ──
+// Fonction pure (testable) : parcourt les rapports de l'équipe et renvoie les lignes liées à la commande
+// (par cmdId, ou par n°+site pour les lignes anciennes sans cmdId), plus celles qui portent le même n°+site
+// mais un AUTRE cmdId (signe d'une commande en double).
+function cmdLinesCollect(reports, cmdId, cmd, site){
+  var tc = String(cmd||'').trim().toLowerCase(), ts = String(site||'').trim().toLowerCase();
+  var rows = [];
+  (reports||[]).forEach(function(r){
+    Object.keys(r.data||{}).forEach(function(wk){
+      var w = r.data[wk]; if(!w) return;
+      for(var di=0; di<5; di++) for(var hi=0; hi<2; hi++){
+        var ls = ((w['d'+di] && w['d'+di]['h'+hi]) || {}).lines || [];
+        if(!Array.isArray(ls)) ls = Object.keys(ls).map(function(k){ return ls[k]; });
+        ls.forEach(function(l){
+          if(!l) return;
+          var sameText = String(l.cmd||'').trim().toLowerCase()===tc && String(l.site||'').trim().toLowerCase()===ts;
+          var kind = null;
+          if(cmdId && l.cmdId){ if(l.cmdId===cmdId) kind='id'; else if(sameText) kind='autre'; }
+          else if(cmdId && !l.cmdId){ if(sameText) kind='texte'; }
+          else if(!cmdId){ if(sameText && !l.cmdId) kind='texte'; else if(sameText) kind='autre'; }
+          if(!kind) return;
+          rows.push({kind:kind, who:r.name||'?', wk:wk, di:di, hi:hi, sec:l.sec||'semi', format:l.format||'—',
+                     qty:parseInt(l.qty||0)||0, status:l.status||'', doneAt:l.doneAt||null, ready:!!l.readyForTable});
+        });
+      }
+    });
+  });
+  rows.sort(function(a,b){ return a.wk<b.wk?-1:a.wk>b.wk?1:(a.di-b.di)||(a.hi-b.hi); });
+  // doublons possibles : même producteur, même demi-journée, même poste, même format, même quantité
+  var seen = {};
+  rows.forEach(function(x){
+    var k = [x.kind==='autre'?'a':'c', x.who, x.wk, x.di, x.hi, x.sec, String(x.format).toLowerCase(), x.qty].join('|');
+    if(seen[k]){ x.dup = true; seen[k].dup = true; } else seen[k] = x;
+  });
+  // total par format : même règle que la fiche (semi + table = même produit -> le plus grand ; sinon somme)
+  var fm = {};
+  rows.forEach(function(x){
+    if(x.kind==='autre') return;
+    var k = String(x.format).trim().toLowerCase();
+    if(!fm[k]) fm[k] = {label:x.format, semi:0, auto:0, table:0, doneSemi:0, doneAuto:0, doneTable:0};
+    fm[k][x.sec] = (fm[k][x.sec]||0) + x.qty;
+    if(x.status==='done') fm[k]['done'+x.sec.charAt(0).toUpperCase()+x.sec.slice(1)] += x.qty;
+  });
+  Object.keys(fm).forEach(function(k){
+    var f = fm[k];
+    f.total = (f.semi>0 && f.table>0) ? Math.max(f.semi, f.table) : f.semi + f.auto + f.table;
+  });
+  return {rows:rows, formats:fm};
+}
+
+function cmdLinesOpen(cmdId, cmdEnc, siteEnc){
+  if(!iAm) return;
+  var cmd = decodeURIComponent(cmdEnc||''), site = decodeURIComponent(siteEnc||'');
+  var title = document.getElementById('cl-title'), body = document.getElementById('cl-body');
+  title.textContent = '🔎 '+cmd+' · '+site;
+  body.innerHTML = '<div style="color:var(--mut);padding:10px 0">Chargement…</div>';
+  om('m-cmd-lines');
+  var fresh = window._srReports && (Date.now() - (window._srReportsAt||0) < 10*60*1000);
+  var src = fresh ? Promise.resolve(window._srReports) : dashEnsureAllReports();
+  src.then(function(reports){
+    var out = cmdLinesCollect(reports, cmdId, cmd, site);
+    var SEC = {semi:'Semi-auto', auto:'Auto', table:'Table'}, STAT = {done:'✅ produit', ongoing:'⏳ en cours'};
+    function dstr(x){ var p = x.wk.split('-'); var d = new Date(Date.UTC(+p[0], +p[1]-1, +p[2]+x.di)); return ('0'+d.getUTCDate()).slice(-2)+'/'+('0'+(d.getUTCMonth()+1)).slice(-2); }
+    if(!out.rows.length){ body.innerHTML = '<div style="color:var(--mut);padding:10px 0">Aucune ligne de rapport trouvée pour cette commande.</div>'; return; }
+    var h = '';
+    // Résumé par format
+    h += '<div style="margin:6px 0 10px;font-weight:800">Totaux par format</div>';
+    Object.keys(out.formats).forEach(function(k){
+      var f = out.formats[k];
+      var parts = [];
+      if(f.semi) parts.push('semi-auto '+f.semi); if(f.auto) parts.push('auto '+f.auto); if(f.table) parts.push('table '+f.table);
+      var rule = (f.semi>0 && f.table>0) ? ' → on retient le plus grand (semi-auto et table = mêmes pièces)' : (parts.length>1 ? ' → somme' : '');
+      h += '<div style="padding:6px 8px;background:var(--sur);border:1px solid var(--brd);border-radius:8px;margin-bottom:5px"><strong>'+esc(f.label)+'</strong> : '+f.total+' pcs<div style="color:var(--mut);font-size:.74rem">'+parts.join(' · ')+rule+'</div></div>';
+    });
+    // Liste des lignes
+    h += '<div style="margin:12px 0 6px;font-weight:800">Lignes ('+out.rows.length+')</div>';
+    out.rows.forEach(function(x){
+      var warn = x.kind==='autre' ? '<span style="color:var(--red);font-weight:700">⚠ même n° mais AUTRE commande (cmdId différent) — non comptée dans la fiche</span>'
+               : x.kind==='texte' ? '<span style="color:var(--mut)">ligne ancienne (liée par le n°, sans identifiant)</span>' : '';
+      var dup = x.dup ? '<span style="color:var(--red);font-weight:700">⚠ doublon possible</span> ' : '';
+      var t = x.doneAt ? ' · fini à '+new Date(x.doneAt).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}) : '';
+      h += '<div style="padding:7px 8px;border:1px solid '+(x.kind==='autre'||x.dup?'var(--red)':'var(--brd)')+';border-radius:8px;margin-bottom:5px">'+
+        '<div style="display:flex;justify-content:space-between;gap:8px"><strong>'+dstr(x)+' '+(x.hi===0?'matin':'après-midi')+'</strong><strong>'+x.qty+' pcs</strong></div>'+
+        '<div>'+esc(x.who)+' · '+esc(SEC[x.sec]||x.sec)+' · '+esc(x.format)+'</div>'+
+        '<div style="color:var(--mut);font-size:.74rem">'+(STAT[x.status]||esc(x.status)||'—')+t+(x.ready?' · prêt pour la table':'')+'</div>'+
+        (dup||warn?'<div style="font-size:.74rem;margin-top:2px">'+dup+warn+'</div>':'')+'</div>';
+    });
+    body.innerHTML = h;
+  }).catch(function(){ body.innerHTML = '<div style="color:var(--red);padding:10px 0">Erreur de chargement.</div>'; });
 }
 
 function doSearchCommands(q, el){
@@ -5045,6 +5150,8 @@ function doSearchCommands(q, el){
       }
     });
     Promise.all(promises).then(function(results){
+      window._srReportsAt = Date.now();
+      window._srReports = results;   // réutilisé par « Détail des lignes » (aucun nouveau téléchargement)
       var DAY_LABELS = ['Lundi','Mardi','Mercredi','Jeudi','Vendredi'];
       var SEC_LABELS = {semi:'Semi-auto',auto:'Automatique',table:'Table'};
 
