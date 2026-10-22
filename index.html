@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>StockBadge Pro</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23d97706'/%3E%3Ctext x='32' y='45' font-family='Arial, Helvetica, sans-serif' font-weight='800' font-size='30' fill='%232b2418' text-anchor='middle'%3ESB%3C/text%3E%3C/svg%3E">
+<title>IsoProd</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23d97706'/%3E%3Ctext x='32' y='45' font-family='Arial, Helvetica, sans-serif' font-weight='800' font-size='30' fill='%232b2418' text-anchor='middle'%3EIP%3C/text%3E%3C/svg%3E">
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
@@ -52,8 +52,10 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--txt);min-
 @keyframes sp{to{transform:rotate(360deg)}}
 /* LOGIN */
 #login-screen{position:fixed;top:0;right:0;bottom:0;left:0;background:var(--bg);z-index:1000;display:none;flex-direction:column;align-items:center;justify-content:center;padding:32px}
-.l-logo{font-family:Open Sans,sans-serif;font-weight:800;font-size:2.38rem;margin-bottom:6px}
+.l-logo{font-family:Open Sans,sans-serif;font-weight:800;font-size:2.38rem;margin-bottom:32px;display:inline-block}
 .l-logo span{color:var(--acc)}
+.logo small,.l-logo small{display:block;width:0;min-width:88%;white-space:nowrap;text-align:justify;text-align-last:justify;font-family:DM Sans,Open Sans,sans-serif;font-weight:500;text-transform:uppercase;color:var(--mut);line-height:1;letter-spacing:0;margin-left:auto;margin-right:auto}
+.l-logo small{font-size:.62rem;margin-top:4px}
 .l-sub{color:var(--mut);font-size:.85rem;margin-bottom:32px}
 .l-card{background:var(--sur);border:1.5px solid var(--brd);border-radius:var(--rad);padding:28px;width:100%;max-width:380px}
 .l-card h3{font-family:Open Sans,sans-serif;font-weight:700;font-size:0.97rem;margin-bottom:18px;color:var(--mut);text-transform:uppercase;letter-spacing:.05em}
@@ -73,8 +75,9 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--txt);min-
 .l-or{color:var(--mut);font-size:.78rem;text-align:center;margin-bottom:18px;text-transform:uppercase;letter-spacing:.05em}
 /* HEADER */
 header{background:var(--sur);border-bottom:1px solid var(--brd);padding:12px 16px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;gap:10px}
-.logo{font-family:Open Sans,sans-serif;font-weight:800;font-size:1.3rem;flex-shrink:0}
+.logo{font-family:Open Sans,sans-serif;font-weight:800;font-size:1.3rem;flex-shrink:0;display:inline-block}
 .logo span{color:var(--acc)}
+.logo small{font-size:.38rem;margin-top:0;position:relative;left:-1.5px}
 .hdr-r{display:flex;align-items:center;gap:10px;min-width:0;flex-shrink:1}
 .sdot{width:8px;height:8px;border-radius:50%;background:var(--grn);box-shadow:0 0 6px var(--grn)}
 .sdot.off{background:var(--red);box-shadow:none}
@@ -547,7 +550,7 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
 </div>
 
 <div id="update-banner">
-  <span>🔄 Nouvelle version de StockBadge disponible</span>
+  <span>🔄 Nouvelle version d'IsoProd disponible</span>
   <button onclick="reloadApp()">Recharger</button>
 </div>
 
@@ -558,14 +561,13 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
 </div>
 
 <div id="loading">
-  <div style="font-family:Open Sans,sans-serif;font-weight:800;font-size:1.94rem">Stock<span style="color:var(--acc)">Badge</span></div>
+  <div class="l-logo" style="font-size:1.94rem;margin-bottom:0">Iso<span>Prod</span><small>Production · ISOCOM</small></div>
   <div class="spin"></div>
   <p style="color:var(--mut);font-size:.9rem">Connexion…</p>
 </div>
 
 <div id="login-screen" style="display:none">
-  <div class="l-logo">Stock<span>Badge</span></div>
-  <div class="l-sub">Gestion des fournitures de production</div>
+  <div class="l-logo">Iso<span>Prod</span><small>Production · ISOCOM</small></div>
   <div id="l-profiles-wrap" style="display:none">
     <div class="l-profiles" id="l-profiles"></div>
     <div class="l-or">— ou se connecter avec un autre compte —</div>
@@ -583,7 +585,7 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
 <div id="ecran-atelier">
   <button class="ec-close" onclick="ecranClose()" title="Quitter l'écran atelier">✕</button>
   <div class="ec-top">
-    <div class="ec-title">Stock<span>Badge</span> · Atelier</div>
+    <div class="ec-title">Iso<span>Prod</span> · Atelier</div>
     <div class="ec-kpis" id="ec-kpis"></div>
     <div class="ec-clock"><b id="ec-time">--:--</b><small id="ec-date"></small></div>
   </div>
@@ -595,7 +597,7 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
 
 <div id="app" style="display:none">
   <header>
-    <div class="logo">Stock<span>Badge</span></div>
+    <div class="logo">Iso<span>Prod</span><small>Production · ISOCOM</small></div>
     <div class="hdr-r">
       <div class="sdot" id="sdot"></div>
       <div class="chip" onclick="openUserMenu()">
@@ -1861,7 +1863,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.10.21-1710';
+var APP_VERSION = '2026.10.22-1720';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -2012,11 +2014,11 @@ function manuelDownload(){
   var t = document.getElementById('manuel-title');
   var say = function(m){ if(t){ t.textContent = m; setTimeout(function(){ t.textContent = '📖 Manuel'; }, 3500); } };
   if(!_man.blob){ say('Patientez…'); return; }
-  var fname = 'Manuel-StockBadge-Pro.pdf';
+  var fname = 'Manuel-IsoProd.pdf';
   var file = null;
   try { file = new File([_man.blob], fname, {type:'application/pdf'}); } catch(e){}
   if(file && navigator.canShare && navigator.canShare({files:[file]})){
-    navigator.share({files:[file], title:'Manuel StockBadge Pro'}).catch(function(err){
+    navigator.share({files:[file], title:'Manuel IsoProd'}).catch(function(err){
       if(err && err.name === 'AbortError') return;
       manuelSaveBlob(fname, say);
     });
@@ -2482,11 +2484,13 @@ function ecranAutoOpen(tries){
 // Pas de correctif technique invisible ici. tag = qui est concerné :
 //   'all' (tout le monde), 'admin' (admin/direction), 'maint' (maintenance), 'stock' (ajout de stock), 'reprint' (réimpressions)
 var NEWS = [
+  {n:19, d:'22/10/2026', tag:'all', t:'StockBadge devient IsoProd', x:'L\'application change de nom : elle s\'appelle maintenant IsoProd (Production · ISOCOM). Rien ne change dans ton travail : mêmes écrans, mêmes données, mêmes comptes. Si tu as un raccourci sur l\'écran d\'accueil, il continue de fonctionner ; tu peux le renommer si tu veux.'},
+  {n:18, d:'22/10/2026', tag:'all', t:'Rapport : suppression d\'une ligne semi-auto', x:'Si des pièces sont déjà passées en table à partir d\'une ligne semi-auto, un avertissement s\'affiche avant de la supprimer. Et supprimer une ligne semi-auto ne bloque plus la saisie du semi-auto sur cette commande (plafond mal calculé corrigé).'},
   {n:17, d:'21/10/2026', tag:'admin', t:'Détail des lignes d\'une commande', x:'Dans la fiche d\'une commande (Recherche, Tableau de bord), le bouton « 🔎 Détail des lignes » liste qui a produit quoi : jour, matin ou après-midi, producteur, poste, format, quantité, statut, avec les totaux par format et le signalement des doublons possibles.'},
   {n:16, d:'20/10/2026', tag:'all', t:'Rapport : bouton « Saisie depuis planche » retiré', x:'Ce bouton n\'est plus affiché dans le Rapport. Pour ajouter une ligne, on utilise « + Ajouter une commande » comme d\'habitude ; pour scanner une planche, c\'est dans Dépiautage.'},
   {n:15, d:'20/10/2026', tag:'reprint', t:'Réimpression : dates et urgence pré-remplies', x:'Quand tu choisis une commande (depuis la fenêtre « Terminer », « Parcourir en cours » ou « Rechercher »), la date de print et la date de départ se remplissent toutes seules. « Urgent — Jour même » se coche si le départ est aujourd\'hui ou déjà passé, ou si la commande est déjà urgente. Tu peux tout modifier.'},
   {n:14, d:'19/10/2026', tag:'all', t:'Dépiautage : retirer un format non reconnu', x:'Dans l\'aperçu d\'une commande détectée, un format signalé « non reconnu » (par exemple un mot du nom de la commande) peut être retiré avec le bouton rouge « Retirer ce format », après confirmation.'},
-  {n:13, d:'16/10/2026', tag:'all', t:'Manuel d\'utilisation', x:'Le manuel illustré de StockBadge Pro est disponible dans ton menu de profil (clique sur ton nom) : « Manuel » pour le consulter, « Télécharger » pour le garder sur ton appareil.'},
+  {n:13, d:'16/10/2026', tag:'all', t:'Manuel d\'utilisation', x:'Le manuel illustré d\'IsoProd est disponible dans ton menu de profil (clique sur ton nom) : « Manuel » pour le consulter, « Télécharger » pour le garder sur ton appareil.'},
   {n:12, d:'15/10/2026', tag:'all', t:'Barre d\'onglets réorganisée', x:'Nouvel ordre : Production, Stock, Tableau de bord, Maintenance, Réunions, Statistiques, Mon Espace, Admin. « Compte » est maintenant dans ton menu de profil (clique sur ton nom) : bouton « 🔐 Mon compte » pour changer ton mot de passe. La version de l\'app est affichée en bas de ce menu.'},
   {n:11, d:'15/10/2026', tag:'all', t:'Recherche : nouvelle place et filtres par statut', x:'« Recherche » (commandes uniquement) est maintenant le dernier sous-onglet de Production. Les filtres sont les mêmes statuts que le Tableau de bord : En attente, En cours, Produite, Réimpression, Terminée. Les commandes pas encore commencées sont aussi retrouvées. La recherche de produits se fait dans Stock.'},
   {n:10, d:'15/10/2026', tag:'admin', t:'Alertes SAV', x:'Quand un SAV est déclaré, une pastille rouge apparaît sur Tableau de bord et un bandeau « Nouveau SAV » s\'affiche en haut. La liste des SAV ouverts se trouve dans Tableau de bord > SAV ; la case « Reçoit les alertes SAV » dans les droits permet d\'ajouter d\'autres personnes.'},
@@ -5364,7 +5368,7 @@ function pdfHeader(doc, pageW, title, subtitle){
 
   doc.setFont('helvetica','bold'); doc.setFontSize(15);
   pdfSetText(doc, PDF_C.acc);
-  doc.text('StockBadge', 30, 26);
+  doc.text('IsoProd', 30, 26);
   doc.setFont('helvetica','normal'); doc.setFontSize(8.5);
   pdfSetText(doc, PDF_C.mut);
   doc.text('ISOCOM', 30, 38);
@@ -5389,7 +5393,7 @@ function pdfFooterAllPages(doc, extraLabel){
   var pageW = doc.internal.pageSize.getWidth();
   var pageH = doc.internal.pageSize.getHeight();
   var n = doc.internal.getNumberOfPages();
-  var label = 'StockBadge Pro — ISOCOM' + (extraLabel ? ' — '+extraLabel : '');
+  var label = 'IsoProd — ISOCOM' + (extraLabel ? ' — '+extraLabel : '');
   for(var p=1; p<=n; p++){
     doc.setPage(p);
     pdfSetDraw(doc, PDF_C.brd);
@@ -6692,7 +6696,7 @@ function requestNotifPermission(){
     if(p === 'granted'){
       document.getElementById('rp-notif-permission').style.display = 'none';
       toast('✅ Notifications activées !');
-      showNotif('🖨️ StockBadge', 'Notifications activées avec succès !', 'activation-confirm');
+      showNotif('🖨️ IsoProd', 'Notifications activées avec succès !', 'activation-confirm');
     }
   });
 }
@@ -6714,7 +6718,7 @@ function showGmailNotif(count){
     el._t = setTimeout(hideGmailNotif, 8000);
   }
   // System notification (macOS/iOS/Android) — routed through Service Worker for reliability
-  showNotif('🖨️ StockBadge — Réimpression', count + ' nouvelle(s) demande(s) en attente de traitement', 'reprint-notif', 'reprint', 'pending');
+  showNotif('🖨️ IsoProd — Réimpression', count + ' nouvelle(s) demande(s) en attente de traitement', 'reprint-notif', 'reprint', 'pending');
 }
 
 function hideGmailNotif(){
@@ -7395,7 +7399,7 @@ function notifyRequester(r){
   if(!r) return;
   // System notification (only fires on the requester's own device/session if they have it open & granted)
   if(me && r.byUid === me.uid){
-    showNotif('🏭 StockBadge — Réimpression prête', 'Votre demande "'+r.product+' — '+r.site+'" est prête à être produite !', 'reprint-toproduce-'+r.id, 'reprint', 'toproduce');
+    showNotif('🏭 IsoProd — Réimpression prête', 'Votre demande "'+r.product+' — '+r.site+'" est prête à être produite !', 'reprint-toproduce-'+r.id, 'reprint', 'toproduce');
   }
 }
 
@@ -8363,6 +8367,7 @@ function rptUpdateInlineTotals(data){
 function rptDelLine(wk, di, hi, sec, btn){
   document.getElementById('cf-title').textContent = 'Supprimer cette commande ?';
   document.getElementById('cf-msg').textContent = 'Cette ligne du rapport sera supprimée définitivement.';
+  rptWarnIfTableDepends(wk, di, hi, sec, btn);
   cfCb = function(){
     var path = rptBasePath()+'/'+wk+'/d'+di+'/h'+hi+'/lines';
     fbg(path).then(function(snap){
@@ -8387,6 +8392,37 @@ function rptDelLine(wk, di, hi, sec, btn){
     });
   };
   om('m-confirm');
+}
+
+// Avant de supprimer une ligne semi-auto : si des pièces sont déjà passées en table à partir d'elle,
+// on le signale dans la fenêtre de confirmation (l'utilisateur peut annuler). Jamais bloquant :
+// en cas d'erreur ou de lenteur, la suppression reste possible comme avant.
+function rptWarnIfTableDepends(wk, di, hi, sec, btn){
+  if(!qtyRulesOn() || sec !== 'semi') return;
+  var row = btn && btn.closest ? btn.closest('.rpt-line') : null; if(!row) return;
+  var base = rptBasePath();
+  fbg(base+'/'+wk+'/d'+di+'/h'+hi+'/lines').then(function(snap){
+    var lines = snap.val() || [];
+    if(!Array.isArray(lines)) lines = Object.keys(lines).map(function(k){ return lines[k]; });
+    var allRows = row.parentElement.querySelectorAll('.rpt-line'), idx = -1;
+    allRows.forEach(function(r,i){ if(r===row) idx = i; });
+    var n = -1, full = -1;
+    for(var i=0; i<lines.length; i++){ if(lines[i] && (lines[i].sec||'semi')==='semi'){ n++; if(n===idx){ full = i; break; } } }
+    var del = full >= 0 ? lines[full] : null;
+    if(!del || !del.cmdId || !(parseInt(del.qty)||0)) return;
+    var ref = [base, wk, di, hi, full].join('|');
+    return fbg('commandes/'+del.cmdId).then(function(cs){
+      var c = cs.val(); if(!c) return;
+      c = Object.assign({id:del.cmdId}, c);
+      return qtyLoadLines(c).then(function(all){
+        var n2 = qtyDeleteSemiImpact(c, all, del, ref, {reprints:S_rp});
+        var msgEl = document.getElementById('cf-msg');
+        if(n2 > 0 && msgEl && document.getElementById('m-confirm').classList.contains('open') && /Supprimer cette commande/.test(document.getElementById('cf-title').textContent)){
+          msgEl.textContent = '⚠️ '+n2+' pièce(s) sont déjà passées en table à partir de ce semi-auto. Si vous supprimez cette ligne, elles ne correspondront plus à aucun semi-auto. Cette ligne du rapport sera supprimée définitivement.';
+        }
+      });
+    });
+  }).catch(function(){});
 }
 
 // Recalcule le statut d'une commande après suppression d'une ligne de rapport
@@ -10783,7 +10819,7 @@ function maintNotifCheck(counts){
     var key = 'sb_maint_notif_'+me.uid, st = null;
     try{ st = JSON.parse(localStorage.getItem(key)||'null'); }catch(e){}
     if(!st || st.day !== day) st = {day:day, total:0, sent:false};
-    var title = '🔩 StockBadge — Maintenance', body = null;
+    var title = '🔩 IsoProd — Maintenance', body = null;
     if(total <= 0){ st.total = 0; }
     else if(!st.sent){ body = total+' à faire aujourd\'hui : '+maintNotifText(counts); st.sent = true; st.total = total; }
     else if(total > st.total){ var k = total - st.total; body = '+'+k+' nouveau'+(k>1?'x':'')+' rappel'+(k>1?'s':'')+' — '+total+' à faire au total : '+maintNotifText(counts); st.total = total; }
@@ -13894,7 +13930,10 @@ function qtyCommandeState(c, lines, opts){
     if(twoStep || !et.length){
       // pièces pas encore touchées par le semi-auto ; la table peut aussi produire en direct
       // un format sans gamme (pas de semi-auto avant)
-      var directTable = Math.max(0, T.done - S.toTable);
+      // La table ne produit « en direct » (sans semi-auto avant) que pour un format SANS gamme.
+      // Pour une gamme semi→table, des pièces de table en trop (ex. après suppression d'une ligne semi-auto)
+      // ne doivent pas réduire ce qu'on peut encore saisir en semi-auto.
+      var directTable = twoStep ? 0 : Math.max(0, T.done - S.toTable);
       var untouched = Math.max(0, ordered - S.total - directTable - other);
       res.semi  = untouched;
       res.table = twoStep ? waiting : waiting + untouched;
@@ -13919,6 +13958,21 @@ function qtyCommandeState(c, lines, opts){
     // Une commande peut être « Terminée » / aller en Contrôle qualité seulement si tout est vert
     canBeDone: complete && ongoing === 0 && !reprint && etapes.length === 0
   };
+}
+
+// Combien de pièces de table n'auraient plus de semi-auto derrière elles si on supprimait cette ligne semi-auto ?
+// (0 = suppression sans conséquence). Lecture seule : sert uniquement à avertir avant la suppression.
+function qtyDeleteSemiImpact(c, lines, delLine, delRef, opts){
+  opts = opts || {};
+  function orphan(ls){
+    var st = qtyCommandeState(c, ls, opts);
+    var k = qtyFmtKey(delLine && delLine.format);
+    var f = st.formats.filter(function(x){ return x.key === k; })[0];
+    if(!f || !f.twoStep) return 0;
+    return Math.max(0, f.tableDone - f.semi.toTable);
+  }
+  var rest = (lines||[]).filter(function(l){ return l !== delLine && !(delRef && l._ref === delRef); });
+  return Math.max(0, orphan(rest) - orphan(lines||[]));
 }
 
 // Quantité maximale saisissable au « Terminer » d'une ligne (format, poste),
@@ -15868,7 +15922,7 @@ function adminExportFullDB(){
       +'_'+String(now.getHours()).padStart(2,'0')+'h'+String(now.getMinutes()).padStart(2,'0');
     var a = document.createElement('a');
     a.href = url;
-    a.download = 'stockbadge_backup_'+stamp+'.json';
+    a.download = 'isoprod_backup_'+stamp+'.json';
     document.body.appendChild(a);
     a.click();
     a.remove();
@@ -17362,7 +17416,7 @@ function dashRenderSynthese(){
       (sub?'<div style="font-size:.64rem;color:var(--mut);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+sub+'</div>':'')+
     '</div>';
   }
-  var html = '<div style="font-size:.72rem;color:var(--mut);margin-bottom:8px">Sur les 30 derniers jours (commandes créées dans StockBadge)</div>';
+  var html = '<div style="font-size:.72rem;color:var(--mut);margin-bottom:8px">Sur les 30 derniers jours (commandes créées dans IsoProd)</div>';
   html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(118px,1fr));gap:8px;margin-bottom:16px">';
   html += card('Commandes (période)', s.periodCount);
   html += card('Terminées', s.done, s.periodCount?Math.round(s.done/s.periodCount*100)+'% des cmd':'', 'var(--grn)');
