@@ -1185,13 +1185,14 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
         <option value="CMC">CMC</option><option value="RPB">RPB</option><option value="ISOCOM">ISOCOM</option>
         <option value="TOP">TOP</option><option value="TopBadges">TopBadges</option><option value="CMD MAIL">CMD MAIL</option>
       </select>
-      <input type="text" id="admin-force-cmd" placeholder="N° commande" style="flex:2;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.85rem;padding:8px;outline:none;box-sizing:border-box">
+      <input type="text" id="admin-force-cmd" placeholder="N° commande ou nom" style="flex:2;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.85rem;padding:8px;outline:none;box-sizing:border-box">
     </div>
     <div style="display:flex;gap:8px">
       <button onclick="adminForceStatus('done')" style="flex:1;padding:8px;border-radius:8px;border:none;background:var(--grn);color:#000;font-family:Open Sans,sans-serif;font-weight:700;font-size:0.86rem;cursor:pointer">✅ Forcer Terminée</button>
       <button onclick="adminForceStatus('waiting')" style="flex:1;padding:8px;border-radius:8px;border:none;background:var(--sur);color:var(--txt);font-family:Open Sans,sans-serif;font-weight:700;font-size:0.86rem;cursor:pointer;border:1.5px solid var(--brd)">⏳ Forcer En attente</button>
     </div>
-    <div style="font-size:.72rem;color:var(--mut);margin-top:6px">Modifie directement le statut dans Firebase. Utiliser uniquement en cas de blocage.</div>
+    <div id="admin-force-choices" style="margin-top:8px"></div>
+    <div style="font-size:.72rem;color:var(--mut);margin-top:6px">Modifie directement le statut dans Firebase. Utiliser uniquement en cas de blocage. Tu peux saisir le n° de commande ou une partie du nom ; si plusieurs commandes correspondent, tu choisis laquelle.</div>
   </div>
 
   <!-- Lignes oubliées -->
@@ -1863,7 +1864,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.10.22-1725';
+var APP_VERSION = '2026.10.23-1600';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -2484,6 +2485,7 @@ function ecranAutoOpen(tries){
 // Pas de correctif technique invisible ici. tag = qui est concerné :
 //   'all' (tout le monde), 'admin' (admin/direction), 'maint' (maintenance), 'stock' (ajout de stock), 'reprint' (réimpressions)
 var NEWS = [
+  {n:20, d:'23/10/2026', tag:'admin', t:'Forcer le statut : on choisit la bonne commande', x:'Quand deux commandes ont le même numéro, « Forcer le statut » (Admin) te les liste et tu choisis laquelle modifier (tu peux aussi chercher par nom). Dans la fiche d\'une commande (Recherche, Tableau de bord), un bouton « 🔧 Forcer Terminée » agit directement sur cette commande.'},
   {n:19, d:'22/10/2026', tag:'all', t:'StockBadge devient IsoProd', x:'L\'application change de nom : elle s\'appelle maintenant IsoProd (Production · ISOCOM). Rien ne change dans ton travail : mêmes écrans, mêmes données, mêmes comptes. Si tu as un raccourci sur l\'écran d\'accueil, il continue de fonctionner ; tu peux le renommer si tu veux.'},
   {n:18, d:'22/10/2026', tag:'all', t:'Rapport : suppression d\'une ligne semi-auto', x:'Si des pièces sont déjà passées en table à partir d\'une ligne semi-auto, un avertissement s\'affiche avant de la supprimer. Et supprimer une ligne semi-auto ne bloque plus la saisie du semi-auto sur cette commande (plafond mal calculé corrigé).'},
   {n:17, d:'21/10/2026', tag:'admin', t:'Détail des lignes d\'une commande', x:'Dans la fiche d\'une commande (Recherche, Tableau de bord), le bouton « 🔎 Détail des lignes » liste qui a produit quoi : jour, matin ou après-midi, producteur, poste, format, quantité, statut, avec les totaux par format et le signalement des doublons possibles.'},
@@ -5023,6 +5025,11 @@ function buildCommandeCardHtml(g, cmdRef, extraFooterHtml){
     (iAm
       ? '<button onclick="cmdLinesOpen(\''+(g.cmdId||'')+'\',\''+encodeURIComponent(g.cmd||'').replace(/\'/g,'%27')+'\',\''+encodeURIComponent(g.site||'').replace(/\'/g,'%27')+'\')" '+
         'style="margin-top:8px;padding:6px 10px;border-radius:8px;border:1.5px solid var(--brd);background:var(--sur);color:var(--mut);font-size:.75rem;font-weight:700;cursor:pointer;font-family:inherit">🔎 Détail des lignes</button>'
+      : '')+
+    (iAm && cmdRef && cmdRef.id
+      ? ' <button onclick="adminForceStatusById(\''+cmdRef.id+'\',\''+(cmdRef.status==='done'?'in_progress':'done')+'\')" '+
+        'style="margin-top:8px;padding:6px 10px;border-radius:8px;border:1.5px solid var(--brd);background:var(--sur);color:var(--mut);font-size:.75rem;font-weight:700;cursor:pointer;font-family:inherit">'+
+        (cmdRef.status==='done' ? '↩️ Remettre en cours' : '🔧 Forcer Terminée')+'</button>'
       : '')+
     (extraFooterHtml||'')+
   '</div>';
@@ -15867,32 +15874,59 @@ function searchFmtInStats(){
 
 
 // ── Forcer le statut d'une commande (admin uniquement) ──
+// Libellés lisibles pour la liste de choix
+var FORCE_ST_LBL = {done:'Terminée', in_progress:'En cours', waiting:'Attente fabrication'};
+function forceStatusAsk(id, c, newStatus){
+  document.getElementById('cf-title').textContent = 'Forcer le statut ?';
+  document.getElementById('cf-msg').textContent = 'Passer la commande '+(c.nom?c.nom+' — ':'')+(c.site||'')+' '+(c.cmd||'')+' (actuellement : '+(FORCE_ST_LBL[c.status]||c.status||'?')+') en "'+(FORCE_ST_LBL[newStatus]||newStatus)+'" ?';
+  cfCb = function(){
+    fbu('commandes/'+id, {status: newStatus}).then(function(){
+      toast('✅ Statut mis à jour : '+(FORCE_ST_LBL[newStatus]||newStatus));
+      var inp = document.getElementById('admin-force-cmd'); if(inp) inp.value = '';
+      var ch = document.getElementById('admin-force-choices'); if(ch) ch.innerHTML = '';
+    });
+  };
+  om('m-confirm');
+}
 function adminForceStatus(newStatus){
   var site = document.getElementById('admin-force-site').value;
   var cmd  = (document.getElementById('admin-force-cmd').value||'').trim();
-  if(!cmd){ toast('N° commande obligatoire', 1); return; }
+  var box  = document.getElementById('admin-force-choices'); if(box) box.innerHTML = '';
+  if(!cmd){ toast('N° commande ou nom obligatoire', 1); return; }
   fbg('commandes').then(function(snap){
     var all = snap.val()||{};
-    var found = null;
+    var q = cmd.toLowerCase();
+    var matches = [];
     Object.keys(all).forEach(function(k){
-      var c = all[k];
-      if((c.site||'').toLowerCase()===(site||'').toLowerCase() &&
-         (c.cmd||'').toLowerCase()===(cmd||'').toLowerCase()){
-        found = k;
-      }
+      var c = all[k]; if(!c) return;
+      var byNum  = (c.site||'').toLowerCase()===(site||'').toLowerCase() && (c.cmd||'').toLowerCase()===q;
+      var byName = q.length>=3 && (c.nom||'').toLowerCase().indexOf(q)>=0;
+      if(byNum || byName) matches.push({id:k, c:c});
     });
-    if(!found){
-      toast('⚠️ Commande '+site+' '+cmd+' introuvable', 1); return;
+    if(!matches.length){
+      toast('⚠️ Aucune commande trouvée pour « '+cmd+' »', 1); return;
     }
-    document.getElementById('cf-title').textContent = 'Forcer le statut ?';
-    document.getElementById('cf-msg').textContent = 'Passer la commande '+site+' '+cmd+' en "'+newStatus+'" ?';
-    cfCb = function(){
-      fbu('commandes/'+found, {status: newStatus}).then(function(){
-        toast('✅ Statut mis à jour : '+newStatus);
-        document.getElementById('admin-force-cmd').value = '';
-      });
-    };
-    om('m-confirm');
+    if(matches.length===1){ forceStatusAsk(matches[0].id, matches[0].c, newStatus); return; }
+    // Plusieurs commandes correspondent (même n° importé deux fois, ou même nom) : l'admin choisit
+    if(!box){ toast('⚠️ Plusieurs commandes correspondent', 1); return; }
+    box.innerHTML = '<div style="font-size:.78rem;font-weight:700;margin-bottom:6px">'+matches.length+' commandes correspondent — choisis la bonne :</div>' +
+      matches.slice(0,12).map(function(m,idx){
+        var c = m.c, tot = 0;
+        (c.formats||[]).forEach(function(f){ if(!f.pole || f.pole==='badges') tot += parseInt(f.qty)||0; });
+        return '<button type="button" data-fi="'+idx+'" style="display:block;width:100%;text-align:left;margin-bottom:6px;padding:8px 10px;border-radius:8px;border:1.5px solid var(--brd);background:var(--sur);color:var(--txt);font-family:inherit;font-size:.8rem;cursor:pointer">'+
+          '<strong>'+esc(c.nom||c.cmd||'?')+'</strong><br><span style="color:var(--mut)">'+esc(c.site||'')+' · '+esc(c.cmd||'')+' · '+(FORCE_ST_LBL[c.status]||esc(c.status||'?'))+' · '+tot+' pcs commandées</span></button>';
+      }).join('');
+    Array.prototype.forEach.call(box.querySelectorAll('button[data-fi]'), function(b){
+      b.onclick = function(){ var m = matches[parseInt(b.getAttribute('data-fi'))]; forceStatusAsk(m.id, m.c, newStatus); };
+    });
+  });
+}
+// Depuis la fiche d'une commande : agit sur CETTE commande précise (pas de confusion possible)
+function adminForceStatusById(id, newStatus){
+  fbg('commandes/'+id).then(function(snap){
+    var c = snap.val();
+    if(!c){ toast('⚠️ Commande introuvable', 1); return; }
+    forceStatusAsk(id, c, newStatus);
   });
 }
 
