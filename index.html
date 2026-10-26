@@ -1174,6 +1174,12 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
       <div id="rp-restore-result" style="font-size:.78rem;margin-top:8px"></div>
     </div>
     <div style="border-top:1px solid var(--brd);margin-top:12px;padding-top:12px">
+      <div style="font-family:Open Sans,sans-serif;font-weight:800;font-size:.88rem;margin-bottom:4px">🖼️ Ranger les photos des réimpressions à part</div>
+      <div style="font-size:.74rem;color:var(--mut);margin-bottom:8px">Déplace les photos des réimpressions existantes hors de la liste principale (l'app démarre alors beaucoup plus vite). Chaque photo est copiée, relue et vérifiée avant d'être retirée de la fiche. À lancer une fois, quand tout le monde a la dernière version.</div>
+      <button id="rpmig-btn" type="button" onclick="adminMigrateReprintPhotos()" style="width:100%;padding:9px;border-radius:8px;border:1.5px solid var(--brd);background:var(--sur);color:var(--txt);font-family:Open Sans,sans-serif;font-weight:700;font-size:.86rem;cursor:pointer">🖼️ Ranger les photos</button>
+      <div id="rpmig-result" style="font-size:.78rem;margin-top:8px"></div>
+    </div>
+    <div style="border-top:1px solid var(--brd);margin-top:12px;padding-top:12px">
       <div style="font-family:Open Sans,sans-serif;font-weight:800;font-size:.88rem;margin-bottom:4px">📏 Mesurer ce que l'app télécharge</div>
       <div style="font-size:.74rem;color:var(--mut);margin-bottom:8px">Lit chaque grande partie de la base (lecture seule) et affiche son poids et son temps de chargement. Sert à trouver ce qui ralentit le démarrage.</div>
       <button id="measure-btn" type="button" onclick="adminMeasureLoad()" style="width:100%;padding:9px;border-radius:8px;border:1.5px solid var(--brd);background:var(--sur);color:var(--txt);font-family:Open Sans,sans-serif;font-weight:700;font-size:.86rem;cursor:pointer">📏 Mesurer</button>
@@ -1877,7 +1883,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.10.26-1045';
+var APP_VERSION = '2026.10.26-1130';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -2498,6 +2504,7 @@ function ecranAutoOpen(tries){
 // Pas de correctif technique invisible ici. tag = qui est concerné :
 //   'all' (tout le monde), 'admin' (admin/direction), 'maint' (maintenance), 'stock' (ajout de stock), 'reprint' (réimpressions)
 var NEWS = [
+  {n:23, d:'26/10/2026', tag:'all', t:'Réimpressions : l\'app démarre plus vite', x:'Les photos des réimpressions sont maintenant rangées à part et chargées seulement quand tu affiches la demande. L\'app télécharge beaucoup moins de données au démarrage (elle s\'ouvre plus vite, surtout en wifi lent ou en 4G). Rien ne change dans la façon de joindre ou de voir les photos.'},
   {n:22, d:'26/10/2026', tag:'admin', t:'Réimpressions : l\'historique reste dans les statistiques', x:'Les réimpressions de plus d\'un mois sont toujours supprimées (photos comprises), mais une copie légère sans photo est gardée : les statistiques de réimpression ne retombent plus à zéro. Dans Admin, un outil permet aussi de reconstituer l\'historique perdu depuis une ancienne sauvegarde.'},
   {n:21, d:'26/10/2026', tag:'admin', t:'Statistiques : chaque jour dans son vrai mois', x:'Une semaine à cheval sur deux mois est maintenant répartie jour par jour (ex. le lundi 31/08 compte en août, du 1er au 4/09 en septembre). Avant, la semaine entière était rangée selon son lundi, et celle du 31/08 n\'apparaissait dans aucun mois : le total d\'août était trop bas et la comparaison « vs mois précédent » faussée. Corrigé pour l\'écran, le PDF et le CSV des statistiques (les autres écrans ne changent pas).'},
   {n:20, d:'23/10/2026', tag:'admin', t:'Forcer le statut : on choisit la bonne commande', x:'Quand deux commandes ont le même numéro, « Forcer le statut » (Admin) te les liste et tu choisis laquelle modifier (tu peux aussi chercher par nom). Dans la fiche d\'une commande (Recherche, Tableau de bord), un bouton « 🔧 Forcer Terminée » agit directement sur cette commande.'},
@@ -6711,6 +6718,10 @@ function cleanupOldReprints(){
     });
     db.ref().update(updates).then(function(){
       console.log('🗑 '+toDelete.length+' demande(s) de réimpression archivée(s) depuis +1 mois : copie légère gardée pour les stats, fiche supprimée.');
+      // Photos rangées à part : supprimées dans une écriture séparée (un échec ici ne doit jamais bloquer l'archivage)
+      var ph = {};
+      toDelete.forEach(function(id){ ph['reprint_photos/'+id] = null; });
+      db.ref().update(ph).catch(function(){});
     });
   });
 }
@@ -6875,6 +6886,59 @@ function renderReprint(){
       del.innerHTML = done.map(function(r){ return rpCard(r); }).join('');
     }
   }
+  rpHydratePhotos();
+}
+
+// ── Photos des réimpressions ──
+// Anciennes fiches : photos directement dans la fiche (r.photos). Nouvelles fiches : photos rangées à part
+// dans reprint_photos/{id} (r.nPhotos = leur nombre) et chargées seulement quand on affiche la fiche,
+// pour que le démarrage de l'app ne télécharge plus des Mo de photos.
+var rpPhotoCache = {}, rpPhotoFetching = {};
+function rpPhotosLegacyHtml(r){
+  return (r.photos&&r.photos.length?'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">'+r.photos.map(function(p){var src=p.src||p;var qty=p.qty||'';return '<div style="flex-shrink:0;text-align:center"><img src="'+src+'" style="width:72px;height:72px;object-fit:cover;border-radius:8px;border:1.5px solid var(--brd);cursor:pointer;display:block" onclick="openLightboxStatic(\''+src+'\','+JSON.stringify(qty)+')">'+( qty?'<div style="font-size:.68rem;color:var(--acc);font-weight:700;margin-top:3px">'+qty+' pcs</div>':'')+' </div>';}).join('')+'</div>':'');
+}
+function rpPhotosHtml(rid, arr){
+  return '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">'+arr.map(function(p,i){
+    var qty = (p && p.qty) || '';
+    var src = (p && p.src) || p;
+    return '<div style="flex-shrink:0;text-align:center"><img src="'+src+'" style="width:72px;height:72px;object-fit:cover;border-radius:8px;border:1.5px solid var(--brd);cursor:pointer;display:block" onclick="rpOpenPhoto(\''+rid+'\','+i+')">'+(qty?'<div style="font-size:.68rem;color:var(--acc);font-weight:700;margin-top:3px">'+qty+' pcs</div>':'')+' </div>';
+  }).join('')+'</div>';
+}
+function rpOpenPhoto(rid, i){
+  var a = rpPhotoCache[rid]; if(!a || !a[i]) return;
+  openLightboxStatic((a[i] && a[i].src) || a[i], (a[i] && a[i].qty) || '');
+}
+function rpPhotosBlock(r){
+  if(r.photos && r.photos.length) return rpPhotosLegacyHtml(r);   // ancien mode : inchangé
+  var n = parseInt(r.nPhotos) || 0;
+  if(!n) return '';
+  if(rpPhotoCache[r.id]) return rpPhotosHtml(r.id, rpPhotoCache[r.id]);
+  return '<div class="rp-ph-slot" data-rid="'+r.id+'" style="margin-top:10px;font-size:.72rem;color:var(--mut)">📷 '+n+' photo'+(n>1?'s':'')+'…</div>';
+}
+function rpFillPhotoSlots(rid, html){
+  Array.prototype.forEach.call(document.querySelectorAll('.rp-ph-slot'), function(el){
+    if(el.getAttribute('data-rid') === rid) el.innerHTML = html;
+  });
+}
+// Charge les photos des fiches affichées (une seule lecture par fiche, gardée en mémoire)
+function rpHydratePhotos(){
+  Array.prototype.forEach.call(document.querySelectorAll('.rp-ph-slot'), function(el){
+    var rid = el.getAttribute('data-rid');
+    if(!rid || rpPhotoFetching[rid]) return;
+    if(rpPhotoCache[rid]){ rpFillPhotoSlots(rid, rpPhotosHtml(rid, rpPhotoCache[rid])); return; }
+    rpPhotoFetching[rid] = true;
+    fbg('reprint_photos/'+rid).then(function(snap){
+      rpPhotoFetching[rid] = false;
+      var v = snap.val();
+      var arr = !v ? [] : (Array.isArray(v) ? v : Object.keys(v).map(function(k){ return v[k]; }));
+      arr = arr.filter(function(x){ return x; });
+      if(arr.length){ rpPhotoCache[rid] = arr; rpFillPhotoSlots(rid, rpPhotosHtml(rid, arr)); }
+      else rpFillPhotoSlots(rid, '<span>📷 photos indisponibles</span>');
+    }).catch(function(){
+      rpPhotoFetching[rid] = false;
+      rpFillPhotoSlots(rid, '<span>📷 photos indisponibles</span>');
+    });
+  });
 }
 
 function rpCard(r){
@@ -6940,7 +7004,7 @@ function rpCard(r){
     rows.map(function(row){
       return '<div class="rp-row"><span class="rp-lbl">'+row.l+'</span><span class="rp-val">'+row.v+'</span></div>';
     }).join('')+
-    (r.photos&&r.photos.length?'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">'+r.photos.map(function(p){var src=p.src||p;var qty=p.qty||'';return '<div style="flex-shrink:0;text-align:center"><img src="'+src+'" style="width:72px;height:72px;object-fit:cover;border-radius:8px;border:1.5px solid var(--brd);cursor:pointer;display:block" onclick="openLightboxStatic(\''+src+'\','+JSON.stringify(qty)+')">'+( qty?'<div style="font-size:.68rem;color:var(--acc);font-weight:700;margin-top:3px">'+qty+' pcs</div>':'')+' </div>';}).join('')+'</div>':'')+
+    rpPhotosBlock(r)+
     (acts?'<div class="rp-acts">'+acts+'</div>':'')+
   '</div>';
 }
@@ -7348,7 +7412,18 @@ function saveReprint(){
     var userName = getMyName();
     var pd = document.getElementById('rp-print-date').value;
     var dd = document.getElementById('rp-depart-date').value;
-    fbs('reprints/'+gid(),{
+    var newRid = gid();
+    var photosArr = rpPhotos.length ? rpPhotos.map(function(p){return {src:p.src,qty:p.qty||1};}) : null;
+    if(photosArr){
+      rpPhotoCache[newRid] = photosArr;   // visible tout de suite pour celui qui l'envoie
+      // Photos écrites AVANT la fiche (même ordre d'arrivée pour tout le monde). Si l'écriture est refusée,
+      // repli sur l'ancien mode (photos dans la fiche) : rien ne se perd.
+      db.ref('reprint_photos/'+newRid).set(photosArr).catch(function(err){
+        try{ console.error('reprint_photos refusé, repli sur l\'ancien mode :', err); }catch(e){}
+        fbu('reprints/'+newRid, {photos: photosArr});
+      });
+    }
+    fbs('reprints/'+newRid,{
       site:    siteVal,
       cmd:     cmd,
       cmdId:   cmdIdVal,
@@ -7363,7 +7438,7 @@ function saveReprint(){
       byUid:   me ? me.uid : null,
       status:  'pending',
       createdAt: Date.now(),
-      photos:  rpPhotos.length ? rpPhotos.map(function(p){return {src:p.src,qty:p.qty||1};}) : null
+      nPhotos: photosArr ? photosArr.length : null
     });
     cm('m-reprint');
     toast('✅ Demande envoyée à l\'imprimeur !');
@@ -7587,7 +7662,7 @@ function askDelReprint(rid){
   document.getElementById('cf-msg').textContent='La demande sera supprimée définitivement.';
   cfCb=function(){
     var rr = (S_rp||[]).find(function(x){ return x.id===rid; });
-    fbd('reprints/'+rid); cm('m-confirm'); toast('🗑 Demande supprimée');
+    fbd('reprints/'+rid); fbd('reprint_photos/'+rid); delete rpPhotoCache[rid]; cm('m-confirm'); toast('🗑 Demande supprimée');
     if(qtyRulesOn() && rr){ setTimeout(function(){ try{ syncCmdStatus(rr.cmdId, rr.site, rr.cmd); }catch(e){} }, 700); }
   };
   om('m-confirm');
@@ -16037,11 +16112,56 @@ function adminExportFullDB(){
   });
 }
 
+// Déplace les photos des réimpressions existantes vers reprint_photos/{id}, une fiche à la fois :
+// copie → relecture → comparaison → seulement ensuite retrait de la fiche. En cas de doute, la fiche n'est pas touchée.
+function adminMigrateReprintPhotos(){
+  if(!iAm) return;
+  var btn = document.getElementById('rpmig-btn'), out = document.getElementById('rpmig-result');
+  if(btn){ btn.disabled = true; btn.textContent = '⏳ En cours…'; }
+  out.style.color = 'var(--mut)'; out.textContent = '🔍 Recherche…';
+  var done = 0, skipped = 0, failed = 0, total = 0;
+  fbg('reprints').then(function(snap){
+    var raw = snap.val() || {};
+    var ids = Object.keys(raw).filter(function(id){
+      var ph = raw[id] && raw[id].photos;
+      return ph && (Array.isArray(ph) ? ph.length : Object.keys(ph).length);
+    });
+    total = ids.length;
+    if(!total){ out.style.color='var(--grn)'; out.textContent='✅ Rien à ranger : aucune fiche n\'a de photos dans la liste principale.'; return; }
+    return ids.reduce(function(chain, id){
+      return chain.then(function(){
+        out.textContent = '⏳ '+(done+skipped+failed+1)+' / '+total+'…';
+        var ph = raw[id].photos;
+        var arr = (Array.isArray(ph) ? ph : Object.keys(ph).map(function(k){ return ph[k]; })).filter(function(x){ return x; });
+        if(!arr.length){ skipped++; return; }
+        return db.ref('reprint_photos/'+id).set(arr)
+          .then(function(){ return fbg('reprint_photos/'+id); })
+          .then(function(chk){
+            var back = chk.val();
+            var backArr = !back ? [] : (Array.isArray(back) ? back : Object.keys(back).map(function(k){ return back[k]; }));
+            if(JSON.stringify(backArr) !== JSON.stringify(arr)){ failed++; return; }   // copie différente : on ne touche pas à la fiche
+            return db.ref('reprints/'+id).update({photos:null, nPhotos:arr.length}).then(function(){ done++; });
+          })
+          .catch(function(){ failed++; });
+      });
+    }, Promise.resolve());
+  }).then(function(){
+    if(total){
+      out.style.color = failed ? 'var(--red)' : 'var(--grn)';
+      out.textContent = (failed?'⚠️ ':'✅ ')+done+' fiche(s) rangée(s) sur '+total+(failed?' · '+failed+' non traitée(s) (laissées intactes, tu peux relancer)':'')+'.';
+    }
+    if(btn){ btn.disabled = false; btn.textContent = '🖼️ Ranger les photos'; }
+  }).catch(function(err){
+    out.style.color='var(--red)'; out.textContent='❌ Erreur : '+((err&&err.message)||String(err));
+    if(btn){ btn.disabled = false; btn.textContent = '🖼️ Ranger les photos'; }
+  });
+}
+
 // Mesure (lecture seule) le poids et le temps de chargement des grandes parties de la base.
 function adminMeasureLoad(){
   if(!iAm) return;
   var btn = document.getElementById('measure-btn'), out = document.getElementById('measure-result');
-  var paths = ['categories','orders','commandes','customFormats','gammes','reprints','plateaux','machines','settings','alertesVues','users','reprints_stats'];
+  var paths = ['categories','orders','commandes','customFormats','gammes','reprints','plateaux','machines','settings','alertesVues','users','reprints_stats','reprint_photos'];
   if(btn){ btn.disabled = true; btn.textContent = '⏳ Mesure en cours…'; }
   out.style.color = 'var(--mut)'; out.textContent = '';
   var rows = [];
