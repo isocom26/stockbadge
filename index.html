@@ -1644,6 +1644,7 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
     <div id="gam-m-add" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px"></div>
     <div id="gam-m-preview" style="background:var(--card);border:1.5px solid var(--brd);border-radius:10px;padding:10px 12px;font-family:Open Sans,sans-serif;font-weight:700;font-size:.9rem;margin-bottom:6px"></div>
     <div id="gam-m-opt" style="margin-bottom:10px"></div>
+    <div id="gam-m-aussi" style="margin-bottom:10px"></div>
     <div id="gam-m-meta" style="font-size:.7rem;color:var(--mut);margin-bottom:10px"></div>
     <div class="macts"><button class="btn bsec" onclick="cm('m-gamme')">Annuler</button><button class="btn bpri" onclick="saveGamme()">Enregistrer</button></div>
     <button id="gam-m-clear" onclick="clearGamme()" style="width:100%;margin-top:10px;padding:9px;border-radius:8px;border:1.5px solid var(--red);background:none;color:var(--red);font-family:Open Sans,sans-serif;font-weight:700;font-size:0.85rem;cursor:pointer">🗑️ Effacer la gamme de ce format</button>
@@ -1883,7 +1884,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.10.26-1130';
+var APP_VERSION = '2026.10.26-1215';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -2504,6 +2505,7 @@ function ecranAutoOpen(tries){
 // Pas de correctif technique invisible ici. tag = qui est concerné :
 //   'all' (tout le monde), 'admin' (admin/direction), 'maint' (maintenance), 'stock' (ajout de stock), 'reprint' (réimpressions)
 var NEWS = [
+  {n:24, d:'26/10/2026', tag:'all', t:'Gammes : poste de secours (MAG8054 en semi-auto)', x:'Un format peut maintenant être fait aussi sur un autre poste que le sien, par exemple du MAG8054 en semi-auto quand l\'auto est en panne ou pour une finition mylar. Il est alors proposé en Semi-auto comme en Auto, avec un simple bouton « Produit » (pas de « Prêt table »). Réglage dans Admin > Gammes de fabrication (case « Peut aussi se faire en… »).'},
   {n:23, d:'26/10/2026', tag:'all', t:'Réimpressions : l\'app démarre plus vite', x:'Les photos des réimpressions sont maintenant rangées à part et chargées seulement quand tu affiches la demande. L\'app télécharge beaucoup moins de données au démarrage (elle s\'ouvre plus vite, surtout en wifi lent ou en 4G). Rien ne change dans la façon de joindre ou de voir les photos.'},
   {n:22, d:'26/10/2026', tag:'admin', t:'Réimpressions : l\'historique reste dans les statistiques', x:'Les réimpressions de plus d\'un mois sont toujours supprimées (photos comprises), mais une copie légère sans photo est gardée : les statistiques de réimpression ne retombent plus à zéro. Dans Admin, un outil permet aussi de reconstituer l\'historique perdu depuis une ancienne sauvegarde.'},
   {n:21, d:'26/10/2026', tag:'admin', t:'Statistiques : chaque jour dans son vrai mois', x:'Une semaine à cheval sur deux mois est maintenant répartie jour par jour (ex. le lundi 31/08 compte en août, du 1er au 4/09 en septembre). Avant, la semaine entière était rangée selon son lundi, et celle du 31/08 n\'apparaissait dans aucun mois : le total d\'août était trop bas et la comparaison « vs mois précédent » faussée. Corrigé pour l\'écran, le PDF et le CSV des statistiques (les autres écrans ne changent pas).'},
@@ -6390,6 +6392,7 @@ var gammeFilterMode = 'all';   // 'all' | 'none' (sans gamme) | 'set' (renseign�
 var gammeEditCode = null;
 var gammeDraft = [];
 var gammeDraftOpt = {};   // index d'étape → true si optionnelle
+var gammeDraftAussi = {}; // poste de secours → true
 
 // Clé Firebase d'un format (null si le code contient un caractère interdit).
 function gammeKey(code){
@@ -6421,23 +6424,43 @@ function gammeNormalizeOpt(opt, nbEtapes){
   });
   return out.sort(function(a,b){ return a-b; });
 }
-function gammeLabel(etapes, opt){
+// Postes "de secours" (champ additif "aussi") : un format à UNE seule étape peut aussi être
+// ajouté directement dans ces autres sections (ex: MAG8054 auto, fait en semi-auto si l'auto est
+// en panne ou si la finition est en mylar). Ignoré pour une gamme à plusieurs étapes.
+function gammeNormalizeAussi(aussi, etapes){
+  etapes = gammeNormalizeEtapes(etapes);
+  if(etapes.length !== 1) return [];
+  if(aussi && !Array.isArray(aussi) && typeof aussi === 'object'){
+    aussi = Object.keys(aussi).map(function(k){ return aussi[k]; });
+  }
+  var seen = {}, out = [];
+  (Array.isArray(aussi) ? aussi : []).forEach(function(k){
+    if(GAMME_POSTES[k] && k !== etapes[0] && !seen[k]){ seen[k] = 1; out.push(k); }
+  });
+  return out;
+}
+function gammeLabel(etapes, opt, aussi){
   etapes = gammeNormalizeEtapes(etapes);
   var o = {}; gammeNormalizeOpt(opt, etapes.length).forEach(function(i){ o[i] = 1; });
-  return etapes.map(function(k, i){ return GAMME_POSTES[k] + (o[i] ? ' (selon cas)' : ''); }).join(' → ');
+  var base = etapes.map(function(k, i){ return GAMME_POSTES[k] + (o[i] ? ' (selon cas)' : ''); }).join(' → ');
+  var a = gammeNormalizeAussi(aussi, etapes);
+  return a.length ? base + ' (ou '+a.map(function(k){ return GAMME_POSTES[k]; }).join(' / ')+')' : base;
 }
 // Gamme complète {etapes, optionnelles} d'un format ; etapes vide si non renseignée.
 function gammeFrom(gammes, code){
   var k = gammeKey(code);
   var g = k && gammes ? gammes[k] : null;
   var etapes = g ? gammeNormalizeEtapes(g.etapes) : [];
-  return {etapes: etapes, optionnelles: g ? gammeNormalizeOpt(g.optionnelles, etapes.length) : []};
+  return {etapes: etapes, optionnelles: g ? gammeNormalizeOpt(g.optionnelles, etapes.length) : [], aussi: g ? gammeNormalizeAussi(g.aussi, etapes) : []};
 }
 function gammeEtapesFrom(gammes, code){ return gammeFrom(gammes, code).etapes; }
 // Lecture publique pour les étapes suivantes (rapports, suivi).
 function gammeGetEtapes(code){ return gammeEtapesFrom(S_gammes, code); }
 function gammeGet(code){ return gammeFrom(S_gammes, code); }
 function gammeEstOptionnelle(code, index){ return gammeGet(code).optionnelles.indexOf(index) >= 0; }
+function gammeDraftAussiList(){
+  return gammeNormalizeAussi(Object.keys(gammeDraftAussi).filter(function(k){ return gammeDraftAussi[k]; }), gammeDraft);
+}
 function gammeDraftOptList(){
   return gammeNormalizeOpt(Object.keys(gammeDraftOpt).filter(function(i){ return gammeDraftOpt[i]; }), gammeDraft.length);
 }
@@ -6458,7 +6481,7 @@ function gammeSemiAutoNextRequired(code){
 // garde le comportement habituel.
 function gammeSemiOnly(code){
   var g = gammeGet(code);
-  return g.etapes.length === 1 && g.etapes[0] === 'semi';
+  return g.etapes.length === 1 && (g.etapes[0] === 'semi' || g.aussi.indexOf('semi') >= 0);
 }
 // Un format peut-il être ajouté DIRECTEMENT dans cette section via "+ Ajouter
 // une commande" ? Un format sans gamme reste proposé partout (rien ne change
@@ -6496,8 +6519,9 @@ function gammeProgressHtml(code, qtyBySec, doneBySec, readyForTable){
 }
 
 function gammeSecDirect(code, sec){
-  var etapes = gammeGetEtapes(code);
+  var gg = gammeGet(code), etapes = gg.etapes;
   if(!etapes.length) return true;
+  if(etapes.length === 1 && gg.aussi.indexOf(sec) >= 0) return true;   // poste de secours autorisé
   if(sec === 'semi')  return etapes[0] === 'semi';
   if(sec === 'auto')  return etapes.length === 1 && etapes[0] === 'auto';
   if(sec === 'table') return etapes.length === 1 && etapes[0] === 'table';
@@ -6564,7 +6588,7 @@ function renderGammesList(){
   }
   el.innerHTML = list.map(function(code){
     var gg = gammeFrom(S_gammes, code);
-    var lbl = gammeLabel(gg.etapes, gg.optionnelles);
+    var lbl = gammeLabel(gg.etapes, gg.optionnelles, gg.aussi);
     return '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;margin-bottom:6px">'+
       '<strong style="font-family:Open Sans,sans-serif;font-size:.85rem;min-width:0;overflow:hidden;text-overflow:ellipsis">'+esc(code)+'</strong>'+
       '<span style="flex:1;text-align:right;font-size:.8rem;'+(lbl?'color:var(--txt);font-weight:600':'color:var(--mut);font-style:italic')+'">'+(lbl?esc(lbl):'non renseignée')+'</span>'+
@@ -6582,6 +6606,8 @@ function openGammeModal(code){
   gammeDraft = cur.etapes.slice();
   gammeDraftOpt = {};
   cur.optionnelles.forEach(function(i){ gammeDraftOpt[i] = true; });
+  gammeDraftAussi = {};
+  cur.aussi.forEach(function(k){ gammeDraftAussi[k] = true; });
   document.getElementById('gam-m-title').textContent = '🧭 Gamme — '+k;
   var g = S_gammes[k];
   document.getElementById('gam-m-meta').textContent = g && g.majLe
@@ -6602,13 +6628,22 @@ function renderGammeModal(){
     return '<button onclick="addGammeEtape(\''+k+'\')" style="padding:6px 10px;border-radius:8px;border:1.5px solid var(--brd);background:var(--card);color:var(--txt);font-size:.78rem;cursor:pointer">+ '+GAMME_POSTES[k]+'</button>';
   }).join('')+
     '<button onclick="gammeDraft=[];gammeDraftOpt={};renderGammeModal()" style="padding:6px 10px;border-radius:8px;border:1.5px solid var(--brd);background:none;color:var(--mut);font-size:.78rem;cursor:pointer">↺ Vider</button>';
-  var lbl = gammeLabel(gammeDraft, gammeDraftOptList());
+  var lbl = gammeLabel(gammeDraft, gammeDraftOptList(), gammeDraftAussiList());
   var pv = document.getElementById('gam-m-preview');
   pv.textContent = lbl || 'Aucune étape choisie';
   pv.style.color = lbl ? 'var(--txt)' : 'var(--mut)';
   // Cases "optionnelle" : pour chaque étape sauf la première.
   var optEl = document.getElementById('gam-m-opt');
   var etapes = gammeNormalizeEtapes(gammeDraft);
+  var ausEl = document.getElementById('gam-m-aussi');
+  if(etapes.length === 1){
+    ausEl.innerHTML = '<div style="font-size:.72rem;color:var(--mut);margin-bottom:4px">Peut aussi être fait directement sur un autre poste ? (ex : auto en panne, finition mylar)</div>'+
+      Object.keys(GAMME_POSTES).filter(function(k){ return k !== etapes[0]; }).map(function(k){
+        return '<label style="display:flex;align-items:center;gap:8px;font-size:.8rem;padding:4px 0;cursor:pointer">'+
+          '<input type="checkbox" '+(gammeDraftAussi[k]?'checked':'')+' onchange="toggleGammeAussi(\''+k+'\',this.checked)" style="width:18px;height:18px;accent-color:var(--acc)">'+
+          'Peut aussi se faire en '+GAMME_POSTES[k]+'</label>';
+      }).join('');
+  } else if(ausEl){ ausEl.innerHTML = ''; }
   if(etapes.length < 2){ optEl.innerHTML = ''; return; }
   optEl.innerHTML = '<div style="font-size:.72rem;color:var(--mut);margin-bottom:4px">Étape pas toujours nécessaire ? (ex : magnet prémagnété → pas de table)</div>'+
     etapes.map(function(k, i){
@@ -6618,6 +6653,7 @@ function renderGammeModal(){
         'Étape '+(i+1)+' — '+GAMME_POSTES[k]+' optionnelle (selon les cas)</label>';
     }).join('');
 }
+function toggleGammeAussi(k, on){ gammeDraftAussi[k] = !!on; renderGammeModal(); }
 function toggleGammeOpt(i, on){ gammeDraftOpt[i] = !!on; renderGammeModal(); }
 
 function pickGammePreset(i){ gammeDraft = GAMME_PRESETS[i].slice(); gammeDraftOpt = {}; renderGammeModal(); }
@@ -6629,9 +6665,10 @@ function saveGamme(){
   if(!etapes.length){ toast('Choisis au moins une étape (ou efface la gamme)',1); return; }
   var code = gammeEditCode;
   var opt = gammeNormalizeOpt(gammeDraftOptList(), etapes.length);
-  fbs('gammes/'+code, {etapes:etapes, optionnelles:(opt.length?opt:null), majPar:getMyName(), majLe:Date.now()}).then(function(){
+  var aussi = gammeNormalizeAussi(gammeDraftAussiList(), etapes);
+  fbs('gammes/'+code, {etapes:etapes, optionnelles:(opt.length?opt:null), aussi:(aussi.length?aussi:null), majPar:getMyName(), majLe:Date.now()}).then(function(){
     cm('m-gamme');
-    toast('✅ Gamme '+code+' : '+gammeLabel(etapes, opt));
+    toast('✅ Gamme '+code+' : '+gammeLabel(etapes, opt, aussi));
   }).catch(function(){ toast('❌ Enregistrement impossible — réessaie',1); });
 }
 
@@ -8037,7 +8074,7 @@ function rptLineHTML(l, di, hi, sec, canEdit, wk){
   // passe pas par cette section (ex: PINSROND-OR déclaré en semi-auto).
   // Purement informatif — jamais bloquant.
   var etapesFmt = gammeGetEtapes(l.format);
-  var offGammeBadge = (!isDone && etapesFmt.length>0 && etapesFmt.indexOf(sec)<0)
+  var offGammeBadge = (!isDone && etapesFmt.length>0 && etapesFmt.indexOf(sec)<0 && gammeGet(l.format).aussi.indexOf(sec)<0)
     ? '<span title="Gamme habituelle : '+esc(gammeLabel(etapesFmt))+'" style="font-size:0.68rem;font-family:Open Sans,sans-serif;font-weight:700;padding:2px 7px;border-radius:6px;background:rgba(217,119,6,.15);color:var(--acc);border:1px solid var(--acc);white-space:nowrap;flex-shrink:0">⚠️ Hors gamme</span>'
     : '';
 
