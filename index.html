@@ -1169,8 +1169,15 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
     <div style="border-top:1px solid var(--brd);margin-top:12px;padding-top:12px">
       <div style="font-family:Open Sans,sans-serif;font-weight:800;font-size:.88rem;margin-bottom:4px">🔄 Reconstituer l'historique des réimpressions</div>
       <div style="font-size:.74rem;color:var(--mut);margin-bottom:8px">Choisis une ancienne sauvegarde (fichier .json exporté ci-dessus) : les réimpressions qu'elle contient sont ajoutées aux statistiques (sans photos). À faire une seule fois ; refaire le même fichier ne crée pas de doublon.</div>
-      <input type="file" id="rp-restore-file" accept=".json,application/json" onchange="rpRestoreFromBackup(this)" style="font-size:.78rem;width:100%">
+      <input type="file" id="rp-restore-file" accept=".json,application/json" onchange="rpRestoreFromBackup(this)">
+      <button type="button" onclick="document.getElementById('rp-restore-file').click()" style="width:100%;padding:9px;border-radius:8px;border:1.5px solid var(--brd);background:var(--sur);color:var(--txt);font-family:Open Sans,sans-serif;font-weight:700;font-size:.86rem;cursor:pointer">📂 Choisir une sauvegarde (.json)</button>
       <div id="rp-restore-result" style="font-size:.78rem;margin-top:8px"></div>
+    </div>
+    <div style="border-top:1px solid var(--brd);margin-top:12px;padding-top:12px">
+      <div style="font-family:Open Sans,sans-serif;font-weight:800;font-size:.88rem;margin-bottom:4px">📏 Mesurer ce que l'app télécharge</div>
+      <div style="font-size:.74rem;color:var(--mut);margin-bottom:8px">Lit chaque grande partie de la base (lecture seule) et affiche son poids et son temps de chargement. Sert à trouver ce qui ralentit le démarrage.</div>
+      <button id="measure-btn" type="button" onclick="adminMeasureLoad()" style="width:100%;padding:9px;border-radius:8px;border:1.5px solid var(--brd);background:var(--sur);color:var(--txt);font-family:Open Sans,sans-serif;font-weight:700;font-size:.86rem;cursor:pointer">📏 Mesurer</button>
+      <div id="measure-result" style="font-size:.78rem;margin-top:8px"></div>
     </div>
   </div>
 
@@ -1870,7 +1877,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.10.26-1030';
+var APP_VERSION = '2026.10.26-1045';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -16027,6 +16034,41 @@ function adminExportFullDB(){
   }).catch(function(err){
     if(btn){ btn.disabled = false; btn.textContent = '📦 Exporter toute la base (JSON)'; }
     if(result){ result.style.color = 'var(--red)'; result.textContent = '❌ Erreur : '+((err&&err.message)||String(err)); }
+  });
+}
+
+// Mesure (lecture seule) le poids et le temps de chargement des grandes parties de la base.
+function adminMeasureLoad(){
+  if(!iAm) return;
+  var btn = document.getElementById('measure-btn'), out = document.getElementById('measure-result');
+  var paths = ['categories','orders','commandes','customFormats','gammes','reprints','plateaux','machines','settings','alertesVues','users','reprints_stats'];
+  if(btn){ btn.disabled = true; btn.textContent = '⏳ Mesure en cours…'; }
+  out.style.color = 'var(--mut)'; out.textContent = '';
+  var rows = [];
+  // un par un (pas en parallèle) pour que chaque temps soit lisible
+  paths.reduce(function(chain, path){
+    return chain.then(function(){
+      var t0 = Date.now();
+      return fbg(path).then(function(snap){
+        var v = snap.val();
+        var bytes = v == null ? 0 : JSON.stringify(v).length;
+        var n = (v && typeof v === 'object') ? Object.keys(v).length : (v == null ? 0 : 1);
+        rows.push({path:path, bytes:bytes, n:n, ms:Date.now()-t0});
+      }).catch(function(){ rows.push({path:path, bytes:0, n:0, ms:Date.now()-t0, err:true}); });
+    });
+  }, Promise.resolve()).then(function(){
+    var total = rows.reduce(function(s,r){ return s+r.bytes; }, 0);
+    rows.sort(function(a,b){ return b.bytes-a.bytes; });
+    var fmt = function(b){ return b>=1048576 ? (b/1048576).toFixed(1)+' Mo' : Math.round(b/1024)+' Ko'; };
+    out.style.color = 'var(--txt)';
+    out.innerHTML = '<div style="font-weight:700;margin-bottom:4px">Total : '+fmt(total)+'</div>' +
+      rows.map(function(r){
+        var pct = total ? Math.round(r.bytes*100/total) : 0;
+        return '<div style="display:flex;justify-content:space-between;gap:8px;padding:3px 0;border-top:1px solid var(--brd)">'+
+          '<span><strong>'+r.path+'</strong> <span style="color:var(--mut)">('+r.n+' élément'+(r.n>1?'s':'')+')</span></span>'+
+          '<span style="white-space:nowrap">'+(r.err?'erreur':fmt(r.bytes)+' · '+pct+' % · '+r.ms+' ms')+'</span></div>';
+      }).join('');
+    if(btn){ btn.disabled = false; btn.textContent = '📏 Mesurer'; }
   });
 }
 
