@@ -1892,7 +1892,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.10.26-1430';
+var APP_VERSION = '2026.10.26-1500';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -2513,6 +2513,7 @@ function ecranAutoOpen(tries){
 // Pas de correctif technique invisible ici. tag = qui est concerné :
 //   'all' (tout le monde), 'admin' (admin/direction), 'maint' (maintenance), 'stock' (ajout de stock), 'reprint' (réimpressions)
 var NEWS = [
+  {n:28, d:'26/10/2026', tag:'admin', t:'Statistiques par période : ventes EBP avant juillet 2026', x:'En mode « Par période », une période entièrement avant juillet 2026 affiche maintenant les ventes EBP (mois entiers) avec la comparaison à l\'année d\'avant. Une période à cheval sur juillet 2026 garde la production de l\'app et rappelle les ventes EBP des mois d\'avant.'},
   {n:27, d:'26/10/2026', tag:'admin', t:'Statistiques : mois d\'avant juillet 2026 (ventes EBP)', x:'Pour les mois d\'avant juillet 2026, les statistiques affichent maintenant les ventes EBP : total, comparaison avec le mois précédent et l\'année d\'avant, classement des formats, plus fortes hausses et baisses, et recherche par format.'},
   {n:26, d:'26/10/2026', tag:'admin', t:'Statistiques : historique des ventes EBP', x:'Les ventes EBP de 2025 et de janvier à juin 2026 peuvent être importées (Admin > Sauvegarde). Elles complètent le comparatif avec l\'année précédente : avant juillet 2026 on affiche les ventes EBP (repérées « EBP »), ensuite les pièces produites dans l\'app.'},
   {n:25, d:'26/10/2026', tag:'admin', t:'Statistiques : comparaison avec l\'année précédente', x:'Le total du mois affiche maintenant l\'écart avec le même mois de l\'année précédente. Un nouveau bloc « Année en cours vs N-1 » montre, mois par mois, si on est en avance ou en retard sur l\'an dernier (cumul de janvier au dernier mois complet). Tant qu\'il n\'y a pas de données N-1, c\'est indiqué simplement.'},
@@ -13452,26 +13453,48 @@ function statsEbpFormats(histo, ym, excl){
   });
   return out;
 }
-function statsEbpMonth(histo, ym, excl){
-  var fm = statsEbpFormats(histo, ym, excl);
-  var ymP = (parseInt(ym.slice(0,4))-1)+ym.slice(4);
-  var fN1 = statsEbpFormats(histo, ymP, excl);
-  var hasN1 = !!(histo && histo[ymP]);
-  var total = statsHistoTotal(histo, ym, excl);
-  var prevYm = statsEbpPrevYm(ym);
-  var totalPrev = statsHistoTotal(histo, prevYm, excl);
-  var totalN1 = statsHistoTotal(histo, ymP, excl);
+// Plusieurs mois entiers (liste 'YYYY-MM') : formats additionnés, comparaison avec les mêmes mois un an plus tôt.
+function statsEbpRange(histo, yms, excl){
+  var fm = {}, fN1 = {}, total = null, totalN1 = null, hasN1 = false;
+  yms.forEach(function(ym){
+    var ymP = (parseInt(ym.slice(0,4))-1)+ym.slice(4);
+    var f = statsEbpFormats(histo, ym, excl), t = statsHistoTotal(histo, ym, excl);
+    if(t !== null) total = (total||0) + t;
+    Object.keys(f).forEach(function(c){ fm[c] = (fm[c]||0) + f[c]; });
+    if(histo && histo[ymP]){
+      hasN1 = true;
+      var f1 = statsEbpFormats(histo, ymP, excl);
+      Object.keys(f1).forEach(function(c){ fN1[c] = (fN1[c]||0) + f1[c]; });
+      totalN1 = (totalN1||0) + (statsHistoTotal(histo, ymP, excl) || 0);
+    }
+  });
   var codes = {}; Object.keys(fm).forEach(function(c){ codes[c]=1; }); if(hasN1) Object.keys(fN1).forEach(function(c){ codes[c]=1; });
   var deltas = Object.keys(codes).map(function(c){ return {code:c, n:fm[c]||0, n1:fN1[c]||0, diff:(fm[c]||0)-(fN1[c]||0)}; });
   return {
-    ym:ym, ymN1:ymP, formats:fm, formatsN1:fN1, hasN1:hasN1,
-    total:total, totalPrev:totalPrev, totalN1:totalN1,
-    pctPrev: (total!==null && totalPrev) ? statsPct(total, totalPrev) : null,
-    pctN1:   (total!==null && hasN1 && totalN1) ? statsPct(total, totalN1) : null,
+    yms:yms, ym:yms[0], formats:fm, formatsN1:fN1, hasN1:hasN1,
+    total:total, totalPrev:null, totalN1:totalN1, pctPrev:null,
+    pctN1: (total!==null && hasN1 && totalN1) ? statsPct(total, totalN1) : null,
     list: Object.keys(fm).sort(function(a,b){ return fm[b]-fm[a]; }),
     ups:   deltas.filter(function(d){ return d.n1 > 0 && d.diff > 0; }).sort(function(a,b){ return b.diff-a.diff; }).slice(0,3),
     downs: deltas.filter(function(d){ return d.n1 > 0 && d.diff < 0; }).sort(function(a,b){ return a.diff-b.diff; }).slice(0,3)
   };
+}
+function statsEbpMonth(histo, ym, excl){
+  var d = statsEbpRange(histo, [ym], excl);
+  d.totalPrev = statsHistoTotal(histo, statsEbpPrevYm(ym), excl);
+  d.pctPrev = (d.total!==null && d.totalPrev) ? statsPct(d.total, d.totalPrev) : null;
+  return d;
+}
+// Liste des mois 'YYYY-MM' touchés par une période (dates incluses).
+function statsMonthsBetween(firstDay, lastDay){
+  var out = [], y = firstDay.getFullYear(), m = firstDay.getMonth();
+  var yE = lastDay.getFullYear(), mE = lastDay.getMonth();
+  while(y < yE || (y === yE && m <= mE)){
+    out.push(y+'-'+String(m+1).padStart(2,'0'));
+    m++; if(m > 11){ m = 0; y++; }
+    if(out.length > 60) break;
+  }
+  return out;
 }
 function statsEbpHtml(d, label, labelN1){
   var fr = function(v){ return v.toLocaleString('fr-FR'); };
@@ -13480,7 +13503,7 @@ function statsEbpHtml(d, label, labelN1){
     return '<div style="font-size:.72rem;color:'+(p>=0?'var(--grn)':'var(--red)')+';margin-top:2px">'+(p>=0?'↑':'↓')+' '+Math.abs(p)+'% vs '+lbl+'</div>';
   };
   var h = '<div style="font-family:Open Sans,sans-serif;font-weight:700;font-size:0.84rem;color:var(--mut);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">'+esc(label)+' <span style="color:var(--acc)">· ventes EBP</span></div>'
-    +'<div style="font-size:.78rem;color:var(--mut);margin-bottom:12px">Volumes <b>vendus</b> (EBP) : pas de détail par producteur, machine ou commande pour cette période.</div>';
+    +'<div style="font-size:.78rem;color:var(--mut);margin-bottom:12px">Volumes <b>vendus</b> (EBP) : pas de détail par producteur, machine ou commande pour cette période.'+(d.note?'<br>'+esc(d.note):'')+'</div>';
   h += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px">';
   h += kpiCard('📦 Total vendu', fr(d.total)+' pcs', pctTxt(d.pctPrev, 'mois préc.')+pctTxt(d.pctN1, labelN1)+(d.pctN1===null&&!d.hasN1?'<div style="font-size:.7rem;color:var(--mut);margin-top:2px">pas de données '+esc(labelN1)+'</div>':''));
   h += kpiCard('🏷️ Formats vendus', d.list.length+'', '');
@@ -15851,6 +15874,24 @@ function loadStats(){
       }
 
       // Mois d'avant la bascule disponible dans l'historique EBP : on affiche les ventes (l'app n'a pas toute la production)
+      if(statsModeActive === 'period' && !pf && histoData){
+        var pYms = statsMonthsBetween(firstDay, lastDay);
+        var pPre = pYms.filter(function(k){ return k < STATS_HISTO_BASCULE && histoData[k]; });
+        var exclP = statsHistoExcl();
+        if(pPre.length && pPre.length === pYms.length){
+          // Période entièrement avant la bascule : vue des ventes EBP (mois entiers)
+          var dP = statsEbpRange(histoData, pYms, exclP);
+          var entiers = (firstDay.getDate() === 1) && (new Date(lastDay.getFullYear(), lastDay.getMonth()+1, 0).getDate() === lastDay.getDate());
+          if(!entiers) dP.note = 'Les ventes EBP sont mensuelles : le calcul porte sur les mois entiers de '+pYms[0].slice(5)+'/'+pYms[0].slice(0,4)+' à '+pYms[pYms.length-1].slice(5)+'/'+pYms[pYms.length-1].slice(0,4)+'.';
+          html = statsEbpHtml(dP, monthLabel, 'la même période '+(parseInt(pYms[0].slice(0,4))-1));
+          window._statsData = {ebp:true, ebpData:dP, histo:histoData, excl:exclP, formatCount:dP.formats, formatByMachine:{}, formatCmds:{}};
+        } else if(pPre.length){
+          // Période à cheval sur la bascule : on garde la production de l'app et on rappelle les ventes EBP des mois d'avant
+          var tPre = pPre.reduce(function(a,k){ return a + (statsHistoTotal(histoData, k, exclP)||0); }, 0);
+          html = '<div style="background:var(--card);border:1.5px solid var(--acc);border-radius:10px;padding:10px 12px;margin-bottom:12px;font-size:.8rem">'
+            +'ℹ️ Avant juillet 2026, l\'app n\'a pas toute la production. Ventes EBP de '+pPre.map(function(k){ return k.slice(5)+'/'+k.slice(0,4); }).join(', ')+' : <b>'+tPre.toLocaleString('fr-FR')+' pcs</b> (non incluses dans les chiffres ci-dessous, qui sont la production de l\'app).</div>'+html;
+        }
+      }
       if(statsModeActive !== 'period' && !pf){
         var ebpYm = year+'-'+String(month+1).padStart(2,'0');
         if(ebpYm < STATS_HISTO_BASCULE && histoData && histoData[ebpYm]){
@@ -16294,7 +16335,8 @@ function searchFmtInStats(){
     var ed = window._statsData.ebpData, q = ed.formats[fmt] || 0, q1 = ed.formatsN1[fmt] || 0;
     if(!q && !q1){ el.innerHTML = '<div style="color:var(--mut);font-size:.82rem;padding:8px 0">Aucune vente de <strong>'+esc(fmt)+'</strong> sur ce mois (ventes EBP).</div>'; return; }
     // Cumul de janvier à ce mois, cette année et l'année précédente
-    var mm = parseInt(ed.ym.slice(5,7)), yy = parseInt(ed.ym.slice(0,4)), cum = 0, cum1 = 0;
+    var isRange = ed.yms && ed.yms.length > 1;
+    var mm = isRange ? 0 : parseInt(ed.ym.slice(5,7)), yy = parseInt(ed.ym.slice(0,4)), cum = 0, cum1 = 0;
     for(var i=1;i<=mm;i++){
       var k = String(i).padStart(2,'0');
       cum  += statsEbpFormats(window._statsData.histo, yy+'-'+k, window._statsData.excl)[fmt] || 0;
@@ -16305,8 +16347,8 @@ function searchFmtInStats(){
     el.innerHTML = '<div style="background:var(--sur);border-radius:10px;padding:12px">'
       +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><strong style="font-family:Open Sans,sans-serif;font-size:1.03rem">'+esc(fmt)+' <span style="font-size:.7rem;color:var(--acc)">ventes EBP</span></strong>'
       +'<strong style="color:var(--acc);font-size:1.1rem">'+q.toLocaleString('fr-FR')+' pcs</strong></div>'
-      +'<div style="font-size:.8rem;display:flex;justify-content:space-between;padding:3px 0"><span style="color:var(--mut)">Même mois '+(yy-1)+'</span><span>'+q1.toLocaleString('fr-FR')+' pcs'+cl(pc)+'</span></div>'
-      +'<div style="font-size:.8rem;display:flex;justify-content:space-between;padding:3px 0"><span style="color:var(--mut)">Cumul janv. → ce mois</span><span>'+cum.toLocaleString('fr-FR')+' pcs'+(cum1?' contre '+cum1.toLocaleString('fr-FR')+cl(pcc):'')+'</span></div>'
+      +'<div style="font-size:.8rem;display:flex;justify-content:space-between;padding:3px 0"><span style="color:var(--mut)">'+(isRange?'Même période ':'Même mois ')+(yy-1)+'</span><span>'+q1.toLocaleString('fr-FR')+' pcs'+cl(pc)+'</span></div>'
+      +(isRange ? '' : '<div style="font-size:.8rem;display:flex;justify-content:space-between;padding:3px 0"><span style="color:var(--mut)">Cumul janv. → ce mois</span><span>'+cum.toLocaleString('fr-FR')+' pcs'+(cum1?' contre '+cum1.toLocaleString('fr-FR')+cl(pcc):'')+'</span></div>')
       +'</div>';
     return;
   }
