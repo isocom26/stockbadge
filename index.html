@@ -1892,7 +1892,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.10.26-1400';
+var APP_VERSION = '2026.10.26-1430';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -2513,6 +2513,7 @@ function ecranAutoOpen(tries){
 // Pas de correctif technique invisible ici. tag = qui est concerné :
 //   'all' (tout le monde), 'admin' (admin/direction), 'maint' (maintenance), 'stock' (ajout de stock), 'reprint' (réimpressions)
 var NEWS = [
+  {n:27, d:'26/10/2026', tag:'admin', t:'Statistiques : mois d\'avant juillet 2026 (ventes EBP)', x:'Pour les mois d\'avant juillet 2026, les statistiques affichent maintenant les ventes EBP : total, comparaison avec le mois précédent et l\'année d\'avant, classement des formats, plus fortes hausses et baisses, et recherche par format.'},
   {n:26, d:'26/10/2026', tag:'admin', t:'Statistiques : historique des ventes EBP', x:'Les ventes EBP de 2025 et de janvier à juin 2026 peuvent être importées (Admin > Sauvegarde). Elles complètent le comparatif avec l\'année précédente : avant juillet 2026 on affiche les ventes EBP (repérées « EBP »), ensuite les pièces produites dans l\'app.'},
   {n:25, d:'26/10/2026', tag:'admin', t:'Statistiques : comparaison avec l\'année précédente', x:'Le total du mois affiche maintenant l\'écart avec le même mois de l\'année précédente. Un nouveau bloc « Année en cours vs N-1 » montre, mois par mois, si on est en avance ou en retard sur l\'an dernier (cumul de janvier au dernier mois complet). Tant qu\'il n\'y a pas de données N-1, c\'est indiqué simplement.'},
   {n:24, d:'26/10/2026', tag:'all', t:'Gammes : poste de secours (MAG8054 en semi-auto)', x:'Un format peut maintenant être fait aussi sur un autre poste que le sien, par exemple du MAG8054 en semi-auto quand l\'auto est en panne ou pour une finition mylar. Il est alors proposé en Semi-auto comme en Auto, avec un simple bouton « Produit » (pas de « Prêt table »). Réglage dans Admin > Gammes de fabrication (case « Peut aussi se faire en… »).'},
@@ -13435,6 +13436,93 @@ function statsLoadYearCompare(){
     box.innerHTML = '<div style="color:var(--red);font-size:.82rem;padding:8px">❌ Chargement impossible — réessaie.</div>';
   });
 }
+// ── Vue « ventes EBP » d'un mois (avant la bascule, quand l'app n'a pas la production) ──
+// Données d'un mois de l'historique : total, formats triés (hors numérique/présentoirs), comparaison mois précédent / N-1.
+function statsEbpPrevYm(ym){
+  var y = parseInt(ym.slice(0,4)), m = parseInt(ym.slice(5,7));
+  return m === 1 ? (y-1)+'-12' : y+'-'+String(m-1).padStart(2,'0');
+}
+function statsEbpFormats(histo, ym, excl){
+  var m = (histo && histo[ym]) || {}, out = {};
+  Object.keys(m).forEach(function(c){
+    var k = String(c).toUpperCase();
+    if(excl && excl[k]) return;
+    var q = parseInt(m[c]) || 0;
+    if(q) out[k] = (out[k]||0) + q;
+  });
+  return out;
+}
+function statsEbpMonth(histo, ym, excl){
+  var fm = statsEbpFormats(histo, ym, excl);
+  var ymP = (parseInt(ym.slice(0,4))-1)+ym.slice(4);
+  var fN1 = statsEbpFormats(histo, ymP, excl);
+  var hasN1 = !!(histo && histo[ymP]);
+  var total = statsHistoTotal(histo, ym, excl);
+  var prevYm = statsEbpPrevYm(ym);
+  var totalPrev = statsHistoTotal(histo, prevYm, excl);
+  var totalN1 = statsHistoTotal(histo, ymP, excl);
+  var codes = {}; Object.keys(fm).forEach(function(c){ codes[c]=1; }); if(hasN1) Object.keys(fN1).forEach(function(c){ codes[c]=1; });
+  var deltas = Object.keys(codes).map(function(c){ return {code:c, n:fm[c]||0, n1:fN1[c]||0, diff:(fm[c]||0)-(fN1[c]||0)}; });
+  return {
+    ym:ym, ymN1:ymP, formats:fm, formatsN1:fN1, hasN1:hasN1,
+    total:total, totalPrev:totalPrev, totalN1:totalN1,
+    pctPrev: (total!==null && totalPrev) ? statsPct(total, totalPrev) : null,
+    pctN1:   (total!==null && hasN1 && totalN1) ? statsPct(total, totalN1) : null,
+    list: Object.keys(fm).sort(function(a,b){ return fm[b]-fm[a]; }),
+    ups:   deltas.filter(function(d){ return d.n1 > 0 && d.diff > 0; }).sort(function(a,b){ return b.diff-a.diff; }).slice(0,3),
+    downs: deltas.filter(function(d){ return d.n1 > 0 && d.diff < 0; }).sort(function(a,b){ return a.diff-b.diff; }).slice(0,3)
+  };
+}
+function statsEbpHtml(d, label, labelN1){
+  var fr = function(v){ return v.toLocaleString('fr-FR'); };
+  var pctTxt = function(p, lbl){
+    if(p === null) return '';
+    return '<div style="font-size:.72rem;color:'+(p>=0?'var(--grn)':'var(--red)')+';margin-top:2px">'+(p>=0?'↑':'↓')+' '+Math.abs(p)+'% vs '+lbl+'</div>';
+  };
+  var h = '<div style="font-family:Open Sans,sans-serif;font-weight:700;font-size:0.84rem;color:var(--mut);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">'+esc(label)+' <span style="color:var(--acc)">· ventes EBP</span></div>'
+    +'<div style="font-size:.78rem;color:var(--mut);margin-bottom:12px">Volumes <b>vendus</b> (EBP) : pas de détail par producteur, machine ou commande pour cette période.</div>';
+  h += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px">';
+  h += kpiCard('📦 Total vendu', fr(d.total)+' pcs', pctTxt(d.pctPrev, 'mois préc.')+pctTxt(d.pctN1, labelN1)+(d.pctN1===null&&!d.hasN1?'<div style="font-size:.7rem;color:var(--mut);margin-top:2px">pas de données '+esc(labelN1)+'</div>':''));
+  h += kpiCard('🏷️ Formats vendus', d.list.length+'', '');
+  h += '</div>';
+  if(d.list.length){
+    var max = d.formats[d.list[0]] || 1;
+    var row = function(fmt, i){
+      var q = d.formats[fmt], pct = Math.round((q/max)*100), share = d.total ? Math.round((q/d.total)*100) : 0;
+      var cmp = '';
+      if(d.hasN1){
+        var q1 = d.formatsN1[fmt] || 0, p = statsPct(q, q1);
+        cmp = q1 > 0 ? ' <span style="font-size:.7rem;color:'+(p>=0?'var(--grn)':'var(--red)')+'">'+(p>=0?'↑':'↓')+Math.abs(p)+'%</span>' : ' <span style="font-size:.68rem;color:var(--mut)">nouveau</span>';
+      }
+      return '<div style="margin-bottom:8px"><div style="display:flex;justify-content:space-between;font-size:.8rem;margin-bottom:3px">'
+        +'<span><span style="color:var(--mut);font-size:.72rem">'+(i+1)+'.</span> '+esc(fmt)+'</span>'
+        +'<span style="color:var(--acc);font-weight:700">'+fr(q)+' pcs <span style="color:var(--mut);font-weight:400;font-size:.72rem">· '+share+'%</span>'+cmp+'</span></div>'
+        +'<div style="background:var(--sur);border-radius:99px;height:5px;overflow:hidden"><div style="background:var(--acc);width:'+pct+'%;height:100%;border-radius:99px"></div></div></div>';
+    };
+    h += statsSectionTitle('🏆 Top '+Math.min(10,d.list.length)+' formats vendus');
+    h += '<div style="background:var(--card);border:1.5px solid var(--brd);border-radius:12px;padding:12px;margin-bottom:16px">'
+      + d.list.slice(0,10).map(row).join('');
+    if(d.list.length > 10){
+      h += '<details><summary style="cursor:pointer;font-size:.8rem;color:var(--acc);font-weight:700;margin:6px 0">Voir les '+(d.list.length-10)+' autres formats</summary>'
+        + d.list.slice(10).map(function(f,i){ return row(f, i+10); }).join('') + '</details>';
+    }
+    h += '</div>';
+  }
+  if(d.hasN1 && (d.ups.length || d.downs.length)){
+    var lines = function(arr, up){
+      return arr.map(function(x){
+        return '<div style="display:flex;justify-content:space-between;font-size:.8rem;padding:3px 0"><span>'+esc(x.code)+'</span>'
+          +'<span style="color:'+(up?'var(--grn)':'var(--red)')+';font-weight:700">'+(up?'+':'−')+fr(Math.abs(x.diff))+' pcs <span style="color:var(--mut);font-weight:400;font-size:.72rem">('+fr(x.n)+' contre '+fr(x.n1)+')</span></span></div>';
+      }).join('');
+    };
+    h += statsSectionTitle('📊 Évolution par format vs '+esc(labelN1));
+    h += '<div style="background:var(--card);border:1.5px solid var(--brd);border-radius:12px;padding:12px;margin-bottom:16px">'
+      + (d.ups.length ? '<div style="font-size:.72rem;color:var(--mut);margin-bottom:2px">Plus fortes hausses</div>'+lines(d.ups,true) : '')
+      + (d.downs.length ? '<div style="font-size:.72rem;color:var(--mut);margin:'+(d.ups.length?'8px':'0')+' 0 2px">Plus fortes baisses</div>'+lines(d.downs,false) : '')
+      + '</div>';
+  }
+  return h;
+}
 function esupStatsByUid(cmdObj, firstDay, lastDay){
   var out = {};
   esupEachSaisie(cmdObj, function(c, k, sa){
@@ -15762,6 +15850,17 @@ function loadStats(){
         html = '<div style="color:var(--mut);font-size:.85rem;text-align:center;padding:30px">Aucune production enregistrée pour cette période</div>';
       }
 
+      // Mois d'avant la bascule disponible dans l'historique EBP : on affiche les ventes (l'app n'a pas toute la production)
+      if(statsModeActive !== 'period' && !pf){
+        var ebpYm = year+'-'+String(month+1).padStart(2,'0');
+        if(ebpYm < STATS_HISTO_BASCULE && histoData && histoData[ebpYm]){
+          var exclE = statsHistoExcl();
+          var dE = statsEbpMonth(histoData, ebpYm, exclE);
+          html = statsEbpHtml(dE, monthLabel, new Date(year-1, month, 1).toLocaleDateString('fr-FR',{month:'short',year:'numeric'}));
+          window._statsData = {ebp:true, ebpData:dE, histo:histoData, excl:exclE, formatCount:dE.formats, formatByMachine:{}, formatCmds:{}};
+        }
+      }
+
       el.innerHTML = html;
     });
   });
@@ -15824,6 +15923,7 @@ function exportStatsPDF(){
   if(!window._statsData){
     toast('Chargez d\'abord les statistiques', 1); return;
   }
+  if(window._statsData.ebp){ toast('Export indisponible : ce mois vient de l\'historique des ventes EBP', 1); return; }
 
   var jsPDF = window.jspdf ? window.jspdf.jsPDF : null;
   if(!jsPDF){ toast('jsPDF non disponible', 1); return; }
@@ -16036,6 +16136,7 @@ function exportStatsCSV(){
   if(!el || !window._statsData){
     toast('Chargez d\'abord les statistiques',1); return;
   }
+  if(window._statsData.ebp){ toast('Export indisponible : ce mois vient de l\'historique des ventes EBP',1); return; }
   var producerFilterEl = document.getElementById('stats-producer-filter');
   var pf = producerFilterEl ? producerFilterEl.value : '';
 
@@ -16189,6 +16290,26 @@ function searchFmtInStats(){
     return;
   }
 
+  if(window._statsData.ebp){
+    var ed = window._statsData.ebpData, q = ed.formats[fmt] || 0, q1 = ed.formatsN1[fmt] || 0;
+    if(!q && !q1){ el.innerHTML = '<div style="color:var(--mut);font-size:.82rem;padding:8px 0">Aucune vente de <strong>'+esc(fmt)+'</strong> sur ce mois (ventes EBP).</div>'; return; }
+    // Cumul de janvier à ce mois, cette année et l'année précédente
+    var mm = parseInt(ed.ym.slice(5,7)), yy = parseInt(ed.ym.slice(0,4)), cum = 0, cum1 = 0;
+    for(var i=1;i<=mm;i++){
+      var k = String(i).padStart(2,'0');
+      cum  += statsEbpFormats(window._statsData.histo, yy+'-'+k, window._statsData.excl)[fmt] || 0;
+      cum1 += statsEbpFormats(window._statsData.histo, (yy-1)+'-'+k, window._statsData.excl)[fmt] || 0;
+    }
+    var pc = statsPct(q, q1), pcc = statsPct(cum, cum1);
+    var cl = function(p){ return p===null ? '' : ' <span style="color:'+(p>=0?'var(--grn)':'var(--red)')+';font-weight:700">'+(p>=0?'↑':'↓')+Math.abs(p)+'%</span>'; };
+    el.innerHTML = '<div style="background:var(--sur);border-radius:10px;padding:12px">'
+      +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><strong style="font-family:Open Sans,sans-serif;font-size:1.03rem">'+esc(fmt)+' <span style="font-size:.7rem;color:var(--acc)">ventes EBP</span></strong>'
+      +'<strong style="color:var(--acc);font-size:1.1rem">'+q.toLocaleString('fr-FR')+' pcs</strong></div>'
+      +'<div style="font-size:.8rem;display:flex;justify-content:space-between;padding:3px 0"><span style="color:var(--mut)">Même mois '+(yy-1)+'</span><span>'+q1.toLocaleString('fr-FR')+' pcs'+cl(pc)+'</span></div>'
+      +'<div style="font-size:.8rem;display:flex;justify-content:space-between;padding:3px 0"><span style="color:var(--mut)">Cumul janv. → ce mois</span><span>'+cum.toLocaleString('fr-FR')+' pcs'+(cum1?' contre '+cum1.toLocaleString('fr-FR')+cl(pcc):'')+'</span></div>'
+      +'</div>';
+    return;
+  }
   var total = window._statsData.formatCount[fmt] || 0;
   if(!total){
     el.innerHTML = '<div style="color:var(--mut);font-size:.82rem;padding:8px 0">Aucune production de <strong>'+fmt+'</strong> sur cette période.</div>';
