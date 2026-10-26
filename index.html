@@ -1884,7 +1884,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.10.26-1215';
+var APP_VERSION = '2026.10.26-1300';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -2505,6 +2505,7 @@ function ecranAutoOpen(tries){
 // Pas de correctif technique invisible ici. tag = qui est concerné :
 //   'all' (tout le monde), 'admin' (admin/direction), 'maint' (maintenance), 'stock' (ajout de stock), 'reprint' (réimpressions)
 var NEWS = [
+  {n:25, d:'26/10/2026', tag:'admin', t:'Statistiques : comparaison avec l\'année précédente', x:'Le total du mois affiche maintenant l\'écart avec le même mois de l\'année précédente. Un nouveau bloc « Année en cours vs N-1 » montre, mois par mois, si on est en avance ou en retard sur l\'an dernier (cumul de janvier au dernier mois complet). Tant qu\'il n\'y a pas de données N-1, c\'est indiqué simplement.'},
   {n:24, d:'26/10/2026', tag:'all', t:'Gammes : poste de secours (MAG8054 en semi-auto)', x:'Un format peut maintenant être fait aussi sur un autre poste que le sien, par exemple du MAG8054 en semi-auto quand l\'auto est en panne ou pour une finition mylar. Il est alors proposé en Semi-auto comme en Auto, avec un simple bouton « Produit » (pas de « Prêt table »). Réglage dans Admin > Gammes de fabrication (case « Peut aussi se faire en… »).'},
   {n:23, d:'26/10/2026', tag:'all', t:'Réimpressions : l\'app démarre plus vite', x:'Les photos des réimpressions sont maintenant rangées à part et chargées seulement quand tu affiches la demande. L\'app télécharge beaucoup moins de données au démarrage (elle s\'ouvre plus vite, surtout en wifi lent ou en 4G). Rien ne change dans la façon de joindre ou de voir les photos.'},
   {n:22, d:'26/10/2026', tag:'admin', t:'Réimpressions : l\'historique reste dans les statistiques', x:'Les réimpressions de plus d\'un mois sont toujours supprimées (photos comprises), mais une copie légère sans photo est gardée : les statistiques de réimpression ne retombent plus à zéro. Dans Admin, un outil permet aussi de reconstituer l\'historique perdu depuis une ancienne sauvegarde.'},
@@ -13294,6 +13295,102 @@ function statsWeekTouches(wk, fromKey, toKey){
   if(!mon) return false;
   return !(fri < fromKey || mon > toKey);
 }
+// ── Statistiques : comparaison avec l'année précédente (N-1) ──
+// Totaux par mois ('YYYY-MM' → pièces) des lignes terminées hors table (même règle que « Total produit »).
+function statsMonthsFromReports(data, fromKey, toKey, acc){
+  acc = acc || {};
+  Object.keys(data || {}).forEach(function(wk){
+    if(!statsWeekTouches(wk, fromKey, toKey)) return;
+    var w = data[wk] || {};
+    for(var di=0; di<5; di++) for(var hi=0; hi<2; hi++){
+      var dk = statsWkDayKey(wk, di);
+      if(!dk || dk < fromKey || dk > toKey) continue;
+      var lines = ((w['d'+di]||{})['h'+hi]||{}).lines || [];
+      lines.forEach(function(l){
+        if(!l || l.status !== 'done' || (l.sec||'semi') === 'table') return;
+        var q = parseInt(l.qty) || 0;
+        if(q) acc[dk.slice(0,7)] = (acc[dk.slice(0,7)] || 0) + q;
+      });
+    }
+  });
+  return acc;
+}
+// Écart en % (null si la base est nulle : pas de comparaison possible).
+function statsPct(cur, base){ return base > 0 ? Math.round(((cur - base) / base) * 100) : null; }
+// Cumul de janvier à lastMonth (0-11, inclus) pour l'année `year` et pour N-1, + détail par mois.
+function statsYearCompareCalc(mN, mN1, year, lastMonth){
+  var rows = [], cumN = 0, cumN1 = 0;
+  for(var m=0; m<12; m++){
+    var kN = year+'-'+String(m+1).padStart(2,'0'), kP = (year-1)+'-'+String(m+1).padStart(2,'0');
+    var n = mN[kN] || 0, p = mN1[kP] || 0;
+    rows.push({m:m, n:n, n1:p, diff:n-p, pct:statsPct(n, p)});
+    if(m <= lastMonth){ cumN += n; cumN1 += p; }
+  }
+  return {rows:rows, cumN:cumN, cumN1:cumN1, diff:cumN-cumN1, pct:statsPct(cumN, cumN1), lastMonth:lastMonth};
+}
+var STATS_MOIS_COURTS = ['janv.','févr.','mars','avr.','mai','juin','juil.','août','sept.','oct.','nov.','déc.'];
+function statsYearCompareHtml(calc, year, curMonth){
+  var fr = function(v){ return v.toLocaleString('fr-FR'); };
+  var h = '';
+  if(calc.lastMonth < 0){
+    h += '<div style="font-size:.82rem;color:var(--mut);margin-bottom:10px">Aucun mois complet pour l\'instant cette année : le cumul sera disponible le mois prochain.</div>';
+  } else if(calc.cumN1 <= 0){
+    h += '<div style="font-size:.82rem;color:var(--mut);margin-bottom:10px">Pas encore de données '+(year-1)+' pour comparer. Cumul '+year+' (janv. → '+STATS_MOIS_COURTS[calc.lastMonth]+') : <b>'+fr(calc.cumN)+' pcs</b>.</div>';
+  } else {
+    var up = calc.diff >= 0, col = up ? 'var(--grn)' : 'var(--red)';
+    h += '<div style="background:var(--card);border:1.5px solid '+col+';border-radius:12px;padding:12px;margin-bottom:10px;text-align:center">'
+      +'<div style="font-family:Open Sans,sans-serif;font-weight:800;font-size:1.05rem;color:'+col+'">'+(up?'↑ En avance':'↓ En retard')+' de '+fr(Math.abs(calc.diff))+' pcs ('+(up?'+':'−')+Math.abs(calc.pct)+' %)</div>'
+      +'<div style="font-size:.76rem;color:var(--mut);margin-top:4px">Cumul janv. → '+STATS_MOIS_COURTS[calc.lastMonth]+' : '+fr(calc.cumN)+' pcs en '+year+' contre '+fr(calc.cumN1)+' pcs en '+(year-1)+'</div>'
+    +'</div>';
+  }
+  h += '<div style="background:var(--card);border:1.5px solid var(--brd);border-radius:12px;padding:8px 10px;overflow-x:auto">'
+    +'<table style="width:100%;border-collapse:collapse;font-size:.78rem">'
+    +'<tr style="color:var(--mut);text-align:right"><th style="text-align:left;padding:4px 2px">Mois</th><th style="padding:4px 2px">'+year+'</th><th style="padding:4px 2px">'+(year-1)+'</th><th style="padding:4px 2px">Écart</th></tr>';
+  calc.rows.forEach(function(r){
+    var future = (curMonth >= 0 && r.m > curMonth);
+    var cur = (r.m === curMonth);
+    var hasBase = r.n1 > 0;
+    var ecart = (future || (!r.n && !r.n1)) ? '' : (hasBase ? '<span style="color:'+(r.diff>=0?'var(--grn)':'var(--red)')+';font-weight:700">'+(r.diff>=0?'+':'−')+Math.abs(r.pct)+' %</span>' : '<span style="color:var(--mut)">—</span>');
+    h += '<tr style="text-align:right;border-top:1px solid var(--brd)'+(future?';opacity:.45':'')+'">'
+      +'<td style="text-align:left;padding:5px 2px">'+STATS_MOIS_COURTS[r.m]+(cur?' <span style="font-size:.66rem;color:var(--mut)">(en cours)</span>':'')+'</td>'
+      +'<td style="padding:5px 2px;font-weight:700">'+(r.n?fr(r.n):'—')+'</td>'
+      +'<td style="padding:5px 2px;color:var(--mut)">'+(r.n1?fr(r.n1):'—')+'</td>'
+      +'<td style="padding:5px 2px">'+ecart+'</td></tr>';
+  });
+  h += '</table></div><div style="font-size:.7rem;color:var(--mut);margin-top:6px">Le mois en cours n\'est pas compté dans l\'avance / le retard (il serait incomplet face à un mois entier).</div>';
+  return h;
+}
+// Charge deux années de rapports (à la demande) et affiche la comparaison.
+function statsLoadYearCompare(){
+  var box = document.getElementById('stats-year-cmp');
+  if(!box) return;
+  var yearEl = document.getElementById('stats-year');
+  var year = parseInt(yearEl ? yearEl.value : new Date().getFullYear());
+  var pfEl = document.getElementById('stats-producer-filter'), pf = pfEl ? pfEl.value : '';
+  var now = new Date();
+  var curMonth = (year === now.getFullYear()) ? now.getMonth() : (year > now.getFullYear() ? -1 : 99);
+  var lastMonth = curMonth === 99 ? 11 : curMonth - 1;
+  box.innerHTML = '<div style="text-align:center;color:var(--mut);padding:12px;font-size:.82rem">🔍 Chargement de deux années…</div>';
+  var fromKey = (year-1)+'-01-01', toKey = year+'-12-31';
+  fbg('users').then(function(us){
+    var users = us.val() || {};
+    var acc = {};
+    return Promise.all(Object.keys(users).map(function(uid){
+      var u = users[uid];
+      var hasProd = u.role === 'admin' || (u.perms && u.perms.production);
+      if(!hasProd || (pf && uid !== pf)) return null;
+      var path = (u.role === 'admin' ? 'reports_admin/' : 'reports/') + uid;
+      return fbgRange(path, rptWeekKey(new Date(new Date(fromKey+'T00:00:00').getTime() - 6*86400000)), toKey).then(function(snap){
+        statsMonthsFromReports(snap.val() || {}, fromKey, toKey, acc);
+      });
+    })).then(function(){ return acc; });
+  }).then(function(acc){
+    var calc = statsYearCompareCalc(acc, acc, year, lastMonth);
+    box.innerHTML = statsYearCompareHtml(calc, year, curMonth === 99 ? -1 : curMonth);
+  }).catch(function(){
+    box.innerHTML = '<div style="color:var(--red);font-size:.82rem;padding:8px">❌ Chargement impossible — réessaie.</div>';
+  });
+}
 function esupStatsByUid(cmdObj, firstDay, lastDay){
   var out = {};
   esupEachSaisie(cmdObj, function(c, k, sa){
@@ -15084,8 +15181,10 @@ function loadStats(){
   var statFromKey = statsDateKey(firstDay), statToKey = statsDateKey(lastDay);
   var statPrevFromKey = statsDateKey(new Date(prevYear, prevMonth, 1));
   var statPrevToKey   = statsDateKey(new Date(prevYear, prevMonth+1, 0));
+  var statY1From = new Date(year-1, month, 1), statY1To = new Date(year-1, month+1, 0);   // même mois, année précédente
+  var statY1FromKey = statsDateKey(statY1From), statY1ToKey = statsDateKey(statY1To);
   var queryFromDate = (statsModeActive === 'period') ? firstDay : new Date(prevYear, prevMonth, 1);
-  var queryFromKey  = rptWeekKey(queryFromDate);
+  var queryFromKey  = rptWeekKey(new Date(queryFromDate.getTime() - 6*86400000));   // la semaine commence le lundi, avant le 1er jour demandé
   var queryToKey    = rptWeekKey(lastDay);
 
   el.innerHTML = '<div style="text-align:center;color:var(--mut);padding:20px">🔍 Chargement…</div>';
@@ -15125,8 +15224,10 @@ function loadStats(){
       var isAdmin = u.role === 'admin';
       // Les admins écrivent dans reports_admin, les autres dans reports
       var reportPath = isAdmin ? 'reports_admin/'+uid : 'reports/'+uid;
-      return fbgRange(reportPath, queryFromKey, queryToKey).then(function(snap){
-        return {uid:uid, user:u, data:snap.val()||{}};
+      var y1p = (statsModeActive === 'period') ? Promise.resolve(null)
+        : fbgRange(reportPath, rptWeekKey(new Date(statY1From.getTime() - 6*86400000)), statsDateKey(statY1To)).catch(function(){ return null; });
+      return Promise.all([fbgRange(reportPath, queryFromKey, queryToKey), y1p]).then(function(sn){
+        return {uid:uid, user:u, data:sn[0].val()||{}, dataY1:(sn[1] && sn[1].val()) || {}};
       });
     });
 
@@ -15145,7 +15246,7 @@ function loadStats(){
       var dayLines     = {}; // 'YYYY-MM-DD' → [lignes terminées] (pour le détail d'une barre du graphique)
 
       // Mois précédent
-      var prevTotal = 0;
+      var prevTotal = 0, y1Total = 0;
 
       results.forEach(function(r){
         var u = r.user;
@@ -15159,6 +15260,12 @@ function loadStats(){
 
         if(!hasProduction) return; // ignorer ceux sans perm production
         if(pf && r.uid !== pf) return; // filtre producteur actif
+
+        // Même mois, année précédente (total global seulement, mêmes règles que « Total produit »)
+        if(statsModeActive !== 'period' && r.dataY1){
+          var mY1 = statsMonthsFromReports(r.dataY1, statY1FromKey, statY1ToKey, {});
+          Object.keys(mY1).forEach(function(k){ y1Total += mY1[k]; });
+        }
 
         Object.keys(r.data).forEach(function(wk){
           var monday = new Date(wk);
@@ -15338,11 +15445,26 @@ function loadStats(){
         var diffSign  = prevDiff >= 0 ? '↑' : '↓';
         diffHtml = '<div style="font-size:.72rem;color:'+diffColor+';margin-top:2px">'+diffSign+' '+Math.abs(prevDiff)+'% vs mois préc.</div>';
       }
+      if(statsModeActive !== 'period'){
+        var y1Lbl = new Date(year-1, month, 1).toLocaleDateString('fr-FR',{month:'short',year:'numeric'});
+        var y1Diff = statsPct(totalPcs, y1Total);
+        if(y1Diff !== null){
+          diffHtml += '<div style="font-size:.72rem;color:'+(y1Diff>=0?'var(--grn)':'var(--red)')+';margin-top:2px">'+(y1Diff>=0?'↑':'↓')+' '+Math.abs(y1Diff)+'% vs '+y1Lbl+'</div>';
+        } else {
+          diffHtml += '<div style="font-size:.7rem;color:var(--mut);margin-top:2px">pas de données '+y1Lbl+'</div>';
+        }
+      }
       html += kpiCard('📦 Total produit', totalPcs.toLocaleString('fr-FR')+' pcs', diffHtml);
       html += kpiCard('📋 Commandes', nbCmds+' traitées', '');
       html += kpiCard('👥 Producteurs actifs', prodList.length+'', '');
       html += kpiCard('📅 Jours travaillés', nbDays+'', '');
       html += '</div>';
+
+      // ── Année en cours vs N-1 (chargée à la demande : deux années de rapports) ──
+      if(statsModeActive !== 'period'){
+        html += statsSectionTitle('📈 Année '+year+' vs '+(year-1));
+        html += '<div style="margin-bottom:16px"><div id="stats-year-cmp"><button type="button" onclick="statsLoadYearCompare()" style="width:100%;padding:10px;border-radius:10px;border:1.5px solid var(--brd);background:var(--card);color:var(--txt);font-family:Open Sans,sans-serif;font-weight:700;font-size:.85rem;cursor:pointer">📈 Voir l\'avance / le retard sur '+(year-1)+'</button></div></div>';
+      }
 
       // ── Répartition machines ──
       var totalMach = (machineCount.semi||0) + (machineCount.auto||0) + (machineCount.table||0) || 1;
