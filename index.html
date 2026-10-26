@@ -1864,7 +1864,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.10.23-1600';
+var APP_VERSION = '2026.10.26-1000';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -2485,6 +2485,7 @@ function ecranAutoOpen(tries){
 // Pas de correctif technique invisible ici. tag = qui est concerné :
 //   'all' (tout le monde), 'admin' (admin/direction), 'maint' (maintenance), 'stock' (ajout de stock), 'reprint' (réimpressions)
 var NEWS = [
+  {n:21, d:'26/10/2026', tag:'admin', t:'Statistiques : chaque jour dans son vrai mois', x:'Une semaine à cheval sur deux mois est maintenant répartie jour par jour (ex. le lundi 31/08 compte en août, du 1er au 4/09 en septembre). Avant, la semaine entière était rangée selon son lundi, et celle du 31/08 n\'apparaissait dans aucun mois : le total d\'août était trop bas et la comparaison « vs mois précédent » faussée. Corrigé pour l\'écran, le PDF et le CSV des statistiques (les autres écrans ne changent pas).'},
   {n:20, d:'23/10/2026', tag:'admin', t:'Forcer le statut : on choisit la bonne commande', x:'Quand deux commandes ont le même numéro, « Forcer le statut » (Admin) te les liste et tu choisis laquelle modifier (tu peux aussi chercher par nom). Dans la fiche d\'une commande (Recherche, Tableau de bord), un bouton « 🔧 Forcer Terminée » agit directement sur cette commande.'},
   {n:19, d:'22/10/2026', tag:'all', t:'StockBadge devient IsoProd', x:'L\'application change de nom : elle s\'appelle maintenant IsoProd (Production · ISOCOM). Rien ne change dans ton travail : mêmes écrans, mêmes données, mêmes comptes. Si tu as un raccourci sur l\'écran d\'accueil, il continue de fonctionner ; tu peux le renommer si tu veux.'},
   {n:18, d:'22/10/2026', tag:'all', t:'Rapport : suppression d\'une ligne semi-auto', x:'Si des pièces sont déjà passées en table à partir d\'une ligne semi-auto, un avertissement s\'affiche avant de la supprimer. Et supprimer une ligne semi-auto ne bloque plus la saisie du semi-auto sur cette commande (plafond mal calculé corrigé).'},
@@ -13128,8 +13129,27 @@ function esupWeekTotals(cmdObj, prefix){
   return out;
 }
 // Stats par producteur sur une période : saisies TERMINÉES des rapports de
-// producteurs (pas reports_admin), semaines dont le lundi est dans [firstDay, lastDay]
+// producteurs (pas reports_admin), jours (créneaux) compris dans [firstDay, lastDay]
 // — même règle que les lignes de production des statistiques. → {uid:{etape:qty}}
+// ── Statistiques : rattachement par JOUR (et non par lundi de la semaine) ──
+// Une semaine à cheval sur deux mois est répartie : chaque jour compte dans son vrai mois.
+// Utilisé UNIQUEMENT par les statistiques (écran, CSV, étapes supplémentaires) : le reste de
+// l'app (rapport, tableau de bord…) garde ses règles.
+function statsDateKey(d){
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+function statsWkDayKey(wk, di){
+  var t = new Date(String(wk)+'T00:00:00Z');
+  if(isNaN(t.getTime())) return null;
+  t.setUTCDate(t.getUTCDate()+(di||0));
+  return t.toISOString().slice(0,10);
+}
+// La semaine (clé lundi 'YYYY-MM-DD') touche-t-elle l'intervalle [fromKey, toKey] ? (lundi→vendredi)
+function statsWeekTouches(wk, fromKey, toKey){
+  var mon = statsWkDayKey(wk,0), fri = statsWkDayKey(wk,4);
+  if(!mon) return false;
+  return !(fri < fromKey || mon > toKey);
+}
 function esupStatsByUid(cmdObj, firstDay, lastDay){
   var out = {};
   esupEachSaisie(cmdObj, function(c, k, sa){
@@ -13137,8 +13157,8 @@ function esupStatsByUid(cmdObj, firstDay, lastDay){
     var q = parseInt(sa.qty)||0;
     var ps = esupParseSlot(sa.slot);
     if(!ps || ps.base !== 'reports' || q <= 0) return;
-    var monday = new Date(ps.wk);
-    if(isNaN(monday.getTime()) || monday < firstDay || monday > lastDay) return;
+    var dk = statsWkDayKey(ps.wk, ps.di);
+    if(!dk || dk < statsDateKey(firstDay) || dk > statsDateKey(lastDay)) return;
     if(!out[ps.uid]) out[ps.uid] = {};
     out[ps.uid][k] = (out[ps.uid][k]||0) + q;
   });
@@ -14916,6 +14936,10 @@ function loadStats(){
   // comparaison) au lieu de tout l'historique de chaque collaborateur.
   // Les clés reports/{uid}/{wk} sont des dates 'YYYY-MM-DD' triables, ce qui
   // permet une requête par plage côté serveur (voir fbgRange).
+  // Bornes en jours (YYYY-MM-DD) : chaque jour est compté dans son vrai mois
+  var statFromKey = statsDateKey(firstDay), statToKey = statsDateKey(lastDay);
+  var statPrevFromKey = statsDateKey(new Date(prevYear, prevMonth, 1));
+  var statPrevToKey   = statsDateKey(new Date(prevYear, prevMonth+1, 0));
   var queryFromDate = (statsModeActive === 'period') ? firstDay : new Date(prevYear, prevMonth, 1);
   var queryFromKey  = rptWeekKey(queryFromDate);
   var queryToKey    = rptWeekKey(lastDay);
@@ -14995,9 +15019,11 @@ function loadStats(){
           var monday = new Date(wk);
 
           // Mois précédent (total global seulement)
-          if(statsModeActive!=='period' && monday.getFullYear()===prevYear && monday.getMonth()===prevMonth){
+          if(statsModeActive!=='period' && statsWeekTouches(wk, statPrevFromKey, statPrevToKey)){
             var wdP = r.data[wk];
             for(var di=0;di<5;di++) for(var hi=0;hi<2;hi++){
+              var dkP = statsWkDayKey(wk, di);
+              if(dkP < statPrevFromKey || dkP > statPrevToKey) continue;
               var linesP = ((wdP['d'+di]||{})['h'+hi]||{}).lines||[];
               linesP.forEach(function(l){
                 if(l.status==='done' && (l.sec||'semi')!=='table') prevTotal += parseInt(l.qty)||0;
@@ -15005,13 +15031,15 @@ function loadStats(){
             }
           }
 
-          if(monday < firstDay || monday > lastDay) return;
+          if(!statsWeekTouches(wk, statFromKey, statToKey)) return;
 
           var weekData = r.data[wk];
           for(var di=0;di<5;di++){
             var dayDate = new Date(monday);
             dayDate.setDate(monday.getDate() + di);
             var dayKey = dayDate.toISOString().split('T')[0];
+            var dkS = statsWkDayKey(wk, di);
+            if(dkS < statFromKey || dkS > statToKey) continue; // jour hors de la période
 
             for(var hi=0;hi<2;hi++){
               var lines = ((weekData['d'+di]||{})['h'+hi]||{}).lines||[];
@@ -15127,10 +15155,11 @@ function loadStats(){
         var hasProd = u.role==='admin' || (u.perms && u.perms.production);
         if(!hasProd) return;
         Object.keys(r.data).forEach(function(wk){
-          var monday = new Date(wk);
-          if(monday < firstDay || monday > lastDay) return;
+          if(!statsWeekTouches(wk, statFromKey, statToKey)) return;
           var weekData = r.data[wk];
           for(var di=0;di<5;di++) for(var hi=0;hi<2;hi++){
+            var dkS2 = statsWkDayKey(wk, di);
+            if(dkS2 < statFromKey || dkS2 > statToKey) continue;
             var lines = ((weekData['d'+di]||{})['h'+hi]||{}).lines||[];
             lines.forEach(function(l){
               if(l.status!=='done') return;
@@ -15726,10 +15755,12 @@ function exportStatsCSV(){
         if(u.isProducer===false) return;
         if(pf && r.uid !== pf) return; // filtre producteur actif
         Object.keys(r.data).forEach(function(wk){
-          var monday = new Date(wk);
-          if(monday < firstDay || monday > lastDay) return;
+          var csvF = statsDateKey(firstDay), csvT = statsDateKey(lastDay);
+          if(!statsWeekTouches(wk, csvF, csvT)) return;
           var weekData = r.data[wk];
           for(var di=0;di<5;di++){
+            var dkC = statsWkDayKey(wk, di);
+            if(dkC < csvF || dkC > csvT) continue;
             for(var hi=0;hi<2;hi++){
               var lines = ((weekData['d'+di]||{})['h'+hi]||{}).lines||[];
               lines.forEach(function(l){
