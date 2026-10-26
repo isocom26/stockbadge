@@ -1166,6 +1166,12 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
     <div style="font-size:.78rem;color:var(--mut);margin-bottom:10px">Télécharge un instantané complet de toute la base (stock, commandes, rapports, collaborateurs, plateaux, etc.) en un fichier JSON — une copie de sécurité à garder de côté. Lecture seule, aucune donnée n'est modifiée. Un rappel s'affiche automatiquement si la dernière sauvegarde commence à dater.</div>
     <button id="admin-export-btn" onclick="adminExportFullDB()" style="width:100%;padding:9px;border-radius:8px;border:none;background:var(--blu);color:#fff;font-family:Open Sans,sans-serif;font-weight:700;font-size:0.89rem;cursor:pointer">📦 Exporter toute la base (JSON)</button>
     <div id="admin-export-result" style="font-size:.78rem;margin-top:8px"></div>
+    <div style="border-top:1px solid var(--brd);margin-top:12px;padding-top:12px">
+      <div style="font-family:Open Sans,sans-serif;font-weight:800;font-size:.88rem;margin-bottom:4px">🔄 Reconstituer l'historique des réimpressions</div>
+      <div style="font-size:.74rem;color:var(--mut);margin-bottom:8px">Choisis une ancienne sauvegarde (fichier .json exporté ci-dessus) : les réimpressions qu'elle contient sont ajoutées aux statistiques (sans photos). À faire une seule fois ; refaire le même fichier ne crée pas de doublon.</div>
+      <input type="file" id="rp-restore-file" accept=".json,application/json" onchange="rpRestoreFromBackup(this)" style="font-size:.78rem;width:100%">
+      <div id="rp-restore-result" style="font-size:.78rem;margin-top:8px"></div>
+    </div>
   </div>
 
   <!-- Vérification de cohérence des stocks à lots -->
@@ -1864,7 +1870,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.10.26-1000';
+var APP_VERSION = '2026.10.26-1030';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -2485,6 +2491,7 @@ function ecranAutoOpen(tries){
 // Pas de correctif technique invisible ici. tag = qui est concerné :
 //   'all' (tout le monde), 'admin' (admin/direction), 'maint' (maintenance), 'stock' (ajout de stock), 'reprint' (réimpressions)
 var NEWS = [
+  {n:22, d:'26/10/2026', tag:'admin', t:'Réimpressions : l\'historique reste dans les statistiques', x:'Les réimpressions de plus d\'un mois sont toujours supprimées (photos comprises), mais une copie légère sans photo est gardée : les statistiques de réimpression ne retombent plus à zéro. Dans Admin, un outil permet aussi de reconstituer l\'historique perdu depuis une ancienne sauvegarde.'},
   {n:21, d:'26/10/2026', tag:'admin', t:'Statistiques : chaque jour dans son vrai mois', x:'Une semaine à cheval sur deux mois est maintenant répartie jour par jour (ex. le lundi 31/08 compte en août, du 1er au 4/09 en septembre). Avant, la semaine entière était rangée selon son lundi, et celle du 31/08 n\'apparaissait dans aucun mois : le total d\'août était trop bas et la comparaison « vs mois précédent » faussée. Corrigé pour l\'écran, le PDF et le CSV des statistiques (les autres écrans ne changent pas).'},
   {n:20, d:'23/10/2026', tag:'admin', t:'Forcer le statut : on choisit la bonne commande', x:'Quand deux commandes ont le même numéro, « Forcer le statut » (Admin) te les liste et tu choisis laquelle modifier (tu peux aussi chercher par nom). Dans la fiche d\'une commande (Recherche, Tableau de bord), un bouton « 🔧 Forcer Terminée » agit directement sur cette commande.'},
   {n:19, d:'22/10/2026', tag:'all', t:'StockBadge devient IsoProd', x:'L\'application change de nom : elle s\'appelle maintenant IsoProd (Production · ISOCOM). Rien ne change dans ton travail : mêmes écrans, mêmes données, mêmes comptes. Si tu as un raccourci sur l\'écran d\'accueil, il continue de fonctionner ; tu peux le renommer si tu veux.'},
@@ -6664,6 +6671,19 @@ function startRpListener(){
 // pour éviter d'accumuler indéfiniment des données dans Firebase.
 // Exécuté une fois par session, uniquement par l'admin (opération de suppression en masse).
 var rpCleanupDone = false;
+// Copie « statistiques » d'une réimpression : uniquement du texte/nombres, jamais de photos.
+function rpLightForStats(r){
+  r = r || {};
+  return {
+    createdAt: r.createdAt || null,
+    doneAt: r.doneAt || null,
+    product: r.product || '',
+    site: r.site || '',
+    cmd: r.cmd || '',
+    qty: parseInt(r.qty) || 0,
+    status: r.status || 'done'
+  };
+}
 function cleanupOldReprints(){
   if(rpCleanupDone || !iAm) return;
   rpCleanupDone = true;
@@ -6675,10 +6695,15 @@ function cleanupOldReprints(){
       return r.status === 'done' && r.doneAt && r.doneAt < oneMonthAgo;
     });
     if(!toDelete.length) return;
+    // Copie légère (sans photos) conservée pour les statistiques, puis suppression de la fiche lourde :
+    // les deux dans la même écriture (tout ou rien) pour ne jamais perdre une réimpression ni la compter deux fois.
     var updates = {};
-    toDelete.forEach(function(id){ updates['reprints/'+id] = null; });
+    toDelete.forEach(function(id){
+      updates['reprints_stats/'+id] = rpLightForStats(raw[id]);
+      updates['reprints/'+id] = null;
+    });
     db.ref().update(updates).then(function(){
-      console.log('🗑 '+toDelete.length+' demande(s) de réimpression archivée(s) depuis +1 mois supprimée(s) automatiquement.');
+      console.log('🗑 '+toDelete.length+' demande(s) de réimpression archivée(s) depuis +1 mois : copie légère gardée pour les stats, fiche supprimée.');
     });
   });
 }
@@ -14950,9 +14975,10 @@ function loadStats(){
   var pf = producerFilterEl ? producerFilterEl.value : '';
 
   // Charger users + reprints + commandes en parallèle
-  Promise.all([fbg('users'), fbg('reprints'), fbg('commandes')]).then(function(mainSnaps){
+  Promise.all([fbg('users'), fbg('reprints'), fbg('commandes'), fbg('reprints_stats')]).then(function(mainSnaps){
     var users = mainSnaps[0].val()||{};
-    var reprintsData = mainSnaps[1].val()||{};
+    // Réimpressions = fiches actuelles + copies légères des anciennes (même identifiant : la fiche actuelle l'emporte, jamais de double comptage)
+    var reprintsData = Object.assign({}, mainSnaps[3].val()||{}, mainSnaps[1].val()||{});
     var commandesData = mainSnaps[2].val()||{};
 
     // Reconstruire la liste des producteurs sélectionnables (mêmes critères
@@ -16002,6 +16028,42 @@ function adminExportFullDB(){
     if(btn){ btn.disabled = false; btn.textContent = '📦 Exporter toute la base (JSON)'; }
     if(result){ result.style.color = 'var(--red)'; result.textContent = '❌ Erreur : '+((err&&err.message)||String(err)); }
   });
+}
+
+// Reconstitue l'historique des réimpressions pour les statistiques depuis une ancienne sauvegarde JSON.
+// N'écrit que dans reprints_stats (copies légères), ne touche ni aux réimpressions actuelles ni au reste.
+function rpRestoreFromBackup(input){
+  var out = document.getElementById('rp-restore-result');
+  var f = input && input.files && input.files[0];
+  if(!iAm || !f) return;
+  out.style.color = 'var(--mut)'; out.textContent = '⏳ Lecture du fichier…';
+  var rd = new FileReader();
+  rd.onerror = function(){ out.style.color='var(--red)'; out.textContent='❌ Impossible de lire ce fichier.'; };
+  rd.onload = function(){
+    var data;
+    try{ data = JSON.parse(rd.result); }catch(e){ out.style.color='var(--red)'; out.textContent='❌ Ce fichier n\'est pas une sauvegarde valide.'; return; }
+    var rp = data && data.reprints;
+    if(!rp || typeof rp !== 'object'){ out.style.color='var(--red)'; out.textContent='❌ Aucune réimpression trouvée dans ce fichier.'; return; }
+    var ids = Object.keys(rp).filter(function(id){ return rp[id] && rp[id].createdAt; });
+    if(!ids.length){ out.style.color='var(--red)'; out.textContent='❌ Aucune réimpression exploitable dans ce fichier.'; return; }
+    var min = Infinity, max = 0;
+    ids.forEach(function(id){ var t = rp[id].createdAt; if(t<min) min=t; if(t>max) max=t; });
+    var fr = function(t){ return new Date(t).toLocaleDateString('fr-FR'); };
+    document.getElementById('cf-title').textContent = 'Reconstituer l\'historique ?';
+    document.getElementById('cf-msg').textContent = ids.length+' réimpression(s) du '+fr(min)+' au '+fr(max)+' vont être ajoutées aux statistiques (sans photos). Les statistiques actuelles ne sont pas modifiées pour celles déjà présentes.';
+    cfCb = function(){
+      var updates = {};
+      ids.forEach(function(id){ updates['reprints_stats/'+id] = rpLightForStats(rp[id]); });
+      db.ref().update(updates).then(function(){
+        out.style.color = 'var(--grn)'; out.textContent = '✅ '+ids.length+' réimpression(s) ajoutée(s) à l\'historique.';
+        input.value = '';
+        toast('✅ Historique reconstitué');
+      }).catch(function(err){ out.style.color='var(--red)'; out.textContent='❌ Erreur : '+((err&&err.message)||String(err)); });
+    };
+    out.textContent = '';
+    om('m-confirm');
+  };
+  rd.readAsText(f);
 }
 
 // Rappelle à un admin qui se connecte que la dernière sauvegarde commence à
