@@ -1174,6 +1174,14 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
       <div id="rp-restore-result" style="font-size:.78rem;margin-top:8px"></div>
     </div>
     <div style="border-top:1px solid var(--brd);margin-top:12px;padding-top:12px">
+      <div style="font-family:Open Sans,sans-serif;font-weight:800;font-size:.88rem;margin-bottom:4px">📊 Importer l'historique EBP (ventes)</div>
+      <div style="font-size:.74rem;color:var(--mut);margin-bottom:8px">Charge le fichier d'historique des ventes (.json préparé pour toi) : il sert de comparaison dans les statistiques, avant juillet 2026 et pour l'année précédente. Tu vois le contenu avant de valider.</div>
+      <input type="file" id="histo-file" accept=".json,application/json" onchange="statsHistoPick(this)">
+      <button type="button" onclick="document.getElementById('histo-file').click()" style="width:100%;padding:9px;border-radius:8px;border:1.5px solid var(--brd);background:var(--sur);color:var(--txt);font-family:Open Sans,sans-serif;font-weight:700;font-size:.86rem;cursor:pointer">📊 Choisir le fichier d'historique</button>
+      <div id="histo-result" style="font-size:.78rem;margin-top:8px"></div>
+      <button type="button" id="histo-save-btn" onclick="statsHistoSave()" style="display:none;width:100%;margin-top:8px;padding:9px;border-radius:8px;border:none;background:var(--acc);color:#000;font-family:Open Sans,sans-serif;font-weight:800;font-size:.86rem;cursor:pointer">✅ Enregistrer cet historique</button>
+    </div>
+    <div style="border-top:1px solid var(--brd);margin-top:12px;padding-top:12px">
       <div style="font-family:Open Sans,sans-serif;font-weight:800;font-size:.88rem;margin-bottom:4px">🖼️ Ranger les photos des réimpressions à part</div>
       <div style="font-size:.74rem;color:var(--mut);margin-bottom:8px">Déplace les photos des réimpressions existantes hors de la liste principale (l'app démarre alors beaucoup plus vite). Chaque photo est copiée, relue et vérifiée avant d'être retirée de la fiche. À lancer une fois, quand tout le monde a la dernière version.</div>
       <button id="rpmig-btn" type="button" onclick="adminMigrateReprintPhotos()" style="width:100%;padding:9px;border-radius:8px;border:1.5px solid var(--brd);background:var(--sur);color:var(--txt);font-family:Open Sans,sans-serif;font-weight:700;font-size:.86rem;cursor:pointer">🖼️ Ranger les photos</button>
@@ -1884,7 +1892,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.10.26-1300';
+var APP_VERSION = '2026.10.26-1400';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -2505,6 +2513,7 @@ function ecranAutoOpen(tries){
 // Pas de correctif technique invisible ici. tag = qui est concerné :
 //   'all' (tout le monde), 'admin' (admin/direction), 'maint' (maintenance), 'stock' (ajout de stock), 'reprint' (réimpressions)
 var NEWS = [
+  {n:26, d:'26/10/2026', tag:'admin', t:'Statistiques : historique des ventes EBP', x:'Les ventes EBP de 2025 et de janvier à juin 2026 peuvent être importées (Admin > Sauvegarde). Elles complètent le comparatif avec l\'année précédente : avant juillet 2026 on affiche les ventes EBP (repérées « EBP »), ensuite les pièces produites dans l\'app.'},
   {n:25, d:'26/10/2026', tag:'admin', t:'Statistiques : comparaison avec l\'année précédente', x:'Le total du mois affiche maintenant l\'écart avec le même mois de l\'année précédente. Un nouveau bloc « Année en cours vs N-1 » montre, mois par mois, si on est en avance ou en retard sur l\'an dernier (cumul de janvier au dernier mois complet). Tant qu\'il n\'y a pas de données N-1, c\'est indiqué simplement.'},
   {n:24, d:'26/10/2026', tag:'all', t:'Gammes : poste de secours (MAG8054 en semi-auto)', x:'Un format peut maintenant être fait aussi sur un autre poste que le sien, par exemple du MAG8054 en semi-auto quand l\'auto est en panne ou pour une finition mylar. Il est alors proposé en Semi-auto comme en Auto, avec un simple bouton « Produit » (pas de « Prêt table »). Réglage dans Admin > Gammes de fabrication (case « Peut aussi se faire en… »).'},
   {n:23, d:'26/10/2026', tag:'all', t:'Réimpressions : l\'app démarre plus vite', x:'Les photos des réimpressions sont maintenant rangées à part et chargées seulement quand tu affiches la demande. L\'app télécharge beaucoup moins de données au démarrage (elle s\'ouvre plus vite, surtout en wifi lent ou en 4G). Rien ne change dans la façon de joindre ou de voir les photos.'},
@@ -13317,18 +13326,49 @@ function statsMonthsFromReports(data, fromKey, toKey, acc){
 }
 // Écart en % (null si la base est nulle : pas de comparaison possible).
 function statsPct(cur, base){ return base > 0 ? Math.round(((cur - base) / base) * 100) : null; }
+// Historique EBP (ventes) : /stats_histo/{YYYY-MM}/{CODE FORMAT} = pièces vendues. Sert pour les mois où l'app n'a pas
+// (ou pas toute) la production : avant STATS_HISTO_BASCULE on affiche les ventes EBP, ensuite la production de l'app.
+var STATS_HISTO_BASCULE = '2026-07';
+// Total d'un mois de l'historique (hors numérique et présentoirs, comme la production) ; null si le mois n'existe pas.
+function statsHistoTotal(histo, ym, excl){
+  var m = histo && histo[ym];
+  if(!m || typeof m !== 'object') return null;
+  var t = 0;
+  Object.keys(m).forEach(function(c){
+    if(excl && excl[String(c).toUpperCase()]) return;
+    t += parseInt(m[c]) || 0;
+  });
+  return t;
+}
+function statsHistoExcl(){
+  var ex = {};
+  (typeof DIGITAL_FORMATS !== 'undefined' ? DIGITAL_FORMATS : []).concat(typeof PRESENTOIR_FORMATS !== 'undefined' ? PRESENTOIR_FORMATS : [])
+    .forEach(function(c){ ex[String(c||'').trim().toUpperCase()] = 1; });
+  return ex;
+}
+// Valeur d'un mois : ventes EBP avant la bascule (si présentes), sinon production de l'app, sinon EBP à défaut.
+function statsResolveMonth(ym, appMonths, histo, excl){
+  var h = statsHistoTotal(histo, ym, excl);
+  if(ym < STATS_HISTO_BASCULE && h !== null) return {v:h, src:'ebp'};
+  var a = (appMonths && appMonths[ym]) || 0;
+  if(a > 0) return {v:a, src:'prod'};
+  if(h !== null) return {v:h, src:'ebp'};
+  return {v:0, src:null};
+}
 // Cumul de janvier à lastMonth (0-11, inclus) pour l'année `year` et pour N-1, + détail par mois.
-function statsYearCompareCalc(mN, mN1, year, lastMonth){
+function statsYearCompareCalc(mN, mN1, year, lastMonth, histo, excl){
   var rows = [], cumN = 0, cumN1 = 0;
   for(var m=0; m<12; m++){
     var kN = year+'-'+String(m+1).padStart(2,'0'), kP = (year-1)+'-'+String(m+1).padStart(2,'0');
-    var n = mN[kN] || 0, p = mN1[kP] || 0;
-    rows.push({m:m, n:n, n1:p, diff:n-p, pct:statsPct(n, p)});
+    var rn = statsResolveMonth(kN, mN, histo, excl), rp = statsResolveMonth(kP, mN1, histo, excl);
+    var n = rn.v, p = rp.v;
+    rows.push({m:m, n:n, n1:p, srcN:rn.src, srcN1:rp.src, diff:n-p, pct:statsPct(n, p)});
     if(m <= lastMonth){ cumN += n; cumN1 += p; }
   }
   return {rows:rows, cumN:cumN, cumN1:cumN1, diff:cumN-cumN1, pct:statsPct(cumN, cumN1), lastMonth:lastMonth};
 }
 var STATS_MOIS_COURTS = ['janv.','févr.','mars','avr.','mai','juin','juil.','août','sept.','oct.','nov.','déc.'];
+var EBP_TAG = ' <span title="Ventes EBP" style="font-size:.6rem;font-weight:700;color:var(--acc)">EBP</span>';
 function statsYearCompareHtml(calc, year, curMonth){
   var fr = function(v){ return v.toLocaleString('fr-FR'); };
   var h = '';
@@ -13353,11 +13393,13 @@ function statsYearCompareHtml(calc, year, curMonth){
     var ecart = (future || (!r.n && !r.n1)) ? '' : (hasBase ? '<span style="color:'+(r.diff>=0?'var(--grn)':'var(--red)')+';font-weight:700">'+(r.diff>=0?'+':'−')+Math.abs(r.pct)+' %</span>' : '<span style="color:var(--mut)">—</span>');
     h += '<tr style="text-align:right;border-top:1px solid var(--brd)'+(future?';opacity:.45':'')+'">'
       +'<td style="text-align:left;padding:5px 2px">'+STATS_MOIS_COURTS[r.m]+(cur?' <span style="font-size:.66rem;color:var(--mut)">(en cours)</span>':'')+'</td>'
-      +'<td style="padding:5px 2px;font-weight:700">'+(r.n?fr(r.n):'—')+'</td>'
-      +'<td style="padding:5px 2px;color:var(--mut)">'+(r.n1?fr(r.n1):'—')+'</td>'
+      +'<td style="padding:5px 2px;font-weight:700">'+(r.n?fr(r.n):'—')+(r.n&&r.srcN==='ebp'?EBP_TAG:'')+'</td>'
+      +'<td style="padding:5px 2px;color:var(--mut)">'+(r.n1?fr(r.n1):'—')+(r.n1&&r.srcN1==='ebp'?EBP_TAG:'')+'</td>'
       +'<td style="padding:5px 2px">'+ecart+'</td></tr>';
   });
-  h += '</table></div><div style="font-size:.7rem;color:var(--mut);margin-top:6px">Le mois en cours n\'est pas compté dans l\'avance / le retard (il serait incomplet face à un mois entier).</div>';
+  h += '</table></div><div style="font-size:.7rem;color:var(--mut);margin-top:6px">Le mois en cours n\'est pas compté dans l\'avance / le retard (il serait incomplet face à un mois entier).'
+    + (calc.rows.some(function(r){ return r.srcN==='ebp' || r.srcN1==='ebp'; }) ? '<br><span style="color:var(--acc);font-weight:700">EBP</span> = ventes EBP (volumes vendus). Avant juillet 2026, l\'app n\'a pas toute la production : on affiche les ventes. À partir de juillet 2026, ce sont les pièces produites dans l\'app.' : '')
+    + '</div>';
   return h;
 }
 // Charge deux années de rapports (à la demande) et affiche la comparaison.
@@ -13372,6 +13414,7 @@ function statsLoadYearCompare(){
   var lastMonth = curMonth === 99 ? 11 : curMonth - 1;
   box.innerHTML = '<div style="text-align:center;color:var(--mut);padding:12px;font-size:.82rem">🔍 Chargement de deux années…</div>';
   var fromKey = (year-1)+'-01-01', toKey = year+'-12-31';
+  var histoP = fbg('stats_histo').then(function(sn){ return sn.val() || null; }).catch(function(){ return null; });
   fbg('users').then(function(us){
     var users = us.val() || {};
     var acc = {};
@@ -13383,9 +13426,10 @@ function statsLoadYearCompare(){
       return fbgRange(path, rptWeekKey(new Date(new Date(fromKey+'T00:00:00').getTime() - 6*86400000)), toKey).then(function(snap){
         statsMonthsFromReports(snap.val() || {}, fromKey, toKey, acc);
       });
-    })).then(function(){ return acc; });
-  }).then(function(acc){
-    var calc = statsYearCompareCalc(acc, acc, year, lastMonth);
+    })).then(function(){ return Promise.all([acc, histoP]); });
+  }).then(function(res){
+    var acc = res[0], histo = res[1];
+    var calc = statsYearCompareCalc(acc, acc, year, lastMonth, histo, statsHistoExcl());
     box.innerHTML = statsYearCompareHtml(calc, year, curMonth === 99 ? -1 : curMonth);
   }).catch(function(){
     box.innerHTML = '<div style="color:var(--red);font-size:.82rem;padding:8px">❌ Chargement impossible — réessaie.</div>';
@@ -15193,7 +15237,8 @@ function loadStats(){
   var pf = producerFilterEl ? producerFilterEl.value : '';
 
   // Charger users + reprints + commandes en parallèle
-  Promise.all([fbg('users'), fbg('reprints'), fbg('commandes'), fbg('reprints_stats')]).then(function(mainSnaps){
+  Promise.all([fbg('users'), fbg('reprints'), fbg('commandes'), fbg('reprints_stats'), fbg('stats_histo').catch(function(){ return {val:function(){ return null; }}; })]).then(function(mainSnaps){
+    var histoData = mainSnaps[4].val() || null;   // historique EBP (ventes), peut être absent
     var users = mainSnaps[0].val()||{};
     // Réimpressions = fiches actuelles + copies légères des anciennes (même identifiant : la fiche actuelle l'emporte, jamais de double comptage)
     var reprintsData = Object.assign({}, mainSnaps[3].val()||{}, mainSnaps[1].val()||{});
@@ -15437,6 +15482,16 @@ function loadStats(){
         +(pf && window._statsData.producerFilterName ? ' <span style="color:var(--acc)">· '+window._statsData.producerFilterName+'</span>' : '')
         +'</div>';
 
+      // Avant la bascule, l'app n'a pas toute la production du mois : on rappelle les ventes EBP si elles existent
+      if(statsModeActive !== 'period'){
+        var curYm = year+'-'+String(month+1).padStart(2,'0');
+        var ebpCur = (curYm < STATS_HISTO_BASCULE) ? statsHistoTotal(histoData, curYm, statsHistoExcl()) : null;
+        if(ebpCur !== null){
+          html += '<div style="background:var(--card);border:1.5px solid var(--acc);border-radius:10px;padding:10px 12px;margin-bottom:12px;font-size:.8rem">'
+            +'ℹ️ Avant juillet 2026, l\'app n\'a pas toute la production. <b>Ventes EBP du mois : '+ebpCur.toLocaleString('fr-FR')+' pcs</b>.</div>';
+        }
+      }
+
       // ── KPIs globaux ──
       html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px">';
       var diffHtml = '';
@@ -15447,7 +15502,10 @@ function loadStats(){
       }
       if(statsModeActive !== 'period'){
         var y1Lbl = new Date(year-1, month, 1).toLocaleDateString('fr-FR',{month:'short',year:'numeric'});
-        var y1Diff = statsPct(totalPcs, y1Total);
+        var y1ym = (year-1)+'-'+String(month+1).padStart(2,'0'), y1Map = {}; y1Map[y1ym] = y1Total;
+        var y1Res = statsResolveMonth(y1ym, y1Map, histoData, statsHistoExcl());
+        if(y1Res.src === 'ebp') y1Lbl += ' (ventes EBP)';
+        var y1Diff = statsPct(totalPcs, y1Res.v);
         if(y1Diff !== null){
           diffHtml += '<div style="font-size:.72rem;color:'+(y1Diff>=0?'var(--grn)':'var(--red)')+';margin-top:2px">'+(y1Diff>=0?'↑':'↓')+' '+Math.abs(y1Diff)+'% vs '+y1Lbl+'</div>';
         } else {
@@ -16385,6 +16443,67 @@ function rpRestoreFromBackup(input){
     om('m-confirm');
   };
   rd.readAsText(f);
+}
+
+// ── Import de l'historique EBP (ventes) ──
+var statsHistoPending = null;
+// Vérifie la forme {YYYY-MM:{CODE:quantité}} et renvoie {ok, data, months, errors}.
+function statsHistoValidate(obj){
+  var out = {}, errors = [], n = 0;
+  if(!obj || typeof obj !== 'object' || Array.isArray(obj)) return {ok:false, errors:['Format inattendu'], data:null, months:0};
+  Object.keys(obj).forEach(function(ym){
+    if(!/^\d{4}-(0[1-9]|1[0-2])$/.test(ym)){ errors.push('Mois invalide : '+ym); return; }
+    var m = obj[ym];
+    if(!m || typeof m !== 'object'){ errors.push('Mois vide : '+ym); return; }
+    var o = {};
+    Object.keys(m).forEach(function(c){
+      var q = m[c];
+      if(/[.#$\[\]\/]/.test(c) || !c){ errors.push('Code invalide : '+c); return; }
+      if(typeof q !== 'number' || !isFinite(q)){ errors.push('Quantité invalide : '+ym+' '+c); return; }
+      if(q !== 0) o[c] = Math.round(q);   // une quantité négative = avoir / retour, gardée telle quelle
+    });
+    if(Object.keys(o).length){ out[ym] = o; n++; }
+  });
+  return {ok: errors.length === 0 && n > 0, data: out, months: n, errors: errors};
+}
+function statsHistoPick(input){
+  var out = document.getElementById('histo-result'), btn = document.getElementById('histo-save-btn');
+  var f = input && input.files && input.files[0];
+  if(!iAm || !f) return;
+  statsHistoPending = null; btn.style.display = 'none';
+  out.style.color = 'var(--mut)'; out.textContent = '⏳ Lecture du fichier…';
+  var rd = new FileReader();
+  rd.onerror = function(){ out.style.color='var(--red)'; out.textContent='❌ Impossible de lire ce fichier.'; };
+  rd.onload = function(){
+    var data;
+    try{ data = JSON.parse(rd.result); }catch(e){ out.style.color='var(--red)'; out.textContent='❌ Ce fichier n\'est pas valide.'; return; }
+    var v = statsHistoValidate(data);
+    if(!v.ok){ out.style.color='var(--red)'; out.textContent='❌ '+(v.errors[0]||'Fichier vide')+(v.errors.length>1?' (+'+(v.errors.length-1)+' autres problèmes)':''); return; }
+    var excl = statsHistoExcl();
+    var lines = Object.keys(v.data).sort().map(function(ym){
+      var nf = Object.keys(v.data[ym]).length;
+      return ym.slice(5)+'/'+ym.slice(0,4)+' : '+statsHistoTotal(v.data, ym, excl).toLocaleString('fr-FR')+' pcs ('+nf+' formats)';
+    });
+    statsHistoPending = v.data;
+    out.style.color = 'var(--txt)';
+    out.innerHTML = '<b>'+v.months+' mois reconnus</b> (hors numérique et présentoirs) :<br>'+lines.map(esc).join('<br>');
+    btn.style.display = '';
+  };
+  rd.readAsText(f);
+}
+function statsHistoSave(){
+  var out = document.getElementById('histo-result'), btn = document.getElementById('histo-save-btn');
+  if(!iAm || !statsHistoPending) return;
+  btn.disabled = true; btn.textContent = '⏳ Enregistrement…';
+  db.ref('stats_histo').set(statsHistoPending).then(function(){
+    out.style.color = 'var(--grn)'; out.textContent = '✅ Historique enregistré. Il est maintenant utilisé dans les statistiques.';
+    statsHistoPending = null; btn.style.display = 'none';
+    var inp = document.getElementById('histo-file'); if(inp) inp.value = '';
+    toast('✅ Historique EBP enregistré');
+  }).catch(function(err){
+    out.style.color = 'var(--red)';
+    out.textContent = '❌ Enregistrement refusé ('+((err&&err.message)||String(err))+'). Si le message parle de permission, il faut autoriser le chemin « stats_histo » dans les règles Firebase.';
+  }).then(function(){ btn.disabled = false; btn.textContent = '✅ Enregistrer cet historique'; });
 }
 
 // Rappelle à un admin qui se connecte que la dernière sauvegarde commence à
