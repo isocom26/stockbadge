@@ -633,7 +633,7 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
   <button class="tab-sub-btn" id="sub-depiautage" onclick="switchSubTab('depiautage',this)">✂️ Dépiautage</button>
   <button class="tab-sub-btn ao" id="sub-reprint" style="display:none" onclick="switchSubTab('reprint',this)">🖨️ Réimp.</button>
   <button class="tab-sub-btn ao" id="sub-qualite" style="display:none" onclick="switchSubTab('qualite',this)">🔍 Contrôle Qualité</button>
-  <button class="tab-sub-btn" id="sub-search" onclick="switchSubTab('search',this)">🔍 Recherche</button>
+  <button class="tab-sub-btn ao" id="sub-search" style="display:none" onclick="switchSubTab('search',this)">🔍 Recherche</button>
 </div>
 <div class="tab-sub-bar" id="sub-bar-admin" style="display:none">
   <button class="tab-sub-btn active" id="sub-admin-droits" onclick="switchSubTab('admin_droits',this)">👥 Droits</button>
@@ -1905,7 +1905,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.10.27-1058';
+var APP_VERSION = '2026.10.27-1105';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -2526,6 +2526,7 @@ function ecranAutoOpen(tries){
 // Pas de correctif technique invisible ici. tag = qui est concerné :
 //   'all' (tout le monde), 'admin' (admin/direction), 'maint' (maintenance), 'stock' (ajout de stock), 'reprint' (réimpressions)
 var NEWS = [
+  {n:30, d:'27/10/2026', tag:'admin', t:'Recherche (Production) : affichage selon un droit', x:'Le sous-onglet « Recherche » de Production n\'est plus visible par tout le monde : il s\'affiche seulement pour les personnes à qui tu coches « Recherche (sous-onglet Production) » dans Admin > Droits > Onglets visibles. L\'admin et la direction le gardent par défaut.'},
   {n:29, d:'27/10/2026', tag:'dashboard', t:'Tableau de bord : date de départ et urgence', x:'Depuis le Tableau de bord (tableau Commandes ou fiche d\'une commande), tu peux maintenant changer la date de départ et marquer une commande urgente, sans repasser par Dépiautage. C\'est la même information : elle se met à jour partout.'},
   {n:28, d:'26/10/2026', tag:'admin', t:'Statistiques par période : ventes EBP avant juillet 2026', x:'En mode « Par période », une période entièrement avant juillet 2026 affiche maintenant les ventes EBP (mois entiers) avec la comparaison à l\'année d\'avant. Une période à cheval sur juillet 2026 garde la production de l\'app et rappelle les ventes EBP des mois d\'avant.'},
   {n:27, d:'26/10/2026', tag:'admin', t:'Statistiques : mois d\'avant juillet 2026 (ventes EBP)', x:'Pour les mois d\'avant juillet 2026, les statistiques affichent maintenant les ventes EBP : total, comparaison avec le mois précédent et l\'année d\'avant, classement des formats, plus fortes hausses et baisses, et recherche par format.'},
@@ -2842,8 +2843,8 @@ function esc(s){
   return String(s==null?'':s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'&#39;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
-var TABS_PERMS=[{key:'commandes'},{key:'reception'},{key:'reprint'},{key:'maintenance'},{key:'meeting'},{key:'qualite'},{key:'stats'},{key:'dashboard'},{key:'admin'},{key:'journal'},{key:'inventaire'}];
-var TABS_LABELS={'commandes':'🛒 Commandes','reception':'📬 Réception','stats':'📊 Statistiques','reprint':'🖨️ Réimpressions','maintenance':'🔩 Maintenance','meeting':'📅 Réunion','qualite':'🔍 Contrôle Qualité','dashboard':'📈 Tableau de bord','admin':'🔧 Admin','journal':'📋 Journal des stocks','inventaire':'📋 Inventaire (comptage)'};
+var TABS_PERMS=[{key:'search'},{key:'commandes'},{key:'reception'},{key:'reprint'},{key:'maintenance'},{key:'meeting'},{key:'qualite'},{key:'stats'},{key:'dashboard'},{key:'admin'},{key:'journal'},{key:'inventaire'}];
+var TABS_LABELS={'search':'🔍 Recherche (sous-onglet Production)','commandes':'🛒 Commandes','reception':'📬 Réception','stats':'📊 Statistiques','reprint':'🖨️ Réimpressions','maintenance':'🔩 Maintenance','meeting':'📅 Réunion','qualite':'🔍 Contrôle Qualité','dashboard':'📈 Tableau de bord','admin':'🔧 Admin','journal':'📋 Journal des stocks','inventaire':'📋 Inventaire (comptage)'};
 function applyTabPerms(){
   // Admin : tout visible
   if(iAm){
