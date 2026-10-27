@@ -770,6 +770,19 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
 </div>
 
 <!-- MODAL DÉTAIL COMMANDE (tableau de bord > Commandes) -->
+<div class="mover" id="m-dash-depart" onclick="cm('m-dash-depart')">
+  <div class="cmod" onclick="event.stopPropagation()">
+    <div class="dh" style="margin:0 auto 16px"></div>
+    <h3 id="dash-dep-title" style="font-family:Open Sans,sans-serif;font-weight:800;margin-bottom:4px">Date de départ</h3>
+    <div id="dash-dep-sub" style="font-size:.78rem;color:var(--mut);margin-bottom:12px"></div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <input type="date" id="dash-dep-input" style="flex:1;min-width:140px;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.95rem;padding:9px 10px;outline:none">
+      <button type="button" id="dash-dep-urgent" data-active="0" onclick="dashDepToggleUrgent()" style="white-space:nowrap"></button>
+      <div id="dash-dep-jp" style="flex-basis:100%;width:100%"></div>
+    </div>
+    <div class="macts" style="margin-top:14px"><button class="btn bsec" onclick="cm('m-dash-depart')">Annuler</button><button class="btn bpri" onclick="dashDepSave()">Enregistrer</button></div>
+  </div>
+</div>
 <div class="mover" id="m-dash-cmd-detail" onclick="cm('m-dash-cmd-detail')">
   <div class="cmod" onclick="event.stopPropagation()" style="max-height:85vh;overflow-y:auto">
     <div class="dh" style="margin:0 auto 16px"></div>
@@ -1892,7 +1905,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.10.26-1500';
+var APP_VERSION = '2026.10.27-1058';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -2513,6 +2526,7 @@ function ecranAutoOpen(tries){
 // Pas de correctif technique invisible ici. tag = qui est concerné :
 //   'all' (tout le monde), 'admin' (admin/direction), 'maint' (maintenance), 'stock' (ajout de stock), 'reprint' (réimpressions)
 var NEWS = [
+  {n:29, d:'27/10/2026', tag:'dashboard', t:'Tableau de bord : date de départ et urgence', x:'Depuis le Tableau de bord (tableau Commandes ou fiche d\'une commande), tu peux maintenant changer la date de départ et marquer une commande urgente, sans repasser par Dépiautage. C\'est la même information : elle se met à jour partout.'},
   {n:28, d:'26/10/2026', tag:'admin', t:'Statistiques par période : ventes EBP avant juillet 2026', x:'En mode « Par période », une période entièrement avant juillet 2026 affiche maintenant les ventes EBP (mois entiers) avec la comparaison à l\'année d\'avant. Une période à cheval sur juillet 2026 garde la production de l\'app et rappelle les ventes EBP des mois d\'avant.'},
   {n:27, d:'26/10/2026', tag:'admin', t:'Statistiques : mois d\'avant juillet 2026 (ventes EBP)', x:'Pour les mois d\'avant juillet 2026, les statistiques affichent maintenant les ventes EBP : total, comparaison avec le mois précédent et l\'année d\'avant, classement des formats, plus fortes hausses et baisses, et recherche par format.'},
   {n:26, d:'26/10/2026', tag:'admin', t:'Statistiques : historique des ventes EBP', x:'Les ventes EBP de 2025 et de janvier à juin 2026 peuvent être importées (Admin > Sauvegarde). Elles complètent le comparatif avec l\'année précédente : avant juillet 2026 on affiche les ventes EBP (repérées « EBP »), ensuite les pièces produites dans l\'app.'},
@@ -2551,6 +2565,7 @@ function newsVisible(e){
   if(e.tag==='maint') return !!(iAm || isDir || (typeof canMaintain==='function' && canMaintain()));
   if(e.tag==='stock') return !!(iAm || isDir || (typeof canAddStock==='function' && canAddStock()));
   if(e.tag==='reprint') return !!(iAm || isDir || (typeof canReprint==='function' && canReprint()));
+  if(e.tag==='dashboard') return !!(iAm || isDir || (typeof canDashEditDepart==='function' && canDashEditDepart()));
   return true;
 }
 // Entrées à afficher : toutes celles plus récentes que la dernière vue (ou les plus récentes si 1re fois)
@@ -18019,13 +18034,84 @@ function dashAggregateCommandeDetail(c, allReports){
 // Tableau de bord — même fiche que celle de l'onglet Recherche (formats,
 // quantités, CQ, producteurs), construite via la fonction partagée
 // buildCommandeCardHtml pour ne jamais diverger de Recherche.
+// ── Date de départ + urgence modifiables depuis le Tableau de bord ──
+// Mêmes champs que dans Dépiautage (commandes/{id}/dateDepart et /urgent) : rien n'est dupliqué.
+// Réservé à ceux qui ont le droit « Tableau de bord » (ou direction / admin).
+function canDashEditDepart(){
+  return !!(iAm || isDir || (me_perms && me_perms['tabs_dashboard'] === true));
+}
+function dashDepartEditBtn(c){
+  if(!canDashEditDepart() || !c || !c.id) return '';
+  return ' <button type="button" onclick="event.stopPropagation();dashOpenDepartEdit(\''+c.id+'\')" title="Modifier la date de départ / urgence" style="background:none;border:none;color:var(--acc);cursor:pointer;font-size:.8rem;padding:0 0 0 4px">✏️</button>';
+}
+// Bloc affiché en haut de la fiche d'une commande
+function dashDepartBlockHtml(c){
+  var dep = c.dateDepart ? new Date(c.dateDepart+'T00:00:00').toLocaleDateString('fr-FR') : 'non définie';
+  var urg = c.urgent ? '<span style="display:inline-block;background:var(--red);color:#fff;font-size:.68rem;font-weight:800;padding:2px 8px;border-radius:99px;margin-left:6px">🚨 URGENT</span>' : '';
+  return '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:10px;padding:8px 10px;border-radius:10px;border:1.5px solid '+(c.urgent?'var(--red)':'var(--brd)')+';background:'+(c.urgent?'rgba(220,38,38,.08)':'var(--card)')+';font-size:.84rem">'
+    +'<span>🚚 Départ prévu : <strong>'+dep+'</strong>'+urg+'</span>'
+    +(canDashEditDepart() ? '<button type="button" onclick="dashOpenDepartEdit(\''+c.id+'\')" style="padding:5px 10px;border-radius:8px;border:1.5px solid var(--acc);background:none;color:var(--acc);font-size:.76rem;font-weight:700;cursor:pointer">✏️ Modifier</button>' : '')
+    +'</div>';
+}
+function dashDepUrgentStyle(active){
+  return active
+    ? 'padding:9px 12px;border-radius:8px;border:1.5px solid var(--red);background:var(--red);color:#fff;font-size:.8rem;font-weight:700;cursor:pointer;white-space:nowrap'
+    : 'padding:9px 12px;border-radius:8px;border:1.5px solid var(--red);background:none;color:var(--red);font-size:.8rem;font-weight:700;cursor:pointer;white-space:nowrap';
+}
+function dashDepSetUrgentBtn(active){
+  var b = document.getElementById('dash-dep-urgent'); if(!b) return;
+  b.setAttribute('data-active', active ? '1' : '0');
+  b.setAttribute('style', dashDepUrgentStyle(active));
+  b.textContent = active ? '🚨 Urgent' : '🚨 Marquer urgent';
+}
+function dashDepToggleUrgent(){
+  var b = document.getElementById('dash-dep-urgent');
+  dashDepSetUrgentBtn(!(b && b.getAttribute('data-active') === '1'));
+}
+function dashOpenDepartEdit(id){
+  if(!canDashEditDepart()){ toast('Réservé aux personnes ayant le Tableau de bord', 1); return; }
+  var c = (S_dash.commandes||[]).find(function(x){ return x.id === id; });
+  if(!c){ toast('Commande introuvable', 1); return; }
+  window._dashDepId = id;
+  document.getElementById('dash-dep-title').textContent = '🚚 Date de départ';
+  document.getElementById('dash-dep-sub').textContent = dashCmdLabel(c)+(c.site?' · '+c.site:'');
+  document.getElementById('dash-dep-input').value = /^\d{4}-\d{2}-\d{2}$/.test(c.dateDepart||'') ? c.dateDepart : '';
+  dashDepSetUrgentBtn(!!c.urgent);
+  document.getElementById('dash-dep-jp').innerHTML = jplusBarHtml('dd','dash-dep-input');
+  jplusBarStyle('dd');
+  om('m-dash-depart');
+}
+function dashDepSave(){
+  var id = window._dashDepId;
+  if(!id || !canDashEditDepart()) return;
+  var val = (document.getElementById('dash-dep-input').value || '').trim();
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(val)){ toast('⚠️ Merci de renseigner une date', 1); return; }
+  var b = document.getElementById('dash-dep-urgent');
+  var urgent = !!(b && b.getAttribute('data-active') === '1');
+  fbu('commandes/'+id, {dateDepart: val, urgent: urgent}).then(function(){
+    cm('m-dash-depart');
+    toast(urgent ? '🚨 Date mise à jour — commande marquée urgente' : '✅ Date de départ mise à jour');
+    dashDepRefresh(id);
+  });
+}
+// Recalcule tout ce que le Tableau de bord affiche à partir des commandes (la source est déjà à jour en local)
+function dashDepRefresh(id){
+  S_dash.commandes = dashCommandesArray();
+  var c = (S_dash.commandes||[]).find(function(x){ return x.id === id; });
+  var blk = document.getElementById('dash-depart-block');
+  if(blk && c) blk.innerHTML = dashDepartBlockHtml(c);
+  try{ dashRunSearch(); }catch(e){}
+  try{ dashRenderSynthese(); }catch(e){}
+  try{ dashRenderAujourdhui(); }catch(e){}
+}
+
 function dashOpenCommandeDetail(cmdId){
   var c = (S_dash.commandes||[]).find(function(x){ return x.id === cmdId; });
   if(!c){ toast('Commande introuvable', 1); return; }
   var titleEl = document.getElementById('dash-cmd-detail-title');
   var bodyEl = document.getElementById('dash-cmd-detail-body');
   if(titleEl) titleEl.textContent = dashCmdLabel(c);
-  if(bodyEl) bodyEl.innerHTML = '<div id="dash-cmd-card"><div style="text-align:center;color:var(--mut);padding:20px;font-size:.85rem">🔍 Chargement…</div></div><div id="dash-esup-block">'+esupDetailHtml(c)+'</div><div id="dash-sav-block">'+dashSavBlockHtml(c)+'</div>';
+  if(bodyEl) bodyEl.innerHTML = '<div id="dash-depart-block">'+dashDepartBlockHtml(c)+'</div><div id="dash-cmd-card"><div style="text-align:center;color:var(--mut);padding:20px;font-size:.85rem">🔍 Chargement…</div></div><div id="dash-esup-block">'+esupDetailHtml(c)+'</div><div id="dash-sav-block">'+dashSavBlockHtml(c)+'</div>';
   om('m-dash-cmd-detail');
   dashEnsureAllReports().then(function(allReports){
     var g = dashAggregateCommandeDetail(c, allReports);
@@ -18966,14 +19052,14 @@ function dashRunSearch(){
       (situation.sub ? '<div style="margin-top:3px"><span style="display:inline-block;font-size:0.69rem;font-family:Open Sans,sans-serif;font-weight:700;padding:2px 7px;border-radius:99px;background:none;color:'+situation.color+';border:1px solid '+situation.color+';white-space:nowrap">'+situation.sub+'</span></div>' : '');
     var formatsTxt = (c.formats||[]).map(function(f){return f.format;}).join(', ')||'—';
     var producersTxt = S_dash.producersLoaded ? (dashProducersFor(c).join(', ')||'—') : '…';
-    return '<tr style="border-bottom:1px solid var(--brd)">'+
+    return '<tr style="border-bottom:1px solid var(--brd)'+(c.urgent && c.status!=='done'?';background:rgba(220,38,38,.08)':'')+'">'+
       '<td style="padding:7px 9px;font-weight:700;white-space:nowrap;max-width:170px;overflow:hidden;text-overflow:ellipsis;cursor:pointer;text-decoration:underline;text-decoration-color:var(--brd);text-underline-offset:3px" title="'+esc(dashCmdLabel(c))+' — cliquer pour le détail" onclick="dashOpenCommandeDetail(\''+c.id+'\')">'+dashSavBadgeHtml(c)+esupBadgeHtml(c)+dashCmdLabel(c)+'</td>'+
       '<td style="padding:7px 9px;color:var(--mut);white-space:nowrap">'+(c.site||'—')+'</td>'+
       '<td style="padding:7px 9px">'+situationHtml+'</td>'+
       '<td style="padding:7px 9px;color:var(--mut)">'+formatsTxt+'</td>'+
       '<td style="padding:7px 9px;text-align:right;font-family:Open Sans,sans-serif;font-weight:700;white-space:nowrap">'+qty.toLocaleString('fr-FR')+'</td>'+
       '<td style="padding:7px 9px;color:var(--mut);white-space:nowrap">'+created+'</td>'+
-      '<td style="padding:7px 9px;white-space:nowrap;'+(overdue?'color:var(--red);font-weight:700':'color:var(--mut)')+'">'+depart+(overdue?' ⚠️':'')+'</td>'+
+      '<td style="padding:7px 9px;white-space:nowrap;'+(overdue?'color:var(--red);font-weight:700':'color:var(--mut)')+'">'+(c.urgent && c.status!=='done'?'🚨 ':'')+depart+(overdue?' ⚠️':'')+dashDepartEditBtn(c)+'</td>'+
       '<td style="padding:7px 9px;white-space:nowrap;'+(overdue?'color:var(--red);font-weight:700':'color:var(--mut)')+'">'+elapsed+(overdue?' ⚠️':'')+'</td>'+
       '<td style="padding:7px 9px;color:var(--mut)">'+producersTxt+'</td>'+
     '</tr>';
