@@ -780,6 +780,7 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
       <button type="button" id="dash-dep-urgent" data-active="0" onclick="dashDepToggleUrgent()" style="white-space:nowrap"></button>
       <div id="dash-dep-jp" style="flex-basis:100%;width:100%"></div>
     </div>
+    <div id="dash-dep-note" style="display:none;margin-top:10px;padding:8px 10px;border-radius:8px;border:1.5px solid var(--red);background:rgba(220,38,38,.08);color:var(--red);font-size:.78rem;font-weight:700"></div>
     <div class="macts" style="margin-top:14px"><button class="btn bsec" onclick="cm('m-dash-depart')">Annuler</button><button class="btn bpri" onclick="dashDepSave()">Enregistrer</button></div>
   </div>
 </div>
@@ -1905,7 +1906,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.10.27-1105';
+var APP_VERSION = '2026.10.27-1122';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -2526,6 +2527,7 @@ function ecranAutoOpen(tries){
 // Pas de correctif technique invisible ici. tag = qui est concerné :
 //   'all' (tout le monde), 'admin' (admin/direction), 'maint' (maintenance), 'stock' (ajout de stock), 'reprint' (réimpressions)
 var NEWS = [
+  {n:31, d:'27/10/2026', tag:'all', t:'🚨 Urgence : l\'alerte suit la commande', x:'Une commande urgente déjà produite n\'est plus oubliée : elle passe en tête du Contrôle Qualité, et en tête de Réimp. si une réimpression est ouverte, en rouge avec « URGENT ». Des pastilles rouges apparaissent sur Contrôle Qualité, Réimp. et Production.'},
   {n:30, d:'27/10/2026', tag:'admin', t:'Recherche (Production) : affichage selon un droit', x:'Le sous-onglet « Recherche » de Production n\'est plus visible par tout le monde : il s\'affiche seulement pour les personnes à qui tu coches « Recherche (sous-onglet Production) » dans Admin > Droits > Onglets visibles. L\'admin et la direction le gardent par défaut.'},
   {n:29, d:'27/10/2026', tag:'dashboard', t:'Tableau de bord : date de départ et urgence', x:'Depuis le Tableau de bord (tableau Commandes ou fiche d\'une commande), tu peux maintenant changer la date de départ et marquer une commande urgente, sans repasser par Dépiautage. C\'est la même information : elle se met à jour partout.'},
   {n:28, d:'26/10/2026', tag:'admin', t:'Statistiques par période : ventes EBP avant juillet 2026', x:'En mode « Par période », une période entièrement avant juillet 2026 affiche maintenant les ventes EBP (mois entiers) avec la comparaison à l\'année d\'avant. Une période à cheval sur juillet 2026 garde la production de l\'app et rappelle les ventes EBP des mois d\'avant.'},
@@ -6306,30 +6308,56 @@ function startCmdIndexListener(){
 // ── Pastille "commande(s) urgente(s)" sur Dépiautage, alimentée en direct
 // par le même index /commandes que ci-dessus — même principe que la
 // pastille Maintenance (updateMaintBadgeAll). ──
-function updateDepUrgentBadge(){
+// État d'urgence d'une commande : où doit-elle alerter l'équipe ?
+//  'prod'    = pas encore produite            → Dépiautage
+//  'reprint' = produite mais réimpression ouverte → Réimp.
+//  'cq'      = produite, en attente de contrôle  → Contrôle Qualité
+//  ''        = pas urgente / plus rien à signaler
+function cmdUrgentState(c, rpList){
+  if(!c || !c.urgent) return '';
+  if(c.status !== 'done') return 'prod';
+  var list = rpList || S_rp || [];
+  for(var i=0;i<list.length;i++){
+    var r = list[i];
+    if(!r || r.status === 'done') continue;
+    if((r.cmdId && r.cmdId === c.id) ||
+       (!r.cmdId && r.site && r.cmd && c.site && c.cmd &&
+        looseMatchKey(r.site)===looseMatchKey(c.site) && looseMatchKey(r.cmd)===looseMatchKey(c.cmd))) return 'reprint';
+  }
+  if(!(c.cq && c.cq.at)) return 'cq';
+  return '';
+}
+function urgentCounts(){
   var byId = (S_cmdIndex && S_cmdIndex.byId) || {};
-  var count = Object.keys(byId).filter(function(id){
-    var c = byId[id];
-    return c && c.urgent && c.status !== 'done';
-  }).length;
-
-  var subBtn = document.getElementById('sub-depiautage');
-  if(subBtn){
-    if(count>0){
-      subBtn.innerHTML = '✂️ Dépiautage <span class="dep-urgent-dot" style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:var(--red);color:#fff;font-size:0.7rem;font-weight:800;margin-left:4px;font-family:Open Sans,sans-serif">'+count+'</span>';
-    } else {
-      subBtn.textContent = '✂️ Dépiautage';
-    }
-  }
-
-  var grpBtn = document.getElementById('grp-production');
-  if(grpBtn){
-    if(count>0){
-      grpBtn.innerHTML = '🏭 Production <span class="dep-urgent-dot" style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:var(--red);color:#fff;font-size:0.7rem;font-weight:800;margin-left:4px;font-family:Open Sans,sans-serif">'+count+'</span>';
-    } else {
-      grpBtn.textContent = '🏭 Production';
-    }
-  }
+  var n = {prod:0, reprint:0, cq:0};
+  Object.keys(byId).forEach(function(id){
+    var c = byId[id]; if(!c) return;
+    var st = cmdUrgentState(Object.assign({}, c, {id:id}));
+    if(st) n[st]++;
+  });
+  return n;
+}
+// Une réimpression est urgente si elle est marquée urgente ou si sa commande l'est
+function rpIsUrgent(r){
+  if(!r) return false;
+  if(r.urgent) return true;
+  var idx = S_cmdIndex || {};
+  var c = (r.cmdId && idx.byId && idx.byId[r.cmdId]) ||
+          (idx.bySiteCmd && idx.bySiteCmd[looseMatchKey(r.site)+'||'+looseMatchKey(r.cmd)]);
+  return !!(c && c.urgent);
+}
+function urgentDotHtml(n){
+  return ' <span class="dep-urgent-dot" style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:var(--red);color:#fff;font-size:0.7rem;font-weight:800;margin-left:4px">'+n+'</span>';
+}
+function updateDepUrgentBadge(){
+  var n = urgentCounts();
+  var total = n.prod + n.reprint + n.cq;
+  [['sub-depiautage','✂️ Dépiautage',n.prod],['sub-qualite','🔍 Contrôle Qualité',n.cq],['sub-reprint','🖨️ Réimp.',n.reprint],['grp-production','🏭 Production',total]].forEach(function(x){
+    var el = document.getElementById(x[0]);
+    if(!el) return;
+    if(x[2]>0) el.innerHTML = x[1] + urgentDotHtml(x[2]);
+    else el.textContent = x[1];
+  });
 }
 function findCmdNom(cmdId, site, cmd){
   if(cmdId && S_cmdIndex.byId[cmdId]) return S_cmdIndex.byId[cmdId].nom || null;
@@ -6725,6 +6753,7 @@ function startRpListener(){
 
     if(curTab==='reprint') renderReprint();
     updateRpNotif();
+    try{ updateDepUrgentBadge(); }catch(e){}
     if(typeof ecranScheduleRender==='function') ecranScheduleRender();
 
     if(inited){
@@ -6898,8 +6927,8 @@ function renderReprint(){
     }
     // default: urgent first, then date desc
     return list.slice().sort(function(a,b){
-      var aUrgent = a.urgent ? 1 : 0;
-      var bUrgent = b.urgent ? 1 : 0;
+      var aUrgent = rpIsUrgent(a) ? 1 : 0;
+      var bUrgent = rpIsUrgent(b) ? 1 : 0;
       if(bUrgent !== aUrgent) return bUrgent - aUrgent;
       return (b.createdAt||0) - (a.createdAt||0);
     });
@@ -7014,16 +7043,17 @@ function rpCard(r){
   var isPrinted   = r.status === 'printed';
   var isToProduce = r.status === 'toproduce';
   var isDone      = r.status === 'done';
-  var cls = isDone ? 'done' : (isToProduce ? 'toproduce' : (isPrinted ? 'printed' : (r.urgent ? 'urgent' : 'pending')));
+  var rpUrg = !isDone && rpIsUrgent(r);
+  var cls = isDone ? 'done' : (rpUrg ? 'urgent' : (isToProduce ? 'toproduce' : (isPrinted ? 'printed' : 'pending')));
   var statusBadge = isDone
     ? '<span class="rp-badge rp-done-badge">✅ Validée</span>'
-    : (isToProduce
+    : (rpUrg ? '<span class="rp-badge rp-urgent-badge">🚨 URGENT'+(isToProduce?' · À produire':(isPrinted?' · Imprimé':''))+'</span>' : (isToProduce
         ? '<span class="rp-badge rp-toproduce-badge">🏭 À produire</span>'
         : (isPrinted
             ? '<span class="rp-badge rp-printed-badge">🖨️ Imprimé</span>'
             : (r.urgent
                 ? '<span class="rp-badge rp-urgent-badge">⚡ Urgent</span>'
-                : '<span class="rp-badge rp-pending-badge">⏳ En attente</span>')));
+                : '<span class="rp-badge rp-pending-badge">⏳ En attente</span>'))));
 
   var rows = [
     {l:'Site',         v:'<strong>'+r.site+'</strong>'},
@@ -11382,6 +11412,8 @@ function renderQualite(){
           groupItems.cmdNom = cmdDep && cmdDep.nom ? cmdDep.nom : null;
           groupItems.cmdFormats = cmdDep && cmdDep.formats ? cmdDep.formats : null;
           groupItems.qtyState = cqQtyState;
+          groupItems.cmdUrgent = !!(cmdDep && cmdDep.urgent);
+          groupItems.cmdDepart = (cmdDep && cmdDep.dateDepart) || '';
           groups[key] = groupItems;
         }
       });
@@ -11401,6 +11433,8 @@ function renderQualite(){
 
       var groupKeys = Object.keys(groups).sort(function(a,b){
         var ga=groups[a][0]; var gb=groups[b][0];
+        var ua = groups[a].cmdUrgent ? 1 : 0, ub = groups[b].cmdUrgent ? 1 : 0;
+        if(ub !== ua) return ub - ua;
         if(gb.wk!==ga.wk) return gb.wk.localeCompare(ga.wk);
         return gb.di-ga.di;
       });
@@ -11417,13 +11451,21 @@ function renderQualite(){
       }
 
       el.innerHTML = '<p style="color:var(--mut);font-size:.82rem;margin-bottom:12px">'+groupKeys.length+' commande(s)</p>'+
-        groupKeys.map(function(key){ return cqGroupCard(groups[key], groups[key].cmdNom, groups[key].cmdFormats, groups[key].qtyState); }).join('');
+        groupKeys.map(function(key){ return cqGroupCard(groups[key], groups[key].cmdNom, groups[key].cmdFormats, groups[key].qtyState, groups[key]); }).join('');
     });
   });
 }
 
+function cqStatusOfItems(items){
+  var hp = items.some(function(it){ return (it.l.cq||'pending') === 'pending'; });
+  var hc = items.some(function(it){ return it.l.cq === 'checked'; });
+  return hp ? 'pending' : hc ? 'checked' : 'archived';
+}
 function cqGroupCard(items, cmdNom, cmdFormats, qtyState){
   var first = items[0];
+  var cqUrg = !!items.cmdUrgent && cqStatusOfItems(items) === 'pending';
+  var cqDepTxt = '';
+  if(cqUrg && /^\d{4}-\d{2}-\d{2}$/.test(items.cmdDepart||'')){ var dp = items.cmdDepart.split('-'); cqDepTxt = ' · Départ '+dp[2]+'/'+dp[1]+'/'+dp[0]; }
   var l0 = first.l;
   // Recalculer le statut global du groupe (source de vérité : l.cq)
   var hasPendingG  = items.some(function(it){ return (it.l.cq||'pending') === 'pending'; });
@@ -11556,7 +11598,8 @@ function cqGroupCard(items, cmdNom, cmdFormats, qtyState){
       'data-cqkey="'+cqKey+'" data-cq="checked" onclick="cqHandleBulk(this)">↩ Remettre en contrôlée</button>';
   }
 
-  return '<div class="cq-card '+cqStatus+'">'+
+  return '<div class="cq-card '+cqStatus+'"'+(cqUrg?' style="border:2px solid var(--red);border-left:6px solid var(--red);background:rgba(220,38,38,.07)"':'')+'>'+
+    (cqUrg?'<div style="display:inline-block;background:var(--red);color:#fff;font-weight:800;font-size:.75rem;padding:3px 10px;border-radius:99px;margin-bottom:8px">🚨 URGENT'+cqDepTxt+'</div>':'')+
     '<div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:10px;gap:8px">'+
       '<div>'+
         '<div style="font-family:Open Sans,sans-serif;font-weight:800;font-size:1.03rem">'+(cmdNom?cmdNom+' <span style="color:var(--mut);font-weight:700;font-size:.82rem">· '+l0.cmd+'</span>':l0.cmd)+'</div>'+
@@ -18078,6 +18121,12 @@ function dashOpenDepartEdit(id){
   document.getElementById('dash-dep-sub').textContent = dashCmdLabel(c)+(c.site?' · '+c.site:'');
   document.getElementById('dash-dep-input').value = /^\d{4}-\d{2}-\d{2}$/.test(c.dateDepart||'') ? c.dateDepart : '';
   dashDepSetUrgentBtn(!!c.urgent);
+  var note = document.getElementById('dash-dep-note');
+  if(note){
+    var done = c.status === 'done';
+    note.style.display = done ? '' : 'none';
+    note.textContent = done ? 'ℹ️ Cette commande est déjà produite : si elle est marquée urgente, l\'alerte apparaîtra en tête du Contrôle Qualité (ou de Réimp. si une réimpression est ouverte).' : '';
+  }
   document.getElementById('dash-dep-jp').innerHTML = jplusBarHtml('dd','dash-dep-input');
   jplusBarStyle('dd');
   om('m-dash-depart');
@@ -18091,7 +18140,9 @@ function dashDepSave(){
   var urgent = !!(b && b.getAttribute('data-active') === '1');
   fbu('commandes/'+id, {dateDepart: val, urgent: urgent}).then(function(){
     cm('m-dash-depart');
-    toast(urgent ? '🚨 Date mise à jour — commande marquée urgente' : '✅ Date de départ mise à jour');
+    var cmdNow = (dashCommandesArray()||[]).find(function(x){ return x.id === id; });
+    var alreadyDone = !!(cmdNow && cmdNow.status === 'done');
+    toast(urgent ? (alreadyDone ? '🚨 Commande urgente — alerte en tête du Contrôle Qualité / Réimp.' : '🚨 Date mise à jour — commande urgente (alerte Production / Dépiautage)') : '✅ Date de départ mise à jour');
     dashDepRefresh(id);
   });
 }
