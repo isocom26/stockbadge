@@ -1899,6 +1899,9 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
 <script>
 // ── CONSTANTS ──
 var ADMIN = "alexandre-seveno@hotmail.fr";
+// Adresses reconnues comme admin : l'ancienne (hotmail) ET l'adresse entreprise, pour pouvoir changer l'e-mail du compte sans perdre les droits admin.
+var ADMIN_EMAILS = [ADMIN, "alexandre@iso-com.fr"];
+function isAdminEmail(e){ return !!e && ADMIN_EMAILS.indexOf(String(e).trim().toLowerCase()) >= 0; }
 var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 
 // ── VERSION DE L'APP (bandeau "nouvelle version disponible") ──
@@ -1906,7 +1909,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.10.28-1527';
+var APP_VERSION = '2026.10.28-1539';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -2344,12 +2347,12 @@ function forceSignOutDisabled(uid, message){
 
 auth.onAuthStateChanged(function(u) {
   if (u) {
-    me = u; iAm = u.email === ADMIN || u.role === 'admin';
+    me = u; iAm = isAdminEmail(u.email) || u.role === 'admin';
     document.getElementById('loading').style.display = 'none';
     document.getElementById('login-screen').style.display = 'none';
     document.getElementById('app').style.display = 'block';
-    document.getElementById('uav').textContent = (u.displayName || u.email || '?').slice(0,2).toUpperCase();
-    document.getElementById('uname').textContent = u.displayName || u.email.split('@')[0];
+    document.getElementById('uav').textContent = iAm ? 'AL' : (u.displayName || u.email || '?').slice(0,2).toUpperCase();
+    document.getElementById('uname').textContent = iAm ? 'ALEX' : (u.displayName || u.email.split('@')[0]);
     document.getElementById('abadge').style.display = (iAm||isDir) ? 'inline' : 'none';
     document.getElementById('abadge').textContent = iAm ? 'Admin' : 'Direction';
     saveQuickProfile(u.email, u.displayName);
@@ -2539,6 +2542,8 @@ function ecranAutoOpen(tries){
 // Pas de correctif technique invisible ici. tag = qui est concerné :
 //   'all' (tout le monde), 'admin' (admin/direction), 'maint' (maintenance), 'stock' (ajout de stock), 'reprint' (réimpressions)
 var NEWS = [
+  {n:41, d:'28/10/2026', tag:'admin', t:'Compte admin : adresse entreprise reconnue', x:'L\'adresse alexandre@iso-com.fr est reconnue comme admin en plus de l\'ancienne, pour permettre de changer l\'e-mail du compte sans perdre les droits.'},
+  {n:40, d:'28/10/2026', tag:'admin', t:'Compte admin affiché « ALEX »', x:'En haut à droite, le compte admin affiche « ALEX » (et non plus l\'identifiant de l\'adresse mail).'},
   {n:39, d:'28/10/2026', tag:'dashboard', t:'Stats : les pièces produites en table seule sont comptées', x:'Les pièces des formats produits uniquement en table (gamme « Table seule », ex. porte-clés) entrent maintenant dans le total produit, les stats par format, site, semaine et producteur. Les repassages semi-auto vers table restent comptés une seule fois. Sous « Répartition par machine », la table indique « dont X pcs repassées ».'},
   {n:38, d:'28/10/2026', tag:'dashboard', t:'Capacité : même reste à produire que « Charge actuelle »', x:'Le simulateur express de l\'onglet Capacité utilise maintenant le même « reste à produire » que la Charge actuelle de l\'onglet Aujourd\'hui (quantité commandée moins ce qui est déjà produit). Plus d\'écart entre les deux.'},
   {n:37, d:'28/10/2026', tag:'all', t:'Stock : « sachets » pour Porte-clés et Pins', x:'Pour les familles Porte-clés et Pins, le stock parle maintenant de sachets (et plus de cartons) : ajout, retrait, transfert, réception, inventaire et journal. Badges & Magnets restent en cartons.'},
@@ -2991,7 +2996,7 @@ function seedDemo() {
     c.items.forEach(function(i){ items[gid()]={name:i.name,qty:i.qty,alert:i.alert,ppc:i.ppc,photo:null}; });
     fbs('categories/'+cid,{name:c.name,desc:c.desc,photo:null,items:items,reserve_items:{}});
   });
-  if (me) fbs('users/'+me.uid,{name:'Admin',email:ADMIN,role:'admin'});
+  if (me) fbs('users/'+me.uid,{name:'Admin',email:(me.email||ADMIN),role:'admin'});
 }
 
 // ── HELPERS ──
@@ -5238,7 +5243,7 @@ function doSearchCommands(q, el){
     // Charger reports_admin pour tous les admins
     Object.keys(users).forEach(function(uid){
       var u = users[uid];
-      if(u.role === 'admin' || u.email === ADMIN){
+      if(u.role === 'admin' || isAdminEmail(u.email)){
         promises.push(fbg('reports_admin/'+uid).then(function(snap){
           return {uid:uid+'_adm', name:(me&&uid===me.uid?getMyName():(u.name||u.email||'Admin')), data:snap.val()||{}};
         }));
@@ -7734,7 +7739,7 @@ function markReportLinesFromReprint(site, cmd, product, now, cmdId){
     // Charger reports_admin pour tous les admins
     Object.keys(users).forEach(function(uid){
       var u = users[uid];
-      if(u.role==='admin'||u.email===ADMIN){
+      if(u.role==='admin'||isAdminEmail(u.email)){
         (function(auid){
           promises.push(fbg('reports_admin/'+auid).then(function(snap){
             return {path:'reports_admin/'+auid, data:snap.val()||{}};
@@ -8368,7 +8373,7 @@ function rptMarkLineDone(wk, di, hi, sec, btn, fullLi){
       // Rapports admin de tous les admins
       Object.keys(users).forEach(function(uid){
         var u = users[uid];
-        if(u.role === 'admin' || u.email === ADMIN){
+        if(u.role === 'admin' || isAdminEmail(u.email)){
           (function(auid, aname){
             promises.push(fbg('reports_admin/'+auid).then(function(snap){
               return {uid:auid+'_adm', name:aname,
@@ -9183,7 +9188,7 @@ function mtgEnsureAdminUid(){
   if(iAm && me){ mtgAdminUid = me.uid; return Promise.resolve(mtgAdminUid); }
   return fbg('users').then(function(sn){
     var us = sn.val() || {}, found = null;
-    Object.keys(us).forEach(function(u){ if(!found && us[u] && us[u].email === ADMIN) found = u; });
+    Object.keys(us).forEach(function(u){ if(!found && us[u] && isAdminEmail(us[u].email)) found = u; });
     if(!found) Object.keys(us).forEach(function(u){ if(!found && us[u] && us[u].role === 'admin') found = u; });
     mtgAdminUid = found || (me ? me.uid : null);
     return mtgAdminUid;
@@ -11327,7 +11332,7 @@ function renderQualite(){
     // Inclure les rapports admin de tous les admins (email = ADMIN ou role='admin')
     Object.keys(users).forEach(function(uid){
       var u = users[uid];
-      if(u.role === 'admin' || u.email === ADMIN){
+      if(u.role === 'admin' || isAdminEmail(u.email)){
         promises.push(fbg('reports_admin/'+uid).then(function(snap){
           return {uid:uid+'_adm', name:(me&&uid===me.uid?getMyName():(u.name||u.email||'Admin')), data:snap.val()||{}};
         }));
@@ -14584,7 +14589,7 @@ function qtyLoadLines(arg){
       ps.push(fbgRange(base, from, '9999-99-99').then(function(s){ return {base:base, data:s.val()||{}}; })); }
     Object.keys(users).forEach(function(uid){
       add('reports/'+uid);
-      if(users[uid].role === 'admin' || users[uid].email === ADMIN) add('reports_admin/'+uid);
+      if(users[uid].role === 'admin' || isAdminEmail(users[uid].email)) add('reports_admin/'+uid);
     });
     if(me && (iAm || isDir)) add('reports_admin/'+me.uid);
     return Promise.all(ps).then(function(all){
@@ -16994,7 +16999,7 @@ function admForgottenRefresh(){
     Object.keys(users).forEach(function(uid){
       var nm = users[uid].name || users[uid].email || uid;
       add('reports/'+uid, nm);
-      if(users[uid].role === 'admin' || users[uid].email === ADMIN) add('reports_admin/'+uid, nm);
+      if(users[uid].role === 'admin' || isAdminEmail(users[uid].email)) add('reports_admin/'+uid, nm);
     });
     return Promise.all(ps);
   }).then(function(all){
@@ -18039,7 +18044,7 @@ function dashFetchAllReports(users){
   });
   Object.keys(users).forEach(function(uid){
     var u = users[uid];
-    if(u.role === 'admin' || u.email === ADMIN){
+    if(u.role === 'admin' || isAdminEmail(u.email)){
       reportPromises.push(fbg('reports_admin/'+uid).then(function(snap){
         return {name: (me&&uid===me.uid?getMyName():(u.name||u.email||'Admin')), data: snap.val()||{}, source:'reports_admin'};
       }));
