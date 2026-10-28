@@ -1906,7 +1906,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.10.28-0903';
+var APP_VERSION = '2026.10.28-0909';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -2528,6 +2528,7 @@ function ecranAutoOpen(tries){
 // Pas de correctif technique invisible ici. tag = qui est concerné :
 //   'all' (tout le monde), 'admin' (admin/direction), 'maint' (maintenance), 'stock' (ajout de stock), 'reprint' (réimpressions)
 var NEWS = [
+  {n:35, d:'28/10/2026', tag:'dashboard', t:'Tableau de bord : ouverture sur « Commandes »', x:'Le Tableau de bord s\'ouvre maintenant directement sur le sous-onglet « Commandes » (Synthèse, Aujourd\'hui, Capacité et SAV restent à un clic).'},
   {n:34, d:'28/10/2026', tag:'admin', t:'Droits Admin : Réimpressions et Contrôle Qualité simplifiés', x:'Les cases « Réimpressions » et « Contrôle Qualité » des onglets visibles sont retirées : ces sous-onglets suivent maintenant le droit « Production ». Le droit « Peut valider les réimpressions » reste inchangé.'},
   {n:33, d:'28/10/2026', tag:'admin', t:'Droits Admin : liste défilable sur PC', x:'La fenêtre des droits d\'un collaborateur est maintenant limitée à la hauteur de l\'écran et défile : on peut remonter tout en haut (nom, rôle, droits) même avec la liste complète des onglets.'},
   {n:32, d:'28/10/2026', tag:'admin', t:'Droit « Production » + nouvel ordre des onglets', x:'Dans Admin › Droits, une nouvelle case « Production » permet de retirer l\'onglet Production (Rapport, Dépiautage, Réimp., Contrôle Qualité, Recherche) à un collaborateur. Il est coché par défaut : personne ne perd l\'accès tant que tu ne le décoches pas. Le Tableau de bord passe en 2e position : sans Production, on arrive directement dessus. Le droit « Recherche » séparé disparaît : Recherche suit Production.'},
@@ -3132,7 +3133,7 @@ function switchTab(name) {
   if (name==='meeting') openMeetingTab();
   if (name==='depiautage') openDepiautageTab();
   if (name==='stats') openStatsTab();
-  if (name==='dashboard' && permsLoaded) openDashboardTab();
+  if (name==='dashboard' && permsLoaded){ openDashboardTab(); dashSwitchSection('recherche'); } // ouverture directe sur « Commandes »
   if (name!=='dashboard') document.body.classList.remove('dash-commandes-wide');
   if (name.indexOf('admin_')===0) { renderPrestataires(); renderSuppliers(); renderCustomFormatsList(); renderGammesList(); renderEtapesSupAdmin(); renderQtyRulesAdmin(); renderDashboardSettings(); if(name==='admin_interventions') admForgottenRefresh(); }
   if (name==='qualite') openQualiteTab();
