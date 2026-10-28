@@ -1911,7 +1911,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.10.28-1722';
+var APP_VERSION = '2026.10.28-1730';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -4666,7 +4666,7 @@ function refTypesFromName(n){
   if(/clip/.test(n)) return ['CLIP'];
   if(/anneau/.test(n)) return ['RINGS','ANNEAU'];
   if(/(dos|pinback|pin back)/.test(n) && /epingle|pinback|pin back/.test(n)) return ['PINBACK'];
-  if(/epingle/.test(n)) return ['PIN','PINBACK'];
+  if(/epingle|\bpins?\b/.test(n)) return ['PIN','PINBACK'];
   if(/\bdos\b/.test(n)) return ['PINBACK','FLATBACK','UNPINNED','MAGNET'];
   return [];
 }
@@ -4738,7 +4738,7 @@ function ebpRowInput(inp){
   var info = inp.parentNode.querySelector('.ebp-info'); if(info) info.innerHTML = ebpInfoHtml(inp.value);
 }
 function ebpRowPick(btn, code){
-  var inp = btn.parentNode.parentNode.querySelector('input[data-ebp-path]'); inp.value = code; ebpRowInput(inp);
+  var inp = btn.parentNode.parentNode.querySelector('input[data-ebp-targets]'); inp.value = code; ebpRowInput(inp);
 }
 function ebpToolOpen(){
   if(!iAm) return;
@@ -4749,14 +4749,25 @@ function ebpToolOpen(){
     var ebpSup = []; EBP_REFS.forEach(function(r){ if(r[2] && ebpSup.indexOf(r[2])<0) ebpSup.push(r[2]); }); ebpSup.sort();
     ebpSupMap = {}; ebpSup.forEach(function(n){ var a = ebpSupplierAppName(n, appNames); if(a) ebpSupMap[n] = a; });
     var missing = ebpSup.filter(function(n){ return !ebpSupMap[n]; });
+    // Une ligne par fourniture (même format + même nom) : Atelier et Réserve sont regroupés, la référence est posée sur les deux.
     var rows = [], deja = 0;
     (S.cats||[]).slice().sort(function(a,b){ return (a.order||99)-(b.order||99) || String(a.name).localeCompare(String(b.name),'fr'); }).forEach(function(cat){
+      var byName = {}, order = [];
       [['items','Atelier'],['reserve_items','Réserve']].forEach(function(z){
         (cat[z[0]]||[]).forEach(function(it){
           if(it.linked) return;
-          if(it.refIso){ deja++; return; }
-          rows.push({cid:cat.id, dbp:z[0], zone:z[1], iid:it.id, cat:cat.name, name:it.name, four:it.fournisseur||'', m:ebpMatch(cat.name, it.name)});
+          var k = refNorm(it.name);
+          if(!byName[k]){ byName[k] = {cat:cat.name, name:it.name, zones:[], targets:[]}; order.push(k); }
+          if(it.refIso) return;
+          byName[k].zones.push(z[1]); byName[k].targets.push({path:'categories/'+cat.id+'/'+z[0]+'/'+it.id, four:it.fournisseur||''});
         });
+      });
+      order.forEach(function(k){
+        var g = byName[k];
+        if(!g.targets.length){ deja++; return; }
+        g.zone = g.zones.length>1 ? 'Atelier + Réserve' : g.zones[0];
+        g.m = ebpMatch(g.cat, g.name);
+        rows.push(g);
       });
     });
     var nSure = rows.filter(function(r){ return r.m.status==='sure'; }).length;
@@ -4769,19 +4780,25 @@ function ebpToolOpen(){
     h += '<div style="font-weight:800;font-size:.85rem;margin-bottom:4px">2. Références ISOCOM des fournitures</div>';
     h += '<div style="font-size:.76rem;color:var(--mut);margin-bottom:8px">'+rows.length+' fourniture(s) à rapprocher'+(deja?' ('+deja+' déjà référencée(s), non reproposées)':'')+' : <strong style="color:var(--grn)">'+nSure+' sûre(s)</strong> (pré-remplies), <strong style="color:var(--acc)">'+nVer+' à vérifier</strong> (choisis dans les propositions), <strong style="color:var(--red)">'+none.length+' non trouvée(s)</strong>. Tu peux aussi taper ou corriger un code. Une ligne vide est ignorée.</div>';
     if(none.length){
-      h += '<details style="margin-bottom:10px"><summary style="font-size:.8rem;color:var(--red);cursor:pointer">🔎 '+none.length+' fourniture(s) non identifiée(s) dans EBP</summary><div style="font-size:.76rem;margin-top:6px">'+none.map(function(r){ return esc(r.cat)+' › <strong>'+esc(r.name)+'</strong> <span style="color:var(--mut)">('+r.zone+')</span>'; }).join('<br>')+'</div></details>';
+      h += '<details style="margin-bottom:10px"><summary style="font-size:.8rem;color:var(--red);cursor:pointer">🔎 '+none.length+' fourniture(s) non identifiée(s) dans EBP</summary><textarea id="ebp-none-list" readonly rows="8" style="width:100%;box-sizing:border-box;margin-top:6px;font-size:.74rem;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);padding:7px">'+esc(none.map(function(r){ return r.cat+' › '+r.name+' ('+r.zone+')'; }).join('\n'))+'</textarea><button type="button" class="btn bsec" style="width:100%;margin-top:6px" onclick="ebpCopyNone()">📋 Copier la liste</button></details>';
     }
     h += rows.map(function(r){
       var code = r.m.pick ? r.m.pick.code : '';
       var chips = (r.m.status==='verify' ? r.m.cands : []).map(function(e){ return '<button type="button" onclick="ebpRowPick(this,\''+esc(e.code).replace(/'/g,"\\'")+'\')" style="font-size:.68rem;padding:3px 7px;margin:2px 4px 0 0;border-radius:6px;border:1px solid var(--acc);background:none;color:var(--acc);cursor:pointer">'+esc(e.code)+'</button>'; }).join('');
       return '<div style="padding:8px 0;border-top:1px solid var(--brd)"><div style="font-size:.8rem"><strong>'+esc(r.cat)+'</strong> › '+esc(r.name)+' <span style="color:var(--mut)">('+r.zone+')</span> '+(r.m.status==='sure'?'<span style="color:var(--grn);font-size:.7rem">sûr</span>':(r.m.status==='verify'?'<span style="color:var(--acc);font-size:.7rem">à vérifier</span>':'<span style="color:var(--red);font-size:.7rem">non trouvé</span>'))+'</div>'+
-        '<div style="margin-top:4px"><input list="ebp-codes" data-ebp-path="categories/'+r.cid+'/'+r.dbp+'/'+r.iid+'" data-four="'+esc(r.four)+'" value="'+esc(code)+'" placeholder="Code EBP…" oninput="ebpRowInput(this)" style="width:100%;box-sizing:border-box;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.8rem;padding:7px"><div class="ebp-info" style="font-size:.72rem;margin-top:3px">'+ebpInfoHtml(code)+'</div>'+(chips?'<div>'+chips+'</div>':'')+'</div></div>';
+        '<div style="margin-top:4px"><input list="ebp-codes" data-ebp-targets="'+esc(JSON.stringify(r.targets))+'" value="'+esc(code)+'" placeholder="Code EBP…" oninput="ebpRowInput(this)" style="width:100%;box-sizing:border-box;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.8rem;padding:7px"><div class="ebp-info" style="font-size:.72rem;margin-top:3px">'+ebpInfoHtml(code)+'</div>'+(chips?'<div>'+chips+'</div>':'')+'</div></div>';
     }).join('');
     h += '<div id="ebp-tool-res" style="font-size:.8rem;margin:10px 0"></div>';
     h += rows.length ? '<button class="btn bpri" style="width:100%" id="ebp-apply-btn" onclick="ebpToolApply()">✅ Appliquer les références</button>' : '<div style="font-size:.8rem;color:var(--grn)">✅ Rien à rapprocher pour le moment.</div>';
     h += '<div style="border-top:1px solid var(--brd);margin-top:12px;padding-top:10px"><div style="font-size:.74rem;color:var(--mut);margin-bottom:6px">Une erreur ? Ce bouton retire uniquement les références posées par cet outil (celles que tu as saisies à la main ne sont pas touchées).</div><button class="btn bsec" style="width:100%" onclick="ebpToolUndoAsk()">↩️ Retirer les références posées par l\'outil</button></div>';
     box.innerHTML = h;
   }).catch(function(e){ box.innerHTML = '<div style="color:var(--red);font-size:.8rem">Erreur de chargement ('+esc((e&&e.code)||'inconnue')+')</div>'; });
+}
+function ebpCopyNone(){
+  var ta = document.getElementById('ebp-none-list'); if(!ta) return;
+  ta.select();
+  try{ navigator.clipboard.writeText(ta.value).then(function(){ toast('📋 Liste copiée'); }, function(){ document.execCommand('copy'); toast('📋 Liste copiée'); }); }
+  catch(e){ try{ document.execCommand('copy'); toast('📋 Liste copiée'); }catch(e2){} }
 }
 function ebpToolAddSuppliers(){
   if(!iAm) return;
@@ -4794,13 +4811,16 @@ function ebpToolApply(){
   if(!iAm) return;
   var res = document.getElementById('ebp-tool-res'), btn = document.getElementById('ebp-apply-btn');
   var jobs = [], bad = 0;
-  document.querySelectorAll('#ebp-tool-body input[data-ebp-path]').forEach(function(inp){
+  document.querySelectorAll('#ebp-tool-body input[data-ebp-targets]').forEach(function(inp){
     var code = inp.value.trim(); if(!code) return;
     var e = ebpFind(code);
     if(!e){ bad++; inp.style.borderColor = 'var(--red)'; return; }
-    var upd = {refIso:e.code, refSrc:'ebp'};
-    if(e.four && !inp.getAttribute('data-four')){ upd.fournisseur = ebpSupName(e.four); upd.fournSrc = 'ebp'; }
-    jobs.push(fbu(inp.getAttribute('data-ebp-path'), upd));
+    var targets = []; try{ targets = JSON.parse(inp.getAttribute('data-ebp-targets')||'[]'); }catch(x){}
+    targets.forEach(function(t){
+      var upd = {refIso:e.code, refSrc:'ebp'};
+      if(e.four && !t.four){ upd.fournisseur = ebpSupName(e.four); upd.fournSrc = 'ebp'; }
+      jobs.push(fbu(t.path, upd));
+    });
   });
   if(bad){ res.innerHTML = '<span style="color:var(--red)">'+bad+' code(s) inconnu(s) (encadrés en rouge) : corrige-les ou vide la case, puis relance.</span>'; return; }
   if(!jobs.length){ res.innerHTML = '<span style="color:var(--mut)">Aucune référence à appliquer.</span>'; return; }
