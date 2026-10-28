@@ -1906,7 +1906,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.10.28-1351';
+var APP_VERSION = '2026.10.28-1527';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -2539,6 +2539,8 @@ function ecranAutoOpen(tries){
 // Pas de correctif technique invisible ici. tag = qui est concerné :
 //   'all' (tout le monde), 'admin' (admin/direction), 'maint' (maintenance), 'stock' (ajout de stock), 'reprint' (réimpressions)
 var NEWS = [
+  {n:39, d:'28/10/2026', tag:'dashboard', t:'Stats : les pièces produites en table seule sont comptées', x:'Les pièces des formats produits uniquement en table (gamme « Table seule », ex. porte-clés) entrent maintenant dans le total produit, les stats par format, site, semaine et producteur. Les repassages semi-auto vers table restent comptés une seule fois. Sous « Répartition par machine », la table indique « dont X pcs repassées ».'},
+  {n:38, d:'28/10/2026', tag:'dashboard', t:'Capacité : même reste à produire que « Charge actuelle »', x:'Le simulateur express de l\'onglet Capacité utilise maintenant le même « reste à produire » que la Charge actuelle de l\'onglet Aujourd\'hui (quantité commandée moins ce qui est déjà produit). Plus d\'écart entre les deux.'},
   {n:37, d:'28/10/2026', tag:'all', t:'Stock : « sachets » pour Porte-clés et Pins', x:'Pour les familles Porte-clés et Pins, le stock parle maintenant de sachets (et plus de cartons) : ajout, retrait, transfert, réception, inventaire et journal. Badges & Magnets restent en cartons.'},
   {n:36, d:'28/10/2026', tag:'admin', t:'Dépiautage : supprimer une commande « En cours »', x:'L\'admin et la direction peuvent maintenant supprimer une commande « En cours » (avec un message d\'avertissement). Et quand on supprime la dernière ligne de production d\'une commande « En cours », elle redevient « En attente » au lieu de rester coincée.'},
   {n:35, d:'28/10/2026', tag:'dashboard', t:'Tableau de bord : ouverture sur « Commandes »', x:'Le Tableau de bord s\'ouvre maintenant directement sur le sous-onglet « Commandes » (Synthèse, Aujourd\'hui, Capacité et SAV restent à un clic).'},
@@ -12391,7 +12393,7 @@ function openStatsMonth(){
                 var sec = l.sec||'semi';
                 stats[r.uid][sec] = (stats[r.uid][sec]||0) + qty;
                 // Règle semi+table = même produit → ne compter qu'une fois
-                if(sec !== 'table') stats[r.uid].total += qty;
+                if(statsLineCounts(sec, l.format)) stats[r.uid].total += qty;
                 if(l.cmd) stats[r.uid].cmds[l.cmd] = true;
               });
             }
@@ -13423,7 +13425,15 @@ function statsWeekTouches(wk, fromKey, toKey){
   return !(fri < fromKey || mon > toKey);
 }
 // ── Statistiques : comparaison avec l'année précédente (N-1) ──
-// Totaux par mois ('YYYY-MM' → pièces) des lignes terminées hors table (même règle que « Total produit »).
+// Une ligne « Table » compte dans les totaux de production seulement si le format est produit en table SEULE
+// (gamme « Table seule »). Sinon c'est un repassage d'une pièce déjà comptée au semi-auto : on ne la recompte pas.
+function statsTableIsDirect(fmt){
+  var e = gammeGetEtapes(String(fmt||'').trim().toUpperCase());
+  return e.length === 1 && e[0] === 'table';
+}
+// Une ligne compte-t-elle dans « Total produit » / formats / sites / jours / semaines ?
+function statsLineCounts(sec, fmt){ return sec !== 'table' || statsTableIsDirect(fmt); }
+// Totaux par mois ('YYYY-MM' → pièces) des lignes terminées (table seule comprise, repassages table exclus : même règle que « Total produit »).
 function statsMonthsFromReports(data, fromKey, toKey, acc){
   acc = acc || {};
   Object.keys(data || {}).forEach(function(wk){
@@ -13434,7 +13444,7 @@ function statsMonthsFromReports(data, fromKey, toKey, acc){
       if(!dk || dk < fromKey || dk > toKey) continue;
       var lines = ((w['d'+di]||{})['h'+hi]||{}).lines || [];
       lines.forEach(function(l){
-        if(!l || l.status !== 'done' || (l.sec||'semi') === 'table') return;
+        if(!l || l.status !== 'done' || !statsLineCounts(l.sec||'semi', l.format)) return;
         var q = parseInt(l.qty) || 0;
         if(q) acc[dk.slice(0,7)] = (acc[dk.slice(0,7)] || 0) + q;
       });
@@ -15511,6 +15521,7 @@ function loadStats(){
       var formatCount  = {}; // format → qty
       var siteCount    = {}; // site → qty
       var machineCount = {semi:0, auto:0, table:0};
+      var tableRepass = 0;   // pièces « Table » qui sont un repassage depuis le semi-auto (déjà comptées dans le total)
       var dayCount     = {}; // 'YYYY-MM-DD' → qty
       var weekCount    = {}; // 'YYYY-WW' → qty (semaines)
       var cqStats      = {pending:0, checked:0, archived:0};
@@ -15552,7 +15563,7 @@ function loadStats(){
               if(dkP < statPrevFromKey || dkP > statPrevToKey) continue;
               var linesP = ((wdP['d'+di]||{})['h'+hi]||{}).lines||[];
               linesP.forEach(function(l){
-                if(l.status==='done' && (l.sec||'semi')!=='table') prevTotal += parseInt(l.qty)||0;
+                if(l.status==='done' && statsLineCounts(l.sec||'semi', l.format)) prevTotal += parseInt(l.qty)||0;
               });
             }
           }
@@ -15594,13 +15605,15 @@ function loadStats(){
                 }
 
                 // Totaux globaux : compter TOUS les utilisateurs avec perm production
+                var cnt = statsLineCounts(sec, fmt);
+                if(sec === 'table' && !cnt) tableRepass += qty;
                 // Formats
-                if(fmt && sec!=='table'){
+                if(fmt && cnt){
                   formatCount[fmt] = (formatCount[fmt]||0) + qty;
                 }
 
                 // Sites
-                if(site && sec!=='table'){
+                if(site && cnt){
                   siteCount[site] = (siteCount[site]||0) + qty;
                 }
 
@@ -15608,7 +15621,7 @@ function loadStats(){
                 machineCount[sec] = (machineCount[sec]||0) + qty;
 
                 // Jours (courbe)
-                if(sec!=='table'){
+                if(cnt){
                   dayCount[dayKey] = (dayCount[dayKey]||0) + qty;
                   workDays[dayKey] = true;
                   totalPcs += qty;
@@ -15669,6 +15682,7 @@ function loadStats(){
         dayCount: dayCount,
         cqStats: cqStats,
         totalPcs: totalPcs,
+        tableRepass: tableRepass,
         nbCmds: nbCmds,
         nbDays: nbDays,
         prevDiff: prevDiff,
@@ -15764,6 +15778,7 @@ function loadStats(){
             +'<span>'+row[0]+'</span>'
             +'<span style="color:'+row[2]+';font-weight:700">'+(machineCount[row[1]]||0).toLocaleString('fr-FR')+' pcs · '+pct+'%</span>'
           +'</div>'
+          +((row[1]==='table' && tableRepass>0) ? '<div style="font-size:.68rem;color:var(--mut);margin:-1px 0 4px">dont '+tableRepass.toLocaleString('fr-FR')+' pcs repassées en étape table après le semi-auto (déjà comptées dans le total)</div>' : '')
           +'<div style="background:var(--sur);border-radius:99px;height:6px;overflow:hidden">'
             +'<div style="background:'+row[2]+';width:'+pct+'%;height:100%;border-radius:99px"></div>'
           +'</div>'
@@ -16047,7 +16062,7 @@ function statsShowDayDetail(dayKey){
     html += '<div style="color:var(--mut);font-size:.85rem;padding:10px 0">Aucune ligne détaillée pour ce jour.</div>';
   } else {
     html += list.slice().sort(function(a,b){ return (a.who||'').localeCompare(b.who||'') || a.hi-b.hi; }).map(function(l){
-      var isCounted = l.sec !== 'table';
+      var isCounted = statsLineCounts(l.sec, l.format);
       if(isCounted) counted += l.qty;
       var fmtTs = function(t){ return new Date(t).toLocaleString('fr-FR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}); };
       var created = [l.startedAt ? 'créée le '+fmtTs(l.startedAt) : '', l.doneAt ? 'terminée le '+fmtTs(l.doneAt) : ''].filter(Boolean).join(' · ');
@@ -17794,6 +17809,27 @@ function dashCalcSynthese(commandes, reprints, cats, opts){
   };
 }
 
+// Reste à produire « réel » : même calcul que la Charge actuelle (onglet Aujourd'hui) = quantité commandée moins ce qui est déjà produit,
+// commandes non terminées. Renvoie null tant que les rapports de l'équipe ne sont pas chargés (on retombe alors sur l'estimation ci-dessous).
+function dashResteReel(){
+  if(!S_dash.allReports) return null;
+  return dashCalcChargeActuelle(S_dash.commandes, S_dash.allReports, {}).resteAProduire;
+}
+function dashResteNoteHtml(precise){
+  return precise
+    ? 'Le « reste à produire » est le même que la « Charge actuelle » de l\'onglet Aujourd\'hui : quantité commandée moins ce qui est déjà produit, sur les commandes non terminées.'
+    : 'Estimation provisoire (quantités commandées des commandes non terminées) : elle se met à jour dès que les rapports de production sont chargés.';
+}
+// Appelée quand les rapports de l'équipe arrivent : met à jour le reste affiché dans Capacité sans toucher à ce que l'utilisateur a saisi
+function dashRefreshCapaciteReste(){
+  var chk = document.getElementById('dash-cap-countopen');
+  if(!chk) return;
+  var r = dashResteReel(); if(r === null) return;
+  S_dash.resteAProduire = r;
+  var lbl = document.getElementById('dash-cap-reste-lbl'); if(lbl) lbl.textContent = r.toLocaleString('fr-FR');
+  var note = document.getElementById('dash-cap-reste-note'); if(note) note.textContent = dashResteNoteHtml(true);
+  dashRecalcCapacite();
+}
 function dashResteAProduire(commandes){
   return (commandes||[]).filter(function(c){ return c.status!=='done'; })
     .reduce(function(s,c){ return s + dashCommandeQty(c); }, 0);
@@ -18020,6 +18056,7 @@ function dashEnsureAllReports(){
   if(S_dash.allReports) return Promise.resolve(S_dash.allReports);
   return dashFetchAllReports(S_dash.users || {}).then(function(all){
     S_dash.allReports = all;
+    try{ dashRefreshCapaciteReste(); }catch(e){}
     if(!S_dash.producersByCmd){
       S_dash.producersByCmd = dashBuildProducersIndex(all);
       S_dash.producersLoaded = true;
@@ -18304,6 +18341,7 @@ function openDashboardTab(){
         // rapports de toute l'équipe (reste à produire + historique) —
         // on la (re)dessine une fois cette étape lente terminée, comme PAR.
         dashRenderAujourdhui();
+        dashRefreshCapaciteReste();
       }).catch(function(err){
         console.error('Dashboard: erreur de chargement des producteurs (colonne PAR)', err);
       });
@@ -18718,7 +18756,8 @@ function dashRenderCapacite(){
   if(!el) return;
   if(!S_dash.loaded){ el.innerHTML = '<div style="text-align:center;padding:30px;color:var(--mut)">Chargement…</div>'; return; }
 
-  var reste = dashResteAProduire(S_dash.commandes);
+  var resteReel = dashResteReel();
+  var reste = resteReel !== null ? resteReel : dashResteAProduire(S_dash.commandes);
   S_dash.resteAProduire = reste;
   var defOperateurs = S_dash.producers.length;
   var defPcsJour = S_dash.settings.pcsJour;
@@ -18740,10 +18779,10 @@ function dashRenderCapacite(){
   html += '</div>';
   html += '<label style="display:flex;align-items:center;gap:8px;font-size:.8rem;margin-bottom:10px;cursor:pointer">'+
     '<input type="checkbox" id="dash-cap-countopen" checked onchange="dashRecalcCapacite()" style="width:16px;height:16px;accent-color:var(--acc)">'+
-    'Compter aussi le reste à produire des commandes déjà en cours ('+reste.toLocaleString('fr-FR')+' pcs)</label>';
+    'Compter aussi le reste à produire des commandes déjà en cours (<span id="dash-cap-reste-lbl">'+reste.toLocaleString('fr-FR')+'</span> pcs)</label>';
   html += '<div id="dash-cap-result"></div>';
   html += '</div>';
-  html += '<div style="font-size:.7rem;color:var(--mut);padding:0 4px">Le "reste à produire" est estimé à partir des quantités commandées non encore marquées "Terminée" — c\'est une approximation (elle ne déduit pas ce qui est déjà partiellement produit sur une commande en cours).</div>';
+  html += '<div id="dash-cap-reste-note" style="font-size:.7rem;color:var(--mut);padding:0 4px">'+dashResteNoteHtml(resteReel !== null)+'</div>';
 
   html += '<div style="margin-top:16px">';
   html += '<div style="font-family:Open Sans,sans-serif;font-weight:800;font-size:0.95rem;margin-bottom:6px">📅 Capacité réelle, jour par jour</div>';
