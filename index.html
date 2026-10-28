@@ -1919,7 +1919,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.10.28-1551';
+var APP_VERSION = '2026.10.28-1604';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -2406,6 +2406,13 @@ auth.onAuthStateChanged(function(u) {
         freshRole = ud.role || 'employee';
         freshPerms = ud.perms || {};
         freshMachineType = ud.machineType || 'semi';
+        // Garde la fiche /users à jour : e-mail changé (Mon compte) et titre du compte admin
+        try {
+          var upd = {};
+          if(u.email && ud.email !== u.email) upd.email = u.email;
+          if(isAdminEmail(u.email) && !ud.jobTitle) upd.jobTitle = 'RESPONSABLE DE PRODUCTION';
+          if(Object.keys(upd).length) fbu('users/'+u.uid, upd);
+        } catch(e){}
       } else if(iAm){
         // Cas particulier : le compte admin historique (email ADMIN) peut
         // se connecter avant même d'avoir sa propre fiche dans /users.
@@ -2552,9 +2559,6 @@ function ecranAutoOpen(tries){
 // Pas de correctif technique invisible ici. tag = qui est concerné :
 //   'all' (tout le monde), 'admin' (admin/direction), 'maint' (maintenance), 'stock' (ajout de stock), 'reprint' (réimpressions)
 var NEWS = [
-  {n:42, d:'28/10/2026', tag:'all', t:'Mon compte : changer son adresse e-mail', x:'Dans Mon compte, nouveau bloc « Changer mon adresse e-mail » : un lien de confirmation est envoyé à la nouvelle adresse. Mot de passe et droits inchangés.'},
-  {n:41, d:'28/10/2026', tag:'admin', t:'Compte admin : adresse entreprise reconnue', x:'L\'adresse alexandre@iso-com.fr est reconnue comme admin en plus de l\'ancienne, pour permettre de changer l\'e-mail du compte sans perdre les droits.'},
-  {n:40, d:'28/10/2026', tag:'admin', t:'Compte admin affiché « ALEX »', x:'En haut à droite, le compte admin affiche « ALEX » (et non plus l\'identifiant de l\'adresse mail).'},
   {n:39, d:'28/10/2026', tag:'dashboard', t:'Stats : les pièces produites en table seule sont comptées', x:'Les pièces des formats produits uniquement en table (gamme « Table seule », ex. porte-clés) entrent maintenant dans le total produit, les stats par format, site, semaine et producteur. Les repassages semi-auto vers table restent comptés une seule fois. Sous « Répartition par machine », la table indique « dont X pcs repassées ».'},
   {n:38, d:'28/10/2026', tag:'dashboard', t:'Capacité : même reste à produire que « Charge actuelle »', x:'Le simulateur express de l\'onglet Capacité utilise maintenant le même « reste à produire » que la Charge actuelle de l\'onglet Aujourd\'hui (quantité commandée moins ce qui est déjà produit). Plus d\'écart entre les deux.'},
   {n:37, d:'28/10/2026', tag:'all', t:'Stock : « sachets » pour Porte-clés et Pins', x:'Pour les familles Porte-clés et Pins, le stock parle maintenant de sachets (et plus de cartons) : ajout, retrait, transfert, réception, inventaire et journal. Badges & Magnets restent en cartons.'},
