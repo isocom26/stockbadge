@@ -610,8 +610,8 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
   <!-- BARRE 1 : Groupes -->
 <div class="tab-groups-bar">
   <button class="tab-group-btn active" id="grp-production" onclick="switchGroup('production')">🏭 Production</button>
-  <button class="tab-group-btn" id="grp-stock" onclick="switchGroup('stock')">📦 Stock<span id="inv-badge-grp" class="tab-badge" style="display:none">0</span></button>
   <button class="tab-group-btn ao" id="grp-dashboard" style="display:none" onclick="switchGroup('dashboard')">📈 Tableau de bord</button>
+  <button class="tab-group-btn" id="grp-stock" onclick="switchGroup('stock')">📦 Stock<span id="inv-badge-grp" class="tab-badge" style="display:none">0</span></button>
   <button class="tab-group-btn ao" id="grp-maintenance" style="display:none" onclick="switchGroup('maintenance')">🔩 Maintenance</button>
   <button class="tab-group-btn ao" id="grp-meeting" style="display:none" onclick="switchGroup('meeting')">📅 Réunions</button>
   <button class="tab-group-btn ao" id="grp-stats" style="display:none" onclick="switchGroup('stats')">📊 Statistiques</button>
@@ -633,7 +633,7 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
   <button class="tab-sub-btn" id="sub-depiautage" onclick="switchSubTab('depiautage',this)">✂️ Dépiautage</button>
   <button class="tab-sub-btn ao" id="sub-reprint" style="display:none" onclick="switchSubTab('reprint',this)">🖨️ Réimp.</button>
   <button class="tab-sub-btn ao" id="sub-qualite" style="display:none" onclick="switchSubTab('qualite',this)">🔍 Contrôle Qualité</button>
-  <button class="tab-sub-btn ao" id="sub-search" style="display:none" onclick="switchSubTab('search',this)">🔍 Recherche</button>
+  <button class="tab-sub-btn" id="sub-search" onclick="switchSubTab('search',this)">🔍 Recherche</button>
 </div>
 <div class="tab-sub-bar" id="sub-bar-admin" style="display:none">
   <button class="tab-sub-btn active" id="sub-admin-droits" onclick="switchSubTab('admin_droits',this)">👥 Droits</button>
@@ -1906,7 +1906,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.10.27-1122';
+var APP_VERSION = '2026.10.28-0857';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -2287,11 +2287,12 @@ function applyPermsValues(role, perms, machineType){
 
 function renderAfterPermsKnown(){
   applyTabPerms();
+  var prodRedirected = redirectIfProductionHidden();
   updateRpNotif();
   renderCurrentStock();
   checkBackupReminder();
   // Si le rapport est la vue active au démarrage, l'initialiser maintenant
-  if(curTab === 'report' || document.getElementById('view-report').classList.contains('active')){
+  if(!prodRedirected && (curTab === 'report' || document.getElementById('view-report').classList.contains('active'))){
     curTab = 'report';
     openReportTab();
   }
@@ -2527,6 +2528,7 @@ function ecranAutoOpen(tries){
 // Pas de correctif technique invisible ici. tag = qui est concerné :
 //   'all' (tout le monde), 'admin' (admin/direction), 'maint' (maintenance), 'stock' (ajout de stock), 'reprint' (réimpressions)
 var NEWS = [
+  {n:32, d:'28/10/2026', tag:'admin', t:'Droit « Production » + nouvel ordre des onglets', x:'Dans Admin › Droits, une nouvelle case « Production » permet de retirer l\'onglet Production (Rapport, Dépiautage, Réimp., Contrôle Qualité, Recherche) à un collaborateur. Il est coché par défaut : personne ne perd l\'accès tant que tu ne le décoches pas. Le Tableau de bord passe en 2e position : sans Production, on arrive directement dessus. Le droit « Recherche » séparé disparaît : Recherche suit Production.'},
   {n:31, d:'27/10/2026', tag:'all', t:'🚨 Urgence : l\'alerte suit la commande', x:'Une commande urgente déjà produite n\'est plus oubliée : elle passe en tête du Contrôle Qualité, et en tête de Réimp. si une réimpression est ouverte, en rouge avec « URGENT ». Des pastilles rouges apparaissent sur Contrôle Qualité, Réimp. et Production.'},
   {n:30, d:'27/10/2026', tag:'admin', t:'Recherche (Production) : affichage selon un droit', x:'Le sous-onglet « Recherche » de Production n\'est plus visible par tout le monde : il s\'affiche seulement pour les personnes à qui tu coches « Recherche (sous-onglet Production) » dans Admin > Droits > Onglets visibles. L\'admin et la direction le gardent par défaut.'},
   {n:29, d:'27/10/2026', tag:'dashboard', t:'Tableau de bord : date de départ et urgence', x:'Depuis le Tableau de bord (tableau Commandes ou fiche d\'une commande), tu peux maintenant changer la date de départ et marquer une commande urgente, sans repasser par Dépiautage. C\'est la même information : elle se met à jour partout.'},
@@ -2845,8 +2847,8 @@ function esc(s){
   return String(s==null?'':s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'&#39;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
-var TABS_PERMS=[{key:'search'},{key:'commandes'},{key:'reception'},{key:'reprint'},{key:'maintenance'},{key:'meeting'},{key:'qualite'},{key:'stats'},{key:'dashboard'},{key:'admin'},{key:'journal'},{key:'inventaire'}];
-var TABS_LABELS={'search':'🔍 Recherche (sous-onglet Production)','commandes':'🛒 Commandes','reception':'📬 Réception','stats':'📊 Statistiques','reprint':'🖨️ Réimpressions','maintenance':'🔩 Maintenance','meeting':'📅 Réunion','qualite':'🔍 Contrôle Qualité','dashboard':'📈 Tableau de bord','admin':'🔧 Admin','journal':'📋 Journal des stocks','inventaire':'📋 Inventaire (comptage)'};
+var TABS_PERMS=[{key:'production'},{key:'commandes'},{key:'reception'},{key:'reprint'},{key:'maintenance'},{key:'meeting'},{key:'qualite'},{key:'stats'},{key:'dashboard'},{key:'admin'},{key:'journal'},{key:'inventaire'}];
+var TABS_LABELS={'production':'🏭 Production (onglet entier, avec Recherche)','commandes':'🛒 Commandes','reception':'📬 Réception','stats':'📊 Statistiques','reprint':'🖨️ Réimpressions','maintenance':'🔩 Maintenance','meeting':'📅 Réunion','qualite':'🔍 Contrôle Qualité','dashboard':'📈 Tableau de bord','admin':'🔧 Admin','journal':'📋 Journal des stocks','inventaire':'📋 Inventaire (comptage)'};
 function applyTabPerms(){
   // Admin : tout visible
   if(iAm){
@@ -6178,7 +6180,7 @@ function openPermsPanel(uid){
       TABS_PERMS.map(function(t){
         var perm=perms['tabs_'+t.key];
         var defV=(u.role==='direction');
-        var chk=(perm===true||(perm===undefined&&defV))?'checked':'';
+        var chk=(perm===true||(perm===undefined&&(defV||t.key==='production')))?'checked':'';
         return '<label style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--brd);cursor:pointer">'
           +'<input type="checkbox" id="tab-perm-'+t.key+'" '+chk+' style="width:20px;height:20px;accent-color:#3b82f6;flex-shrink:0">'
           +'<span style="font-size:.85rem">'+(TABS_LABELS[t.key]||t.key)+'</span></label>';
@@ -11796,6 +11798,25 @@ function updateGroupNav(name){
   activeSubTab = name;
 }
 
+// Droit « Production » : visible par défaut pour tous, masqué seulement si le droit est explicitement retiré (false)
+function prodGroupAllowed(){
+  if(iAm) return true;
+  return !(me_perms && me_perms['tabs_production'] === false);
+}
+// Si l'utilisateur n'a pas le droit Production alors que c'est le groupe affiché, on l'envoie sur le premier groupe auquel il a droit
+// (Tableau de bord s'il y a droit, sinon Stock). Renvoie true si une redirection a eu lieu.
+function redirectIfProductionHidden(){
+  var pb = document.getElementById('grp-production');
+  var allowed = prodGroupAllowed();
+  if(pb) pb.style.display = allowed ? '' : 'none';
+  if(allowed || activeGroup !== 'production') return false;
+  var target = null;
+  document.querySelectorAll('.tab-group-btn').forEach(function(b){
+    if(!target && b.id !== 'grp-production' && b.style.display !== 'none') target = b.id.replace('grp-','');
+  });
+  switchGroup(target || 'stock');
+  return true;
+}
 function applyTabPermsGroups(){
   if(iAm){
     document.querySelectorAll('.tab-group-btn.ao,.tab-sub-btn.ao').forEach(function(el){ el.style.display=''; });
