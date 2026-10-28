@@ -1439,6 +1439,16 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
     <button class="btn bpri" style="width:100%" id="compte-pwd-btn" onclick="changeMyPassword()">💾 Enregistrer le nouveau mot de passe</button>
   </div>
 
+  <div style="background:var(--card);border:1.5px solid var(--brd);border-radius:14px;padding:14px;margin-bottom:16px">
+    <div style="font-family:Open Sans,sans-serif;font-weight:800;font-size:0.95rem;margin-bottom:6px">✉️ Changer mon adresse e-mail</div>
+    <div style="font-size:.78rem;color:var(--mut);margin-bottom:12px">Un lien de confirmation est envoyé à la nouvelle adresse. L'e-mail ne change que quand tu cliques dessus. Ton mot de passe et tes droits ne changent pas.</div>
+    <div class="ff"><label>Nouvelle adresse e-mail</label><input type="email" id="compte-mail-new" placeholder="prenom@iso-com.fr" autocomplete="email"></div>
+    <div class="ff"><label>Mot de passe actuel</label><input type="password" id="compte-mail-pwd" placeholder="••••••••" autocomplete="current-password"></div>
+    <div id="compte-mail-err" style="color:var(--red);font-size:.8rem;margin-bottom:8px;display:none"></div>
+    <div id="compte-mail-ok" style="color:var(--grn);font-size:.8rem;margin-bottom:8px;display:none"></div>
+    <button class="btn bpri" style="width:100%" id="compte-mail-btn" onclick="changeMyEmail()">📨 Envoyer le lien de confirmation</button>
+  </div>
+
   <div style="text-align:center;color:var(--mut);font-size:.72rem;margin-bottom:16px" id="compte-version"></div>
 
     <button class="btn bsec" style="width:100%" onclick="cm('m-compte')">Fermer</button>
@@ -1909,7 +1919,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.10.28-1539';
+var APP_VERSION = '2026.10.28-1551';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -2542,6 +2552,7 @@ function ecranAutoOpen(tries){
 // Pas de correctif technique invisible ici. tag = qui est concerné :
 //   'all' (tout le monde), 'admin' (admin/direction), 'maint' (maintenance), 'stock' (ajout de stock), 'reprint' (réimpressions)
 var NEWS = [
+  {n:42, d:'28/10/2026', tag:'all', t:'Mon compte : changer son adresse e-mail', x:'Dans Mon compte, nouveau bloc « Changer mon adresse e-mail » : un lien de confirmation est envoyé à la nouvelle adresse. Mot de passe et droits inchangés.'},
   {n:41, d:'28/10/2026', tag:'admin', t:'Compte admin : adresse entreprise reconnue', x:'L\'adresse alexandre@iso-com.fr est reconnue comme admin en plus de l\'ancienne, pour permettre de changer l\'e-mail du compte sans perdre les droits.'},
   {n:40, d:'28/10/2026', tag:'admin', t:'Compte admin affiché « ALEX »', x:'En haut à droite, le compte admin affiche « ALEX » (et non plus l\'identifiant de l\'adresse mail).'},
   {n:39, d:'28/10/2026', tag:'dashboard', t:'Stats : les pièces produites en table seule sont comptées', x:'Les pièces des formats produits uniquement en table (gamme « Table seule », ex. porte-clés) entrent maintenant dans le total produit, les stats par format, site, semaine et producteur. Les repassages semi-auto vers table restent comptés une seule fois. Sous « Répartition par machine », la table indique « dont X pcs repassées ».'},
@@ -6130,6 +6141,9 @@ function openCompteTab(){
   ['compte-pwd-cur','compte-pwd-new','compte-pwd-new2'].forEach(function(id){ document.getElementById(id).value=''; });
   document.getElementById('compte-pwd-err').style.display='none';
   document.getElementById('compte-pwd-ok').style.display='none';
+  ['compte-mail-new','compte-mail-pwd'].forEach(function(id){ document.getElementById(id).value=''; });
+  document.getElementById('compte-mail-err').style.display='none';
+  document.getElementById('compte-mail-ok').style.display='none';
   om('m-compte');
 }
 
@@ -6161,6 +6175,41 @@ function changeMyPassword(){
       if(er.code==='auth/wrong-password') msg = 'Mot de passe actuel incorrect.';
       else if(er.code==='auth/too-many-requests') msg = 'Trop de tentatives, réessaie plus tard.';
       else if(er.code==='auth/weak-password') msg = 'Mot de passe trop faible (minimum 6 caractères).';
+      else if(er.code==='auth/requires-recent-login') msg = 'Session trop ancienne : déconnecte-toi puis reconnecte-toi avant de réessayer.';
+      showErr(msg);
+    })
+    .finally(function(){ btn.disabled = false; btn.textContent = btnTxt; });
+}
+
+// ── MON COMPTE — changement d'adresse e-mail (lien de confirmation envoyé à la nouvelle adresse) ──
+function changeMyEmail(){
+  if(!me) return;
+  var errEl = document.getElementById('compte-mail-err');
+  var okEl = document.getElementById('compte-mail-ok');
+  errEl.style.display='none'; okEl.style.display='none';
+  var ne = (document.getElementById('compte-mail-new').value||'').trim().toLowerCase();
+  var cur = document.getElementById('compte-mail-pwd').value;
+  function showErr(msg){ errEl.textContent=msg; errEl.style.display='block'; }
+  if(!ne || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(ne)){ showErr('Merci de saisir une adresse e-mail valide.'); return; }
+  if(ne === String(me.email||'').toLowerCase()){ showErr('C\'est déjà ton adresse actuelle.'); return; }
+  if(!cur){ showErr('Merci de saisir ton mot de passe actuel.'); return; }
+  var btn = document.getElementById('compte-mail-btn');
+  btn.disabled = true; var btnTxt = btn.textContent; btn.textContent = '⏳ Envoi…';
+  var cred = firebase.auth.EmailAuthProvider.credential(me.email, cur);
+  me.reauthenticateWithCredential(cred)
+    .then(function(){ return me.verifyBeforeUpdateEmail(ne); })
+    .then(function(){
+      okEl.textContent = '✅ Lien envoyé à ' + ne + '. Ouvre cet e-mail et clique sur le lien (regarde aussi les spams), puis reconnecte-toi avec la nouvelle adresse.';
+      okEl.style.display='block';
+      document.getElementById('compte-mail-pwd').value='';
+      toast('✅ Lien de confirmation envoyé');
+    })
+    .catch(function(er){
+      var msg = 'Erreur : impossible de changer l\'adresse (' + (er.code||'inconnue') + ').';
+      if(er.code==='auth/wrong-password') msg = 'Mot de passe actuel incorrect.';
+      else if(er.code==='auth/email-already-in-use') msg = 'Cette adresse est déjà utilisée par un autre compte.';
+      else if(er.code==='auth/invalid-email') msg = 'Adresse e-mail invalide.';
+      else if(er.code==='auth/too-many-requests') msg = 'Trop de tentatives, réessaie plus tard.';
       else if(er.code==='auth/requires-recent-login') msg = 'Session trop ancienne : déconnecte-toi puis reconnecte-toi avant de réessayer.';
       showErr(msg);
     })
