@@ -1906,7 +1906,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.10.28-0909';
+var APP_VERSION = '2026.10.28-1232';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -2528,6 +2528,7 @@ function ecranAutoOpen(tries){
 // Pas de correctif technique invisible ici. tag = qui est concerné :
 //   'all' (tout le monde), 'admin' (admin/direction), 'maint' (maintenance), 'stock' (ajout de stock), 'reprint' (réimpressions)
 var NEWS = [
+  {n:36, d:'28/10/2026', tag:'admin', t:'Dépiautage : supprimer une commande « En cours »', x:'L\'admin et la direction peuvent maintenant supprimer une commande « En cours » (avec un message d\'avertissement). Et quand on supprime la dernière ligne de production d\'une commande « En cours », elle redevient « En attente » au lieu de rester coincée.'},
   {n:35, d:'28/10/2026', tag:'dashboard', t:'Tableau de bord : ouverture sur « Commandes »', x:'Le Tableau de bord s\'ouvre maintenant directement sur le sous-onglet « Commandes » (Synthèse, Aujourd\'hui, Capacité et SAV restent à un clic).'},
   {n:34, d:'28/10/2026', tag:'admin', t:'Droits Admin : Réimpressions et Contrôle Qualité simplifiés', x:'Les cases « Réimpressions » et « Contrôle Qualité » des onglets visibles sont retirées : ces sous-onglets suivent maintenant le droit « Production ». Le droit « Peut valider les réimpressions » reste inchangé.'},
   {n:33, d:'28/10/2026', tag:'admin', t:'Droits Admin : liste défilable sur PC', x:'La fenêtre des droits d\'un collaborateur est maintenant limitée à la hauteur de l\'écran et défile : on peut remonter tout en haut (nom, rôle, droits) même avec la liste complète des onglets.'},
@@ -8689,7 +8690,16 @@ function recalcCmdStatusAfterLineDelete(cmdId, site, cmd){
         if(!resolvedId) return;
         fbg('commandes/'+resolvedId).then(function(cSnap){
           var c = cSnap.val();
-          if(!c || c.status !== 'done') return; // rien à faire si elle n'était pas "Terminée"
+          if(!c) return;
+          // « En cours » sans plus aucune ligne de production liée : elle redevient « En attente »
+          // (sinon elle reste coincée, sans pouvoir être supprimée dans Dépiautage)
+          if(c.status === 'in_progress'){
+            if(!relevant.length && !c.cloture) fbu('commandes/'+resolvedId, {status:'waiting'}).then(function(){
+              try{ if(curTab==='depiautage') renderDepCmdList(); }catch(e){}
+            });
+            return;
+          }
+          if(c.status !== 'done') return; // rien à faire si elle n'était pas "Terminée"
           var newStatus = relevant.length ? 'in_progress' : 'waiting';
           fbu('commandes/'+resolvedId, {status:newStatus});
         });
@@ -14795,8 +14805,8 @@ function renderDepCmdList(){
         formatsHtml+
         esupCardHtml(c)+
         '<div style="display:flex;gap:6px;margin-top:10px">'+
-          (c.status==='waiting'
-            ? '<button onclick="depDelCommande(\''+c.id+'\')" style="padding:7px 12px;border-radius:8px;border:1px solid var(--red);background:none;color:var(--red);font-size:.75rem;cursor:pointer">🗑</button>'
+          ((c.status==='waiting' || (c.status==='in_progress' && (iAm||isDir)))
+            ? '<button onclick="depDelCommande(\''+c.id+'\',\''+c.status+'\')" style="padding:7px 12px;border-radius:8px;border:1px solid var(--red);background:none;color:var(--red);font-size:.75rem;cursor:pointer">🗑</button>'
             : '')+
         '</div>'+
         '<div style="font-size:.72rem;color:var(--mut);margin-top:6px">Ajouté le '+createdDate+' par '+(c.createdBy||'—')+'</div>'+
@@ -14825,9 +14835,11 @@ function depApplyFilter(){
   if(em) em.style.display = (cards.length && words.length && !shown) ? 'block' : 'none';
 }
 
-function depDelCommande(id){
+function depDelCommande(id, status){
   document.getElementById('cf-title').textContent = 'Supprimer cette commande ?';
-  document.getElementById('cf-msg').textContent = 'La commande sera retirée de la liste. La production déjà enregistrée ne sera pas affectée.';
+  document.getElementById('cf-msg').textContent = status === 'in_progress'
+    ? '⚠️ Cette commande est déjà « En cours ». Elle sera retirée de la liste ; la production déjà saisie dans les rapports reste enregistrée. Confirmer la suppression ?'
+    : 'La commande sera retirée de la liste. La production déjà enregistrée ne sera pas affectée.';
   cfCb = function(){
     fbd('commandes/'+id).then(function(){
       toast('🗑 Commande supprimée');
