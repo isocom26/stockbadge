@@ -1926,7 +1926,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.10.29-1708';
+var APP_VERSION = '2026.10.29-1738';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -6986,17 +6986,24 @@ function compSuggestFull(code){
     if(!sh || !fl || !mg) return null;
     return out([sh, fl, mg], ['8054','9065','11540'].indexOf(k) >= 0 && !mca && !ov);
   }
-  // Porte-clés / pins : le composant du même nom est déjà compté directement ; on propose seulement la loupe de même dimension (si elle a une réf. ISOCOM dans l'app)
+  // Porte-clés / pins : EBP ne connaît que le produit fini (= le composant du même nom + loupe [+ papillon pour les pins]).
+  // Proposition : le composant du même nom, + la loupe de même dimension si elle existe dans l'app (pas pour les acryliques PCA, reçus avec loupe).
   if(COMP_BOTH.test(c)){
-    var dm = /^PINSROND(\d+)-/.exec(c) || /-(\d+)(?:-M\d)?$/.exec(c), lr = compAppRefs(), hit = null;
-    if(dm && /^(PCM|PINS)/.test(c)){
+    var lr = compAppRefs(), refs = [];
+    if(lr[c]) refs.push(c);
+    if(/^(PCM|PINS)/.test(c)){
+      var dm = /^PINSROND(\d+)-/.exec(c) || /-(\d+)(?:-M\d)?$/.exec(c), loupe = null, pap = [];
       Object.keys(lr).forEach(function(rf){
         lr[rf].forEach(function(nm){
-          if(/LOUPE/i.test(nm) && String(nm).replace(/\(.*$/, '').replace(/\D/g, '') === dm[1]) hit = hit || rf;
+          var base = String(nm).replace(/\(.*$/, '');
+          if(dm && /LOUPE/i.test(nm) && base.replace(/\D/g, '') === dm[1]) loupe = loupe || rf;
+          if(/^PINS/.test(c) && /PAPILLON/i.test(nm) && pap.indexOf(rf) < 0) pap.push(rf);
         });
       });
+      if(loupe) refs.push(loupe);
+      if(/^PINS/.test(c) && pap.length === 1) refs.push(pap[0]);
     }
-    return hit ? out(lr[c] ? [c, hit] : [hit], false) : null;
+    return refs.length ? out(refs, false) : null;
   }
   // Miroirs : MIR{n} = miroir + ring
   if((m = /^MIR(\d{2,3})$/.exec(c))){
@@ -7048,7 +7055,7 @@ function compStatus(r){
   if(r.comp && r.comp.ignore) return 'ign';
   if(r.comp && r.comp.ok === true) return 'ok';
   if(compSuggest(r.code)) return 'sugg';
-  return (COMP_BOTH.test(invcNormCode(r.code)) && compAppRefs()[invcNormCode(r.code)]) ? 'self' : 'todo';
+  return 'todo';
 }
 function compOpen(){ if(!iAm) return; compQ = ''; compFilter = 'todo'; compEdit = null; compRender(); om('m-prod'); }
 function compClose(){ compEdit = null; cm('m-prod'); if(curTab === 'inventaire' && S_invc) invcRender(); }
@@ -7088,7 +7095,8 @@ function compRender(){
     '<div style="font-size:.76rem;color:var(--mut);margin-bottom:10px">Dans EBP, le stock des composants est porté par les produits finis (ex. B56 = 1 coque 56 + 1 pinback 56). Vérifie la composition de chaque produit : seules les compositions <strong>validées</strong> servent aux calculs de l\'inventaire.</div>'+
     '<div style="font-size:.78rem;margin-bottom:8px">✅ '+cnt.ok+' validés · 💡 '+cnt.sugg+' suggestions · ⚠️ '+cnt.todo+' sans composition · ignorés '+cnt.ign+'</div>'+
     (sureN ? '<button class="btn bsuc" style="width:100%;margin-bottom:8px;font-size:.82rem" onclick="compAcceptSure()">✅ Valider les '+sureN+' suggestions sûres</button>' : '')+
-    '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">'+chip('todo','À faire ('+(cnt.sugg+cnt.todo)+')')+chip('ok','Validés')+chip('self','Déjà comptés ('+cnt.self+')')+chip('ign','Ignorés')+chip('all','Tous')+'</div>'+
+    (cnt.sugg > sureN ? '<button class="btn bsec" style="width:100%;margin-bottom:8px;font-size:.78rem" onclick="compAcceptAll()">'+(compAllArm ? '⚠️ Cliquer encore pour valider les '+cnt.sugg+' suggestions' : 'Tout valider, même les moins sûres ('+cnt.sugg+')')+'</button>' : '')+
+    '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">'+chip('todo','À faire ('+(cnt.sugg+cnt.todo)+')')+chip('ok','Validés')+chip('ign','Ignorés')+chip('all','Tous')+'</div>'+
     '<input type="text" id="comp-q" value="'+esc(compQ)+'" oninput="compQ=this.value;compRender();var e=document.getElementById(\'comp-q\');e.focus();e.setSelectionRange(e.value.length,e.value.length)" placeholder="🔍 Rechercher un produit (code ou nom)" style="width:100%;box-sizing:border-box;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.9rem;padding:10px 12px;outline:none;margin-bottom:6px">'+
     '<button class="inv-add-line" onclick="compEditOpen(\'\')">+ Ajouter un produit (code EBP)</button>'+
     '<div style="margin-top:8px">'+(list || '<div class="empty"><div class="e">🔍</div><p>Aucun produit à afficher.</p></div>')+(shown.length>400?'<div style="font-size:.74rem;color:var(--mut);text-align:center">… '+(shown.length-400)+' autres : affine la recherche</div>':'')+'</div>'+
@@ -7105,6 +7113,20 @@ function compAcceptSure(){
   compRows().forEach(function(r){
     if(compStatus(r) !== 'sugg') return;
     var sf = compSuggestFull(r.code); if(!sf || !sf.sure) return;
+    upd[fmtKey(invcNormCode(r.code))] = {code:r.code, comps:sf.comps, ok:true, maj:Date.now(), par:getMyName()}; n++;
+  });
+  if(!n) return;
+  db.ref('compositions').update(upd).then(function(){ toast('✅ '+n+' compositions validées'); }).catch(function(e){ toast('⚠️ Échec : '+(e&&e.message||e), 1); });
+}
+var compAllArm = false;
+function compAcceptAll(){
+  if(!iAm) return;
+  if(!compAllArm){ compAllArm = true; compRender(); setTimeout(function(){ if(compAllArm){ compAllArm = false; compRender(); } }, 6000); return; }
+  compAllArm = false;
+  var upd = {}, n = 0;
+  compRows().forEach(function(r){
+    if(compStatus(r) !== 'sugg') return;
+    var sf = compSuggestFull(r.code); if(!sf) return;
     upd[fmtKey(invcNormCode(r.code))] = {code:r.code, comps:sf.comps, ok:true, maj:Date.now(), par:getMyName()}; n++;
   });
   if(!n) return;
