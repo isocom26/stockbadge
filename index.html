@@ -1926,7 +1926,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.10.29-1522';
+var APP_VERSION = '2026.10.29-1618';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -7004,13 +7004,15 @@ function compValid(){   // compositions validées : [{code, comps:[{ref, qty}]}]
 function compCompText(comps){ return (comps||[]).map(function(c){ return c.qty+' × '+c.ref; }).join(' + '); }
 // Lignes du module : produits avec composition (validée/ignorée) + lignes EBP sans composant (stock non nul)
 var COMP_NOISE = /^(MUG|MINIMUG|GOURD|PRESENTOIR|ISESP|SHOOT|BOITE|MARQUEUR|PBDCC|PCDV|PORTEPASS|FEUTRINE|CROC01$|DMF|DMA-|SHIM)/;
+// Porte-clés, pins, jetons, décapsuleurs, tirettes, lanières… : comptés eux-mêmes dans l'app ET composés (loupe, papillon, anneau…)
+var COMP_BOTH = /^(PC[A-Z0-9]|PINS|BJ[MP]\d|DEC\d|TIR\d|TD[CM]|SVM\d|IDBADGE)/;
 var COMP_FIN = /^(B|BC|BL|BO|BR)\d|^BIOB|^BJ[MP]\d|^DEC\d|^MAGO?\d|^MIRO?\d|^PC[A-Z0-9]|^PINS|^TIR\d|^TD[CM]|^SVM\d|^IDBADGE/;
 function compRows(){
   var rows = {}, eb = (S_invc && S_invc.ebp && S_invc.ebp.rows) || {}, refs = compAppRefs();
   var digN = DIGITAL_FORMATS.map(invcNormCode), presN = PRESENTOIR_FORMATS.map(invcNormCode);
   Object.keys(eb).forEach(function(k){
     var code = invcNormCode(eb[k].c);
-    if(refs[code]) return;                       // composant de l'app : pas un produit fini
+    if(refs[code] && !COMP_BOTH.test(code)) return;   // composant de l'app : pas un produit fini (sauf familles à la fois stockées et assemblées)
     if(digN.indexOf(code) >= 0 || presN.indexOf(code) >= 0) return;
     if(COMP_NOISE.test(code) && !S_comp[k]) return;
     if(eb[k].s === 0 && !S_comp[k]) return;
@@ -7019,7 +7021,7 @@ function compRows(){
   // Catalogue intégré (Base Articles EBP) : produits finis des familles connues, même sans fichier importé
   EBP_REFS.forEach(function(r){
     var code = invcNormCode(r[0]), k = fmtKey(code);
-    if(rows[k] || !COMP_FIN.test(code) || /OLD/.test(code) || refs[code] || COMP_NOISE.test(code)) return;
+    if(rows[k] || !COMP_FIN.test(code) || /OLD/.test(code) || (refs[code] && !COMP_BOTH.test(code)) || COMP_NOISE.test(code)) return;
     if(digN.indexOf(code) >= 0 || presN.indexOf(code) >= 0) return;
     rows[k] = {key:k, code:r[0], lib:r[1]||'', stock:(eb[k] ? eb[k].s : null), comp:S_comp[k]||null};
   });
