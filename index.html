@@ -1300,21 +1300,22 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
     <div id="dash-set-saved" style="font-size:.72rem;color:var(--grn);margin-top:6px"></div>
   </div>
 
-  <!-- Nouveau format -->
+  <!-- Formats par pôle -->
   <div style="background:var(--card);border:1.5px solid var(--brd);border-radius:14px;padding:14px;margin-bottom:16px">
-    <div style="font-family:Open Sans,sans-serif;font-weight:800;font-size:0.95rem;margin-bottom:6px">➕ Ajouter un nouveau format</div>
-    <div style="font-size:.78rem;color:var(--mut);margin-bottom:10px">Ajoute un code de format à la base existante (utilisé pour l'autocomplétion et les alertes de contrôle qualité). Vient s'ajouter aux formats déjà connus, sans rien remplacer.</div>
-    <div style="display:flex;gap:8px;margin-bottom:8px">
-      <input type="text" id="cf-new-code" placeholder="Ex: B90" style="flex:1;min-width:0;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.9rem;padding:9px 12px;outline:none;text-transform:uppercase">
+    <div style="font-family:Open Sans,sans-serif;font-weight:800;font-size:0.95rem;margin-bottom:6px">🗂️ Formats par pôle</div>
+    <div style="font-size:.78rem;color:var(--mut);margin-bottom:10px">Les codes produits connus de l'app, rangés par pôle. Un code mal rangé peut envoyer une commande en production alors qu'elle n'en a pas besoin (ou l'inverse) : tu peux ici en ajouter, en déplacer d'un pôle à l'autre ou en retirer.</div>
+    <div style="display:flex;gap:8px;margin-bottom:10px">
+      <input type="text" id="cf-new-code" placeholder="Nouveau code (ex: B90)" style="flex:1;min-width:0;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.9rem;padding:9px 12px;outline:none;text-transform:uppercase">
       <select id="cf-new-pole" style="flex:1;min-width:0;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.85rem;padding:9px 8px;outline:none">
-        <option value="badges">🏅 Pôle badges</option>
+        <option value="badges">🏅 Badges / Magnets</option>
         <option value="numerique">🖥️ Pôle numérique</option>
         <option value="presentoir">📦 Présentoir</option>
       </select>
     </div>
-    <button onclick="addCustomFormat()" style="width:100%;padding:9px;border-radius:8px;border:none;background:var(--acc);color:#000;font-family:Open Sans,sans-serif;font-weight:700;font-size:0.89rem;cursor:pointer">➕ Ajouter ce format</button>
-    <div style="font-size:.75rem;color:var(--mut);margin:12px 0 6px">Formats ajoutés :</div>
-    <div id="admin-custom-formats-list"></div>
+    <button onclick="addCustomFormat()" style="width:100%;padding:9px;border-radius:8px;border:none;background:var(--acc);color:#000;font-family:Open Sans,sans-serif;font-weight:700;font-size:0.89rem;cursor:pointer;margin-bottom:14px">➕ Ajouter ce code</button>
+    <div id="fp-tabs" style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap"></div>
+    <input type="text" id="fp-search" oninput="renderCustomFormatsList()" placeholder="🔍 Rechercher un code" style="width:100%;box-sizing:border-box;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.88rem;padding:9px 12px;outline:none;margin-bottom:8px;text-transform:uppercase">
+    <div id="admin-custom-formats-list" style="max-height:420px;overflow-y:auto"></div>
   </div>
 
   <!-- Gammes de fabrication (parcours habituel de chaque format) -->
@@ -1911,7 +1912,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.10.29-0920';
+var APP_VERSION = '2026.10.29-1145';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -6712,64 +6713,146 @@ function findCmdNom(cmdId, site, cmd){
   return null;
 }
 
-// Formats personnalisés ajoutés depuis Admin : viennent s'ajouter aux listes
-// existantes (PRODUCT_FORMATS / DIGITAL_FORMATS) sans jamais rien retirer ni
-// écraser — le socle intégral codé en dur reste intact.
+// Formats par pôle. Socle codé en dur (PRODUCT/DIGITAL/PRESENTOIR_FORMATS) +
+//  - customFormats/{id} : codes ajoutés (comportement historique, inchangé)
+//  - formatOverrides/{clé} = {code, pole} : réglages Admin sur n'importe quel code
+//    (pole = badges | numerique | presentoir | aucun). Purement additif : sans
+//    réglage, les listes sont exactement celles d'avant. Supprimer un réglage
+//    ramène le code à son pôle d'origine.
 var S_customFormats = [];
+var S_formatOverrides = [];
+var FMT_BASE = null;   // copie du socle codé en dur, prise une seule fois
+var fpTab = 'numerique';
+function fmtKey(code){ return String(code||'').replace(/[.#$\[\]\/]/g,'_'); }
+function fmtOrigPole(code){
+  if(!FMT_BASE) return 'badges';
+  if(FMT_BASE.numerique.indexOf(code)>=0) return 'numerique';
+  if(FMT_BASE.presentoir.indexOf(code)>=0) return 'presentoir';
+  if(FMT_BASE.badges.indexOf(code)>=0) return 'badges';
+  return '';
+}
+function applyFormatPoles(){
+  if(!FMT_BASE){
+    FMT_BASE = {badges:PRODUCT_FORMATS.slice(), numerique:DIGITAL_FORMATS.slice(), presentoir:PRESENTOIR_FORMATS.slice()};
+  }
+  var tgt = {badges:FMT_BASE.badges.slice(), numerique:FMT_BASE.numerique.slice(), presentoir:FMT_BASE.presentoir.slice()};
+  function put(code, pole){
+    ['badges','numerique','presentoir'].forEach(function(k){ var i = tgt[k].indexOf(code); if(i>=0) tgt[k].splice(i,1); });
+    if(pole==='aucun') return;
+    var k = pole==='numerique'||pole==='presentoir' ? pole : 'badges';
+    if(tgt[k].indexOf(code)<0) tgt[k].push(code);
+  }
+  S_customFormats.forEach(function(f){
+    var code = (f.code||'').trim().toUpperCase();
+    if(!code) return;
+    if(tgt.badges.indexOf(code)>=0 || tgt.numerique.indexOf(code)>=0 || tgt.presentoir.indexOf(code)>=0) return;   // déjà connu : le socle prime, comme avant
+    put(code, f.pole);
+  });
+  S_formatOverrides.forEach(function(o){
+    var code = (o.code||'').trim().toUpperCase();
+    if(code) put(code, o.pole);
+  });
+  function fill(arr, src){ arr.length = 0; src.forEach(function(c){ arr.push(c); }); }
+  fill(PRODUCT_FORMATS, tgt.badges); fill(DIGITAL_FORMATS, tgt.numerique); fill(PRESENTOIR_FORMATS, tgt.presentoir);
+}
 function startCustomFormatsListener(){
+  if(!FMT_BASE) FMT_BASE = {badges:PRODUCT_FORMATS.slice(), numerique:DIGITAL_FORMATS.slice(), presentoir:PRESENTOIR_FORMATS.slice()};
+  var loaded = {c:false, o:false};
+  function refresh(){
+    if(!loaded.c || !loaded.o) return;
+    applyFormatPoles();
+    if(curTab && curTab.indexOf('admin_')===0) renderCustomFormatsList();
+  }
   db.ref('customFormats').on('value', function(snap){
     var raw = snap.val() || {};
     S_customFormats = Object.keys(raw).map(function(id){ return Object.assign({id:id}, raw[id]); });
-    S_customFormats.forEach(function(f){
-      var code = (f.code||'').trim().toUpperCase();
-      if(!code) return;
-      if(f.pole === 'numerique'){
-        if(DIGITAL_FORMATS.indexOf(code) < 0) DIGITAL_FORMATS.push(code);
-      } else if(f.pole === 'presentoir'){
-        if(PRESENTOIR_FORMATS.indexOf(code) < 0) PRESENTOIR_FORMATS.push(code);
-      } else {
-        if(PRODUCT_FORMATS.indexOf(code) < 0) PRODUCT_FORMATS.push(code);
-      }
-    });
-    if(curTab && curTab.indexOf('admin_')===0) renderCustomFormatsList();
+    loaded.c = true; refresh();
   });
+  db.ref('formatOverrides').on('value', function(snap){
+    var raw = snap.val() || {};
+    S_formatOverrides = Object.keys(raw).map(function(id){ return Object.assign({id:id}, raw[id]); });
+    loaded.o = true; refresh();
+  }, function(){ loaded.o = true; refresh(); });
+}
+function fmtPoleOf(code){
+  if(DIGITAL_FORMATS.indexOf(code)>=0) return 'numerique';
+  if(PRESENTOIR_FORMATS.indexOf(code)>=0) return 'presentoir';
+  if(PRODUCT_FORMATS.indexOf(code)>=0) return 'badges';
+  return '';
 }
 function addCustomFormat(){
+  if(!iAm) return;
   var codeEl = document.getElementById('cf-new-code');
   var poleEl = document.getElementById('cf-new-pole');
   var code = codeEl.value.trim().toUpperCase();
   if(!code){ toast('Code du format obligatoire',1); return; }
   var pole = poleEl.value;
-  var allExisting = PRODUCT_FORMATS.concat(DIGITAL_FORMATS, PRESENTOIR_FORMATS);
-  if(allExisting.indexOf(code) >= 0){ toast('Ce format existe déjà',1); return; }
-  fbs('customFormats/'+gid(), {code:code, pole:pole, addedAt:Date.now()});
+  if(fmtPoleOf(code)){ toast('Ce code existe déjà ('+fmtPoleLabel(fmtPoleOf(code))+')',1); return; }
+  if(FMT_BASE && fmtOrigPole(code)){
+    fbs('formatOverrides/'+fmtKey(code), {code:code, pole:pole, at:Date.now()});   // code d'origine retiré plus tôt : on le remet
+  } else {
+    fbs('customFormats/'+gid(), {code:code, pole:pole, addedAt:Date.now()});
+  }
   codeEl.value = '';
-  toast('✅ Format "'+code+'" ajouté');
+  fpTab = pole;
+  toast('✅ Code "'+code+'" ajouté');
 }
-function deleteCustomFormat(id, code, pole){
-  document.getElementById('cf-title').textContent = '🗑️ Supprimer ce format ?';
-  document.getElementById('cf-msg').textContent = 'Retirer "'+code+'" de la base des formats ?';
+function fmtPoleLabel(p){ return p==='numerique'?'Pôle numérique':(p==='presentoir'?'Présentoir':'Badges / Magnets'); }
+function fmtMove(code, pole){
+  if(!iAm) return;
+  var orig = fmtOrigPole(code);
+  var cust = S_customFormats.filter(function(f){ return (f.code||'').trim().toUpperCase()===code; });
+  if(!orig && cust.length && !S_formatOverrides.some(function(o){ return (o.code||'').toUpperCase()===code; })){
+    // code ajouté à la main : on met simplement à jour son pôle
+    cust.forEach(function(f){ fbu('customFormats/'+f.id, {pole:pole}); });
+  } else if(orig === pole){
+    fbd('formatOverrides/'+fmtKey(code));   // retour au pôle d'origine : on enlève le réglage
+  } else {
+    fbs('formatOverrides/'+fmtKey(code), {code:code, pole:pole, at:Date.now()});
+  }
+  toast('✅ '+code+' → '+fmtPoleLabel(pole));
+}
+function fmtRemove(code){
+  if(!iAm) return;
+  document.getElementById('cf-title').textContent = '🗑️ Retirer ce code ?';
+  document.getElementById('cf-msg').textContent = 'Retirer "'+code+'" de la base des formats ? Une commande qui l\'utilise sera signalée comme format inconnu.';
   var cfBtn = document.querySelector('#m-confirm .btn.bdan');
-  if(cfBtn) cfBtn.textContent = 'Oui, supprimer';
+  if(cfBtn) cfBtn.textContent = 'Oui, retirer';
   cfCb = function(){
-    fbd('customFormats/'+id);
-    var arr = pole==='numerique' ? DIGITAL_FORMATS : (pole==='presentoir' ? PRESENTOIR_FORMATS : PRODUCT_FORMATS);
-    var idx = arr.indexOf(code);
-    if(idx >= 0) arr.splice(idx,1);
+    var orig = fmtOrigPole(code);
+    var cust = S_customFormats.filter(function(f){ return (f.code||'').trim().toUpperCase()===code; });
+    cust.forEach(function(f){ fbd('customFormats/'+f.id); });
+    if(orig) fbs('formatOverrides/'+fmtKey(code), {code:code, pole:'aucun', at:Date.now()});
+    else fbd('formatOverrides/'+fmtKey(code));
   };
   om('m-confirm');
 }
+function fmtSetTab(t){ fpTab = t; renderCustomFormatsList(); }
 function renderCustomFormatsList(){
   var el = document.getElementById('admin-custom-formats-list');
-  if(!el) return;
-  if(!S_customFormats.length){
-    el.innerHTML = '<div style="color:var(--mut);font-size:.8rem">Aucun format personnalisé ajouté pour l\'instant.</div>';
-    return;
-  }
-  el.innerHTML = S_customFormats.slice().sort(function(a,b){return (b.addedAt||0)-(a.addedAt||0);}).map(function(f){
-    return '<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;margin-bottom:6px">'+
-      '<div><strong style="font-family:Open Sans,sans-serif">'+f.code+'</strong> <span style="color:var(--mut);font-size:.75rem">— '+(f.pole==='numerique'?'Pôle numérique':(f.pole==='presentoir'?'Présentoir':'Pôle badges'))+'</span></div>'+
-      '<button onclick="deleteCustomFormat(\''+f.id+'\',\''+f.code+'\',\''+(f.pole||'badges')+'\')" style="border:none;background:none;color:var(--red);font-size:1.1rem;cursor:pointer;padding:2px 6px">🗑️</button>'+
+  var tabs = document.getElementById('fp-tabs');
+  if(!el || !tabs) return;
+  var defs = [['numerique','🖥️ Numérique',DIGITAL_FORMATS],['presentoir','📦 Présentoirs',PRESENTOIR_FORMATS],['badges','🏅 Badges / Magnets',PRODUCT_FORMATS]];
+  tabs.innerHTML = defs.map(function(d){
+    var on = d[0]===fpTab;
+    return '<button onclick="fmtSetTab(\''+d[0]+'\')" style="padding:7px 12px;border-radius:99px;border:1.5px solid '+(on?'var(--acc)':'var(--brd)')+';background:'+(on?'var(--acc)':'var(--sur)')+';color:'+(on?'#000':'var(--txt)')+';font-weight:700;font-size:.8rem;cursor:pointer">'+d[1]+' ('+d[2].length+')</button>';
+  }).join('');
+  var q = ((document.getElementById('fp-search')||{}).value||'').trim().toUpperCase();
+  var list = (defs.filter(function(d){ return d[0]===fpTab; })[0] || defs[0])[2].slice().sort();
+  if(q) list = list.filter(function(c){ return String(c).toUpperCase().indexOf(q)>=0; });
+  if(!list.length){ el.innerHTML = '<div style="color:var(--mut);font-size:.8rem">Aucun code'+(q?' pour cette recherche':' dans ce pôle')+'.</div>'; return; }
+  var ovr = {}; S_formatOverrides.forEach(function(o){ ovr[(o.code||'').toUpperCase()] = 1; });
+  el.innerHTML = list.map(function(code){
+    var c = String(code), tag = '';
+    if(!fmtOrigPole(c)) tag = ' <span style="color:var(--mut);font-size:.68rem">· ajouté</span>';
+    else if(ovr[c.toUpperCase()]) tag = ' <span style="color:var(--acc);font-size:.68rem">· déplacé</span>';
+    var ce = c.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+    return '<div style="display:flex;align-items:center;gap:8px;padding:7px 10px;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;margin-bottom:5px">'+
+      '<div style="flex:1;min-width:0;font-family:Open Sans,sans-serif;font-weight:700;font-size:.85rem;overflow:hidden;text-overflow:ellipsis">'+esc(c)+tag+'</div>'+
+      '<select onchange="fmtMove(\''+ce+'\',this.value)" style="background:var(--card);border:1.5px solid var(--brd);border-radius:6px;color:var(--txt);font-size:.75rem;padding:5px 4px">'+
+        defs.map(function(d){ return '<option value="'+d[0]+'"'+(d[0]===fpTab?' selected':'')+'>'+d[1]+'</option>'; }).join('')+
+      '</select>'+
+      '<button onclick="fmtRemove(\''+ce+'\')" title="Retirer" style="border:none;background:none;color:var(--red);font-size:1.05rem;cursor:pointer;padding:2px 6px">🗑️</button>'+
     '</div>';
   }).join('');
 }
@@ -17013,7 +17096,7 @@ function adminMigrateReprintPhotos(){
 function adminMeasureLoad(){
   if(!iAm) return;
   var btn = document.getElementById('measure-btn'), out = document.getElementById('measure-result');
-  var paths = ['categories','orders','commandes','customFormats','gammes','reprints','plateaux','machines','settings','alertesVues','users','reprints_stats','reprint_photos'];
+  var paths = ['categories','orders','commandes','customFormats','formatOverrides','gammes','reprints','plateaux','machines','settings','alertesVues','users','reprints_stats','reprint_photos'];
   if(btn){ btn.disabled = true; btn.textContent = '⏳ Mesure en cours…'; }
   out.style.color = 'var(--mut)'; out.textContent = '';
   var rows = [];
