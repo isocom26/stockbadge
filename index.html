@@ -808,6 +808,7 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
 </div>
     <div id="view-alertes" class="view"><div id="alist"></div></div>
     <div id="view-inventaire" class="view">
+      <div id="invc-box"></div>
       <div id="inv-list"></div>
       <div id="inv-hist-section" style="margin-top:18px">
         <button id="inv-hist-toggle" onclick="toggleInventoryHistory()" style="width:100%;background:var(--card);border:1.5px solid var(--brd);border-radius:12px;padding:11px;color:var(--mut);font-family:Open Sans,sans-serif;font-weight:700;font-size:.82rem;cursor:pointer">📜 Historique des inventaires ▾</button>
@@ -1619,6 +1620,9 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
     <div class="macts"><button class="btn bsec" onclick="cm('m-cmd-lines')">Fermer</button></div>
   </div>
 </div>
+<div class="mover" id="m-invc" onclick="invcCloseEdit()">
+  <div class="cmod" onclick="event.stopPropagation()" style="max-height:90vh;overflow-y:auto" id="invc-edit"></div>
+</div>
 <div class="mover" id="m-confirm" onclick="cm('m-confirm')">
   <div class="cmod" onclick="event.stopPropagation()">
     <div class="dh" style="margin:0 auto 20px"></div>
@@ -1912,7 +1916,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.10.29-1145';
+var APP_VERSION = '2026.10.29-1215';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -2359,7 +2363,7 @@ auth.onAuthStateChanged(function(u) {
     document.getElementById('abadge').style.display = (iAm||isDir) ? 'inline' : 'none';
     document.getElementById('abadge').textContent = iAm ? 'Admin' : 'Direction';
     saveQuickProfile(u.email, u.displayName);
-    if (!inited) { inited = true; startDB(); startMachListener(); startRpListener(); startCmdIndexListener(); startCustomFormatsListener(); startGammesListener(); startEtapesSupListener(); startQtyRulesListener(); startAlertSeenListener(); }
+    if (!inited) { inited = true; startDB(); startMachListener(); startRpListener(); startCmdIndexListener(); startCustomFormatsListener(); startInvcListener(); startGammesListener(); startEtapesSupListener(); startQtyRulesListener(); startAlertSeenListener(); }
     if (location.hash === '#ecran') setTimeout(function(){ ecranAutoOpen(0); }, 400);
 
     // Rendu immédiat depuis le cache local, si on a déjà vu cet utilisateur
@@ -6255,6 +6259,7 @@ function invCleanStaleFlags(){
 function renderInventaire(){
   var el = document.getElementById('inv-list');
   if(!el) return;
+  invcRender();
   invCleanStaleFlags();
   var rows = [];
   S.cats.forEach(function(cat){
@@ -6292,6 +6297,261 @@ function updateInventaireBadge(){
     if(n>0){ elB.textContent = n>99?'99+':n; elB.style.display='inline-block'; }
     else { elB.style.display='none'; }
   });
+}
+
+// ══ CAMPAGNE D'INVENTAIRE (Atelier) — étape A : comptage à plusieurs, à l'aveugle ══
+// inventaires/{id} = {nom, zone:'atelier', statut:'ouvert', creeLe, creePar,
+//   lignes:{ {iid}: {cid, statut:'compte'|null, cartons:[{ppc,qty}], vrac, totalPcs,
+//                    comptePar, compteLe, claim:{uid,name,at}|null } } }
+// Purement additif : le stock réel n'est PAS modifié par le comptage. Le stock
+// théorique n'est jamais affiché ici (comptage à l'aveugle). Une fourniture
+// ouverte est réservée à son nom (claim, expire seul) ; une fois comptée elle
+// est verrouillée pour les opérateurs (l'admin peut la rouvrir).
+var S_invc = null;            // campagne ouverte (ou null)
+var invcFilter = 'todo';      // todo | all | done
+var invcQuery = '';
+var invcEdit = null;          // {iid, cid, lines:[{ppc,qty}], vrac}
+var INVC_CLAIM_MS = 20*60*1000;
+function startInvcListener(){
+  db.ref('inventaires').on('value', function(snap){
+    var raw = snap.val() || {}, best = null;
+    Object.keys(raw).forEach(function(id){
+      var c = raw[id];
+      if(c && c.statut === 'ouvert' && (!best || (c.creeLe||0) > (best.creeLe||0))) best = Object.assign({id:id}, c);
+    });
+    S_invc = best;
+    if(S_invc && !S_invc.lignes) S_invc.lignes = {};
+    if(curTab === 'inventaire') renderInventaire();
+  });
+}
+function invcItems(){
+  var out = [];
+  S.cats.forEach(function(cat){
+    (cat.items||[]).forEach(function(item){ if(!item.linked) out.push({cat:cat, item:item}); });
+  });
+  return out;
+}
+function invcClaimFresh(l){ return l && l.claim && l.claim.at && (Date.now() - l.claim.at) < INVC_CLAIM_MS; }
+function invcState(iid){
+  var l = (S_invc && S_invc.lignes && S_invc.lignes[iid]) || null;
+  if(l && l.statut === 'compte') return {k:'done', l:l};
+  if(invcClaimFresh(l)) return {k: (me && l.claim.uid === me.uid) ? 'mine' : 'busy', l:l};
+  return {k:'todo', l:l};
+}
+function invcLinePcs(lines, vrac){
+  var tot = 0;
+  (lines||[]).forEach(function(l){ var q = parseInt(l.qty)||0, p = parseInt(l.ppc)||0; tot += q*p; });
+  return tot + (parseInt(vrac)||0);
+}
+function invcRender(){
+  var box = document.getElementById('invc-box');
+  if(!box) return;
+  var list = document.getElementById('inv-list'), hist = document.getElementById('inv-hist-section');
+  if(!S_invc){
+    if(list) list.style.display = ''; if(hist) hist.style.display = '';
+    box.innerHTML = iAm
+      ? '<div class="inv-card" style="text-align:center"><div style="font-family:Open Sans,sans-serif;font-weight:800;font-size:.95rem;margin-bottom:4px">📋 Inventaire complet</div>'+
+        '<div style="font-size:.78rem;color:var(--mut);margin-bottom:10px">Lance une campagne : toutes les fournitures de l\'Atelier sont à compter par l\'équipe (cartons + pièces en vrac), sans voir le stock théorique.</div>'+
+        '<button class="btn bpri" style="width:100%" onclick="invcStart()">🚀 Lancer un inventaire</button></div>'
+      : '';
+    return;
+  }
+  if(list) list.style.display = 'none'; if(hist) hist.style.display = 'none';
+  var items = invcItems(), tot = items.length, done = 0, busy = 0;
+  items.forEach(function(r){ var st = invcState(r.item.id).k; if(st==='done') done++; else if(st==='busy'||st==='mine') busy++; });
+  var pct = tot ? Math.round(done*100/tot) : 0;
+  var q = invcQuery.trim().toUpperCase();
+  var byCat = '';
+  S.cats.forEach(function(cat){
+    var rows = items.filter(function(r){ return r.cat.id === cat.id; });
+    if(!rows.length) return;
+    var cDone = rows.filter(function(r){ return invcState(r.item.id).k==='done'; }).length;
+    var shown = rows.filter(function(r){
+      var st = invcState(r.item.id).k;
+      if(invcFilter==='todo' && st==='done') return false;
+      if(invcFilter==='done' && st!=='done') return false;
+      if(q && (r.item.name+' '+cat.name).toUpperCase().indexOf(q) < 0) return false;
+      return true;
+    }).sort(function(a,b){ return a.item.name.localeCompare(b.item.name); });
+    if(!shown.length) return;
+    byCat += '<div style="font-family:Open Sans,sans-serif;font-weight:800;font-size:.76rem;color:var(--mut);text-transform:uppercase;letter-spacing:.05em;margin:14px 0 6px">'+esc(cat.name)+' · '+cDone+'/'+rows.length+'</div>'+
+      shown.map(function(r){
+        var s = invcState(r.item.id), badge, bg = 'var(--card)', bd = 'var(--brd)';
+        if(s.k==='done'){ badge = '<span style="color:var(--grn);font-weight:700">✅ '+esc(s.l.comptePar||'')+'</span>'; bg = 'rgba(34,197,94,.07)'; }
+        else if(s.k==='busy'){ badge = '<span style="color:var(--org,#f59e0b);font-weight:700">🔒 '+esc(s.l.claim.name||'quelqu\'un')+' compte…</span>'; }
+        else if(s.k==='mine'){ badge = '<span style="color:var(--acc);font-weight:700">✏️ en cours (toi)</span>'; bd = 'var(--acc)'; }
+        else badge = '<span style="color:var(--mut)">à compter</span>';
+        return '<div onclick="invcOpen(\''+r.item.id+'\')" style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:11px 12px;background:'+bg+';border:1.5px solid '+bd+';border-radius:10px;margin-bottom:6px;cursor:pointer">'+
+          '<div style="min-width:0;font-weight:700;font-size:.88rem;overflow:hidden;text-overflow:ellipsis">'+esc(r.item.name)+'</div>'+
+          '<div style="font-size:.74rem;white-space:nowrap">'+badge+'</div></div>';
+      }).join('');
+  });
+  function chip(k, label){
+    var on = invcFilter===k;
+    return '<button onclick="invcSetFilter(\''+k+'\')" style="padding:7px 12px;border-radius:99px;border:1.5px solid '+(on?'var(--acc)':'var(--brd)')+';background:'+(on?'var(--acc)':'var(--sur)')+';color:'+(on?'#000':'var(--txt)')+';font-weight:700;font-size:.78rem;cursor:pointer">'+label+'</button>';
+  }
+  var admin = iAm
+    ? '<div style="display:flex;gap:8px;margin-top:10px"><button class="btn bsec" style="flex:1;font-size:.8rem" onclick="invcSheetPDF()">📄 Feuille PDF vierge</button>'+
+      '<button class="btn bsec" style="flex:1;font-size:.8rem;color:var(--red)" onclick="invcDelete()">🗑️ Supprimer</button></div>'
+    : '';
+  box.innerHTML =
+    '<div class="inv-card"><div style="font-family:Open Sans,sans-serif;font-weight:800;font-size:.95rem">📋 '+esc(S_invc.nom||'Inventaire')+' · 🏭 Atelier</div>'+
+    '<div style="font-size:.78rem;color:var(--mut);margin:4px 0 8px">'+done+' / '+tot+' comptées'+(busy?' · '+busy+' en cours':'')+' · compte tout ce que tu vois : cartons fermés et pièces en vrac (bacs, cartons ouverts)</div>'+
+    '<div style="height:10px;background:var(--sur);border-radius:99px;overflow:hidden"><div style="height:100%;width:'+pct+'%;background:var(--grn)"></div></div>'+
+    admin+'</div>'+
+    '<div style="display:flex;gap:6px;flex-wrap:wrap;margin:10px 0 8px">'+chip('todo','À compter')+chip('done','Comptées')+chip('all','Toutes')+'</div>'+
+    '<input type="text" id="invc-q" value="'+esc(invcQuery)+'" oninput="invcQuery=this.value;invcRender();var e=document.getElementById(\'invc-q\');e.focus();e.setSelectionRange(e.value.length,e.value.length)" placeholder="🔍 Rechercher une fourniture" style="width:100%;box-sizing:border-box;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.9rem;padding:10px 12px;outline:none">'+
+    (byCat || '<div class="empty" style="margin-top:16px"><div class="e">'+(invcFilter==='todo'?'🎉':'🔍')+'</div><p>'+(invcFilter==='todo'&&!q?'Tout est compté !':'Aucune fourniture.')+'</p></div>');
+}
+function invcSetFilter(k){ invcFilter = k; invcRender(); }
+function invcStart(){
+  if(!iAm || S_invc) return;
+  var d = new Date(), mois = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'][d.getMonth()];
+  var nom = 'Inventaire '+mois+' '+d.getFullYear();
+  document.getElementById('cf-title').textContent = '🚀 Lancer « '+nom+' » ?';
+  document.getElementById('cf-msg').textContent = 'Toutes les fournitures de l\'Atelier seront à compter. Le stock de l\'app n\'est pas modifié par le comptage.';
+  var cfBtn = document.querySelector('#m-confirm .btn.bdan'); if(cfBtn) cfBtn.textContent = 'Oui, lancer';
+  cfCb = function(){
+    fbs('inventaires/'+gid(), {nom:nom, zone:'atelier', statut:'ouvert', creeLe:Date.now(), creePar:getMyName()});
+    toast('✅ Inventaire lancé');
+  };
+  om('m-confirm');
+}
+function invcDelete(){
+  if(!iAm || !S_invc) return;
+  var id = S_invc.id;
+  document.getElementById('cf-title').textContent = '🗑️ Supprimer cet inventaire ?';
+  document.getElementById('cf-msg').textContent = 'Tous les comptages saisis seront perdus. Le stock de l\'app n\'est pas touché.';
+  var cfBtn = document.querySelector('#m-confirm .btn.bdan'); if(cfBtn) cfBtn.textContent = 'Oui, supprimer';
+  cfCb = function(){ fbd('inventaires/'+id); toast('🗑️ Inventaire supprimé'); };
+  om('m-confirm');
+}
+function invcFindItem(iid){
+  var f = invcItems().filter(function(r){ return r.item.id === iid; })[0];
+  return f || null;
+}
+// Ouvre une fourniture : la réserve à mon nom (transaction), puis affiche la saisie.
+function invcOpen(iid){
+  if(!S_invc || !me) return;
+  var r = invcFindItem(iid); if(!r) return;
+  var s = invcState(iid);
+  if(s.k === 'busy'){ toast('🔒 '+(s.l.claim.name||'Quelqu\'un')+' est en train de la compter', 1); return; }
+  if(s.k === 'done' && !iAm){ toast('✅ Déjà comptée par '+(s.l.comptePar||'un collègue'), 1); return; }
+  var path = 'inventaires/'+S_invc.id+'/lignes/'+iid;
+  var myUid = me.uid, myName = getMyName();
+  fbtx(path, function(cur){
+    cur = cur || {};
+    if(cur.statut === 'compte' && !iAm) return;   // abandon
+    var c = cur.claim;
+    if(c && c.uid !== myUid && c.at && (Date.now() - c.at) < INVC_CLAIM_MS) return;
+    cur.cid = r.cat.id;
+    cur.claim = {uid:myUid, name:myName, at:Date.now()};
+    return cur;
+  }).then(function(res){
+    if(!res.committed){ toast('🔒 Déjà prise par un collègue', 1); return; }
+    var l = res.snapshot.val() || {};
+    var lines = (l.cartons && l.cartons.length) ? l.cartons.map(function(c){ return {ppc:c.ppc, qty:c.qty}; })
+      : [{ppc: currentPpc(r.item) || r.item.ppc || '', qty:''}];
+    invcEdit = {iid:iid, cid:r.cat.id, lines:lines, vrac: (l.statut==='compte' ? (l.vrac||0) : '')};
+    invcEditRender();
+    om('m-invc');
+  }).catch(function(){ toast('Erreur réseau, réessaie', 1); });
+}
+function invcEditRender(){
+  var box = document.getElementById('invc-edit'); if(!box || !invcEdit) return;
+  var r = invcFindItem(invcEdit.iid); if(!r){ invcCloseEdit(true); return; }
+  var u = catUnit(r.cat);
+  var rows = invcEdit.lines.map(function(l,i){
+    return '<div class="inv-line-row">'+
+      '<input type="text" inputmode="numeric" placeholder="'+u+'s" value="'+(l.qty===''?'':l.qty)+'" oninput="invcSetLine('+i+',\'qty\',this.value)" style="flex:1">'+
+      '<span style="color:var(--mut);font-size:.8rem">×</span>'+
+      '<input type="text" inputmode="numeric" placeholder="'+uPpc(u)+'" value="'+(l.ppc===''?'':l.ppc)+'" oninput="invcSetLine('+i+',\'ppc\',this.value)" style="flex:1">'+
+      (invcEdit.lines.length>1 ? '<button onclick="invcRemoveLine('+i+')" style="background:none;border:none;color:var(--red);font-size:1.1rem;cursor:pointer;padding:0 4px">✕</button>' : '')+
+    '</div>';
+  }).join('');
+  box.innerHTML =
+    '<h3 style="margin-bottom:2px">'+esc(r.item.name)+'</h3>'+
+    '<div style="font-size:.76rem;color:var(--mut);margin-bottom:12px">'+esc(r.cat.name)+' · 🏭 Atelier</div>'+
+    '<div style="font-size:.78rem;font-weight:700;margin-bottom:4px">📦 '+uCap(u)+'s fermés</div>'+rows+
+    '<button class="inv-add-line" onclick="invcAddLine()">+ Ajouter une autre taille</button>'+
+    '<div style="font-size:.78rem;font-weight:700;margin:12px 0 4px">🧺 Pièces en vrac (bacs, '+u+'s ouverts)</div>'+
+    '<input type="text" inputmode="numeric" id="invc-vrac" placeholder="Nombre de pièces" value="'+(invcEdit.vrac===''?'':invcEdit.vrac)+'" oninput="invcEdit.vrac=this.value===\'\'?\'\':(parseInt(this.value)||0);invcUpdTotal()" style="width:100%;box-sizing:border-box;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.95rem;padding:10px 12px;outline:none">'+
+    '<div id="invc-total" style="margin:12px 0;font-family:Open Sans,sans-serif;font-weight:800;color:var(--acc)"></div>'+
+    '<div class="macts"><button class="btn bsec" onclick="invcCloseEdit()">Annuler</button><button class="btn bsuc" onclick="invcSave()">✅ Enregistrer</button></div>';
+  invcUpdTotal();
+}
+function invcUpdTotal(){
+  var el = document.getElementById('invc-total'); if(!el || !invcEdit) return;
+  el.textContent = 'Total compté : '+invcLinePcs(invcEdit.lines, invcEdit.vrac).toLocaleString('fr-FR')+' pcs';
+}
+function invcSetLine(i, f, v){ if(!invcEdit || !invcEdit.lines[i]) return; invcEdit.lines[i][f] = v==='' ? '' : (parseInt(v)||0); invcUpdTotal(); }
+function invcAddLine(){ if(!invcEdit) return; invcEdit.lines.push({ppc:'', qty:''}); invcEditRender(); }
+function invcRemoveLine(i){ if(!invcEdit || invcEdit.lines.length<=1) return; invcEdit.lines.splice(i,1); invcEditRender(); }
+// Ferme la saisie ; sans enregistrement, la réservation est rendue aux autres.
+function invcCloseEdit(silent){
+  var e = invcEdit; invcEdit = null;
+  cm('m-invc');
+  if(e && S_invc){
+    var l = (S_invc.lignes || {})[e.iid];
+    if(l && l.claim && me && l.claim.uid === me.uid){
+      fbu('inventaires/'+S_invc.id+'/lignes/'+e.iid, {claim:null}).catch(function(){});
+    }
+  }
+}
+function invcSave(){
+  if(!invcEdit || !S_invc) return;
+  var e = invcEdit;
+  var cartons = e.lines.filter(function(l){ return (parseInt(l.qty)||0) > 0 && (parseInt(l.ppc)||0) > 0; })
+    .map(function(l){ return {ppc:parseInt(l.ppc), qty:parseInt(l.qty)}; });
+  var bad = e.lines.some(function(l){ return (parseInt(l.qty)||0) > 0 && !(parseInt(l.ppc)||0); });
+  if(bad){ toast('Indique le nombre de pièces par carton', 1); return; }
+  var zeroCartons = e.lines.some(function(l){ return l.qty === 0; });
+  var hasInput = cartons.length > 0 || e.vrac !== '' || zeroCartons;
+  if(!hasInput){ toast('Indique ce que tu as compté (mets 0 si c\'est vide)', 1); return; }
+  var vrac = parseInt(e.vrac) || 0;
+  var total = invcLinePcs(cartons, vrac);
+  var path = 'inventaires/'+S_invc.id+'/lignes/'+e.iid, myUid = me.uid, myName = getMyName();
+  fbtx(path, function(cur){
+    cur = cur || {};
+    var c = cur.claim;
+    if(c && c.uid !== myUid && c.at && (Date.now() - c.at) < INVC_CLAIM_MS) return;   // quelqu'un d'autre l'a prise entre-temps
+    if(cur.statut === 'compte' && !iAm && cur.comptePar !== myName) return;
+    return {cid:e.cid, statut:'compte', cartons:cartons, vrac:vrac, totalPcs:total, comptePar:myName, compteLe:Date.now(), claim:null};
+  }).then(function(res){
+    if(!res.committed){ toast('Impossible : déjà comptée par un collègue', 1); return; }
+    invcEdit = null; cm('m-invc');
+    toast('✅ Enregistré · '+total.toLocaleString('fr-FR')+' pcs');
+  }).catch(function(){ toast('Erreur réseau, réessaie', 1); });
+}
+// Feuille vierge à imprimer (comptage à l'aveugle : aucune quantité théorique).
+function invcSheetPDF(){
+  if(!iAm) return;
+  var jsPDF = window.jspdf ? window.jspdf.jsPDF : null;
+  if(!jsPDF){ toast('⚠️ PDF indisponible', 1); return; }
+  var doc = new jsPDF({unit:'pt', format:'a4', orientation:'landscape'});
+  var pageW = doc.internal.pageSize.getWidth(), margin = 30;
+  var dateLabel = new Date().toLocaleDateString('fr-FR');
+  function head(){ return pdfHeader(doc, pageW, (S_invc && S_invc.nom || 'Inventaire')+' — Atelier', 'Date : '+dateLabel); }
+  var y = head();
+  S.cats.forEach(function(cat){
+    var rows = (cat.items||[]).filter(function(i){ return !i.linked; }).slice().sort(function(a,b){ return a.name.localeCompare(b.name); });
+    if(!rows.length) return;
+    if(y > 470){ doc.addPage(); y = head(); }
+    pdfSectionTitle(doc, cat.name, margin, y+12);
+    y += 20;
+    doc.autoTable({
+      startY: y, margin:{left:margin, right:margin},
+      head: [['Référence','Cartons fermés (nb × pcs/carton)','Pièces en vrac (bacs)','Initiales']],
+      body: rows.map(function(i){ return [i.name,'','','']; }),
+      theme:'grid', styles:{fontSize:9, cellPadding:{top:7,bottom:7,left:5,right:5}, textColor:PDF_C.txt, lineColor:PDF_C.brd, minCellHeight:24},
+      headStyles: pdfTableHead(),
+      columnStyles:{0:{cellWidth:220}, 1:{minCellWidth:200}, 2:{minCellWidth:130}, 3:{minCellWidth:60}}
+    });
+    y = doc.lastAutoTable.finalY + 20;
+  });
+  pdfFooterAllPages(doc);
+  doc.save('inventaire_atelier_feuille_'+dateLabel.replace(/\//g,'-')+'.pdf');
+  toast('✅ Feuille PDF exportée');
 }
 
 function toggleInventoryHistory(){
