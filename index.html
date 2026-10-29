@@ -1911,7 +1911,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.10.28-1730';
+var APP_VERSION = '2026.10.29-0920';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -11776,6 +11776,7 @@ function renderQualite(){
           groupItems.qtyState = cqQtyState;
           groupItems.cmdUrgent = !!(cmdDep && cmdDep.urgent);
           groupItems.cmdDepart = (cmdDep && cmdDep.dateDepart) || '';
+          groupItems.cmdEsup = cmdDep || null;
           groups[key] = groupItems;
         }
       });
@@ -11822,6 +11823,21 @@ function cqStatusOfItems(items){
   var hp = items.some(function(it){ return (it.l.cq||'pending') === 'pending'; });
   var hc = items.some(function(it){ return it.l.cq === 'checked'; });
   return hp ? 'pending' : hc ? 'checked' : 'archived';
+}
+// Étapes supplémentaires de la commande, affichées sur la fiche CQ (rien si aucune).
+function cqEsupHtml(c){
+  var ks = [];
+  try{ ks = esupKeys(c); }catch(e){}
+  if(!ks.length) return '';
+  var rows = ks.map(function(k){
+    var pr = esupProgress(c, k);
+    var ok = pr.complete;
+    var det = pr.clos && pr.totalFait < pr.totalCmd ? 'clôturée à la main ('+pr.totalFait+' / '+pr.totalCmd+' pcs)' : (ok ? 'faite ('+pr.totalFait+' / '+pr.totalCmd+' pcs)' : 'à finir : '+esupProgText(pr));
+    return '<div style="display:flex;justify-content:space-between;gap:8px;font-size:.8rem;padding:3px 0"><span>'+esupLabel(k)+'</span>'+
+      '<strong style="color:'+(ok?'var(--grn)':'var(--red)')+'">'+(ok?'✅ ':'⚠️ ')+det+'</strong></div>'+
+      (pr.note?'<div style="font-size:.74rem;color:var(--mut);margin:-2px 0 3px">'+esc(pr.note)+'</div>':'');
+  }).join('');
+  return '<div style="margin-top:8px;padding:6px 10px;border:1px dashed var(--bdr);border-radius:8px"><div style="font-size:.72rem;font-weight:700;color:var(--mut);text-transform:uppercase;letter-spacing:.04em">Étapes supplémentaires à vérifier</div>'+rows+'</div>';
 }
 function cqGroupCard(items, cmdNom, cmdFormats, qtyState){
   var first = items[0];
@@ -11971,6 +11987,7 @@ function cqGroupCard(items, cmdNom, cmdFormats, qtyState){
       statusBadge+
     '</div>'+
     linesHtml+
+    cqEsupHtml(items.cmdEsup)+
     '<div style="font-size:.78rem;margin-top:8px;color:var(--mut)">'+
       'Terminée : <strong style="color:var(--grn)">'+doneTime+'</strong>'+
       (cqTime?' · Contrôlé le : <strong style="color:var(--grn)">'+cqTime+'</strong>'+(l0.cqBy?' par <strong>'+l0.cqBy+'</strong>':''):'')+'</div>'+
