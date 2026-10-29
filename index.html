@@ -1926,7 +1926,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.10.29-1432';
+var APP_VERSION = '2026.10.29-1522';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -6786,6 +6786,14 @@ function invcAnalyse(){
     groups[key].items.push(r);
   });
   var used = {};
+  // Prema = aimant précollé sur un dos plat : dans EBP il n'existe pas, il compte comme 1 aimant + 1 dos plat
+  var premaOf = {};   // clé de groupe composant -> [lignes prema]
+  invcItems().forEach(function(r){
+    var m = !invcNormCode(r.item.refIso) && /^PREMA\s+(.+)$/i.exec(String(r.item.name||'').trim()); if(!m) return;
+    var n = invcNormCode(m[1]);
+    [n+'MAGNET', n+'FLATBACK'].forEach(function(cd){ (premaOf[cd] = premaOf[cd] || []).push(r); });
+    groups['#'+r.item.id].prema = true;
+  });
   var list = order.map(function(key){
     var g = groups[key], e = g.code ? eb[fmtKey(g.code)] : null;
     if(e) used[fmtKey(g.code)] = 1;
@@ -6805,9 +6813,15 @@ function invcAnalyse(){
     g.allDone = lg.every(function(l){ return l && l.statut === 'compte'; });
     g.counted = 0; g.stockPcs = 0; g.prodPcs = 0;
     lg.forEach(function(l){ if(l && l.statut === 'compte'){ g.counted += l.totalPcs||0; g.stockPcs += l.stockPcs||0; g.prodPcs += l.prodPcs||0; } });
+    g.premaPcs = []; g.ownCounted = g.counted;
+    ((g.code && premaOf[g.code]) || []).forEach(function(r){
+      var l = (S_invc.lignes||{})[r.item.id];
+      if(!l || l.statut !== 'compte'){ g.allDone = false; if(l && l.statut === 'recompter') g.pending = true; return; }
+      g.counted += l.totalPcs||0; g.premaPcs.push({name:r.item.name, pcs:l.totalPcs||0});
+    });
     g.first = 0; g.hasFirst = false;
     lg.forEach(function(l){ if(l && l.comptage1){ g.hasFirst = true; g.first += l.comptage1.totalPcs||0; } });
-    g.res = !g.allDone ? {k: g.pending ? 'pending' : 'wait'} : (g.code ? (g.ebpNeg ? {k:'neg', why:'stock EBP négatif'} : invcCompare(g.counted, g.ebp, se)) : {k:'nc', why:'pas de réf. ISOCOM'});
+    g.res = g.prema ? {k:'nc', why:'prema : compté dans l\'aimant et le dos plat'} : !g.allDone ? {k: g.pending ? 'pending' : 'wait'} : (g.code ? (g.ebpNeg ? {k:'neg', why:'stock EBP négatif'} : invcCompare(g.counted, g.ebp, se)) : {k:'nc', why:'pas de réf. ISOCOM'});
     return g;
   });
   // lignes EBP sans composant dans l'app
@@ -6855,6 +6869,7 @@ function invcEcartsHtml(){
         (x.ebp != null ? ' · EBP <strong>'+invcFmt(x.ebp)+'</strong>' : '')+
         (x.res.diff != null ? ' · écart <strong>'+(x.res.diff>0?'+':'')+invcFmt(x.res.diff)+'</strong> ('+(x.res.diff>0?'+':(x.res.diff<0?'-':''))+(x.res.pct>=100?Math.round(x.res.pct):x.res.pct.toFixed(1))+' %)' : (x.res.why ? ' · <span style="color:var(--mut)">'+esc(x.res.why)+'</span>' : ''))+
         (x.via && x.via.length ? '<br><span style="color:var(--mut)">EBP = '+invcFmt(x.direct>0?x.direct:0)+' direct'+x.via.map(function(v){ return ' + '+invcFmt(v.stock*v.qty)+' via '+esc(v.code); }).join('')+'</span>' : '')+
+        (x.premaPcs && x.premaPcs.length ? '<br><span style="color:var(--mut)">Compté = '+invcFmt(x.ownCounted)+x.premaPcs.map(function(p){ return ' + '+invcFmt(p.pcs)+' ('+esc(p.name)+')'; }).join('')+'</span>' : '')+
         (x.hasFirst ? '<br><span style="color:var(--mut)">1er comptage : '+invcFmt(x.first)+' pcs → recompté</span>' : '')+'</div>';
       if(x.res.k==='rec' || x.res.k==='crit') l2 += '<button class="btn bsec" style="margin-top:8px;font-size:.76rem;padding:7px 12px" onclick="invcAskRecount(\''+x.key.replace(/'/g,"\\'")+'\')">🔁 Demander un recomptage</button>';
     }
@@ -6924,20 +6939,60 @@ function compAppRefs(){
   });
   return out;
 }
-// Proposition (à valider) d'après le nom du produit : B56 -> coque + pinback ; MAG56 -> coque + magnet. Sinon rien.
-function compSuggest(code){
+// Proposition (à valider) d'après le code du produit fini. Renvoie {comps:[{ref,qty}], sure:bool} ou null.
+// sure = famille confirmée par Alexandre (validable en un clic avec « Valider les suggestions sûres »).
+function compSuggestFull(code){
   var c = invcNormCode(code), ex = compEbpCodes(), m;
   function has(x){ return ex[x] != null; }
-  if((m = /^B(\d{2,3})$/.exec(c))){
-    var n = m[1], pin = has(n+'PINBACK') ? n+'PINBACK' : (has(n+'PIN') ? n+'PIN' : null);
-    if(has(n+'COQUES') && pin) return [{ref:n+'COQUES', qty:1}, {ref:pin, qty:1}];
+  function first(l){ for(var i=0;i<l.length;i++){ if(has(l[i])) return l[i]; } return null; }
+  function out(refs, sure){
+    for(var i=0;i<refs.length;i++){ if(!refs[i]) return null; }
+    return {comps:refs.map(function(r){ return {ref:r, qty:1}; }), sure:!!sure};
   }
-  if((m = /^MAG(\d{2,3})$/.exec(c))){
-    var k = m[1];
-    if(has(k+'COQUES') && has(k+'MAGNET')) return [{ref:k+'COQUES', qty:1}, {ref:k+'MAGNET', qty:1}];
+  // Badges : B{n}, BC/BL{nnnn}, BO{nnnn}, BR{nnnn}, + variantes (SE, BOUCLE, CROC01, DMF01/02[S])
+  if((m = /^(B|BC|BL|BO|BR)(\d{2,5})(CA)?(SE|BOUCLE|CROC01|DMF0[12]S?)?$/.exec(c))){
+    var fam = m[1], d = m[2], ca = m[3] ? 'CA' : '', v = m[4] || '', shell, pin, flat;
+    if(fam === 'B'){
+      if(ca) return null;
+      shell = first([d+'COQUES']); pin = first([d+'PINBACK', d+'PIN']); flat = first([d+' UNPINNED BACK', d+'UNPINNED BACK', d+'FLATBACK']);
+    } else if(fam === 'BC'){
+      shell = first([d+'COQUES']); pin = first([d+'PINBACK']); flat = first([d+'FLATBACK']);
+    } else if(fam === 'BL'){
+      shell = first([d+'COQUES']); pin = first([d+'LOSANGE PINBACK']); flat = first([d+'FLATBACK']);
+    } else if(fam === 'BO'){
+      var od = d === '4568' ? '6845' : d;
+      shell = first([od+'OVALCOQUES']); pin = d === '4568' ? null : first([od+'OVALPINBACK']); flat = first([od+'OVALFLATBACK']);
+    } else {   // BR rectangles : on retrouve la coque (format horizontal) et le pinback (horizontal ou vertical)
+      var hd = {'40115':'11540','4568':'6845','5480':'8054','6590':'9065'}[d] || d, vert = hd !== d;
+      shell = first([hd+ca+' COQUES', hd+ca+'COQUES']);
+      pin = vert ? first([hd+ca+' PINBACK VERTI', d+ca+' PINBACK VERTI', d+ca+'PINBACK VERTICAU', hd+ca+'PINBACK VERTICAU', hd+' PINBACK VERTI'])
+                 : first([hd+ca+' PINBACK HORIZ', hd+ca+'PINBACK HORIZ']);
+      flat = first([hd+ca+' FLATBACK', hd+ca+'FLATBACK']);
+    }
+    if(!shell) return null;
+    if(v === ''){ return pin ? out([shell, pin], true) : null; }
+    if(v === 'SE') return flat ? out([shell, flat], true) : null;
+    if(v === 'BOUCLE') return has(d+'CLIP') ? out([shell, d+'CLIP'], false) : null;
+    if(v === 'CROC01') return flat && has('CROC01') ? out([shell, flat, 'CROC01'], false) : null;
+    return flat && has(v) ? out([shell, flat, v], true) : null;   // DMF01 / DMF01S / DMF02 / DMF02S
+  }
+  // Magnets : MAG{n} rond = coque + aimant ; autres formats = coque + dos plat + aimant (le « prema » = aimant collé sur dos plat)
+  if((m = /^MAG(O?)(\d{2,5})(CA)?$/.exec(c))){
+    var ov = m[1], k = m[2], mca = m[3] ? 'CA' : '';
+    if(!ov && !mca && k.length <= 3){
+      return has(k+'COQUES') && has(k+'MAGNET') ? out([k+'COQUES', k+'MAGNET'], true) : null;
+    }
+    var pre = ov ? k+'OVAL' : k+mca, sh = first([pre+'COQUES', pre+' COQUES']), fl = first([pre+'FLATBACK', pre+' FLATBACK']), mg = first([pre+'MAGNET', pre+' MAGNET']);
+    if(!sh || !fl || !mg) return null;
+    return out([sh, fl, mg], ['8054','9065','11540'].indexOf(k) >= 0 && !mca && !ov);
+  }
+  // Miroirs : MIR{n} = miroir + ring
+  if((m = /^MIR(\d{2,3})$/.exec(c))){
+    var r = m[1]; return has(r+'MIROIR') && has(r+'RINGS') ? out([r+'MIROIR', r+'RINGS'], false) : null;
   }
   return null;
 }
+function compSuggest(code){ var s = compSuggestFull(code); return s ? s.comps : null; }
 function compValid(){   // compositions validées : [{code, comps:[{ref, qty}]}]
   var out = [];
   Object.keys(S_comp||{}).forEach(function(k){
@@ -6948,6 +7003,8 @@ function compValid(){   // compositions validées : [{code, comps:[{ref, qty}]}]
 }
 function compCompText(comps){ return (comps||[]).map(function(c){ return c.qty+' × '+c.ref; }).join(' + '); }
 // Lignes du module : produits avec composition (validée/ignorée) + lignes EBP sans composant (stock non nul)
+var COMP_NOISE = /^(MUG|MINIMUG|GOURD|PRESENTOIR|ISESP|SHOOT|BOITE|MARQUEUR|PBDCC|PCDV|PORTEPASS|FEUTRINE|CROC01$|DMF|DMA-|SHIM)/;
+var COMP_FIN = /^(B|BC|BL|BO|BR)\d|^BIOB|^BJ[MP]\d|^DEC\d|^MAGO?\d|^MIRO?\d|^PC[A-Z0-9]|^PINS|^TIR\d|^TD[CM]|^SVM\d|^IDBADGE/;
 function compRows(){
   var rows = {}, eb = (S_invc && S_invc.ebp && S_invc.ebp.rows) || {}, refs = compAppRefs();
   var digN = DIGITAL_FORMATS.map(invcNormCode), presN = PRESENTOIR_FORMATS.map(invcNormCode);
@@ -6955,8 +7012,16 @@ function compRows(){
     var code = invcNormCode(eb[k].c);
     if(refs[code]) return;                       // composant de l'app : pas un produit fini
     if(digN.indexOf(code) >= 0 || presN.indexOf(code) >= 0) return;
+    if(COMP_NOISE.test(code) && !S_comp[k]) return;
     if(eb[k].s === 0 && !S_comp[k]) return;
     rows[k] = {key:k, code:eb[k].c, lib:eb[k].l||'', stock:eb[k].s, comp:S_comp[k]||null};
+  });
+  // Catalogue intégré (Base Articles EBP) : produits finis des familles connues, même sans fichier importé
+  EBP_REFS.forEach(function(r){
+    var code = invcNormCode(r[0]), k = fmtKey(code);
+    if(rows[k] || !COMP_FIN.test(code) || /OLD/.test(code) || refs[code] || COMP_NOISE.test(code)) return;
+    if(digN.indexOf(code) >= 0 || presN.indexOf(code) >= 0) return;
+    rows[k] = {key:k, code:r[0], lib:r[1]||'', stock:(eb[k] ? eb[k].s : null), comp:S_comp[k]||null};
   });
   Object.keys(S_comp||{}).forEach(function(k){
     if(rows[k]) return;
@@ -6976,8 +7041,8 @@ function compRender(){
   var box = document.getElementById('m-prod-body'); if(!box) return;
   if(compEdit){ compEditRender(); return; }
   var rows = compRows(), q = compQ.trim().toUpperCase();
-  var cnt = {ok:0, ign:0, sugg:0, todo:0};
-  rows.forEach(function(r){ cnt[compStatus(r)]++; });
+  var cnt = {ok:0, ign:0, sugg:0, todo:0}, sureN = 0;
+  rows.forEach(function(r){ var st = compStatus(r); cnt[st]++; if(st === 'sugg'){ var sf = compSuggestFull(r.code); if(sf && sf.sure) sureN++; } });
   var shown = rows.filter(function(r){
     var st = compStatus(r);
     if(compFilter === 'todo' && !(st === 'todo' || st === 'sugg')) return false;
@@ -6991,7 +7056,7 @@ function compRender(){
     return '<button onclick="compFilter=\''+k+'\';compRender()" style="padding:7px 12px;border-radius:99px;border:1.5px solid '+(on?'var(--acc)':'var(--brd)')+';background:'+(on?'var(--acc)':'var(--sur)')+';color:'+(on?'#000':'var(--txt)')+';font-weight:700;font-size:.78rem;cursor:pointer">'+label+'</button>';
   }
   var ek = function(s){ return String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'"); };
-  var list = shown.slice(0, 150).map(function(r){
+  var list = shown.slice(0, 400).map(function(r){
     var st = compStatus(r), sug = st === 'sugg' ? compSuggest(r.code) : null, right = '', sub = '';
     if(st === 'ok'){ sub = '<div style="font-size:.76rem;margin-top:4px;color:var(--grn)">✅ '+esc(compCompText(r.comp.comps))+'</div>'; right = '<button class="btn bsec" style="font-size:.74rem;padding:6px 10px" onclick="compEditOpen(\''+ek(r.code)+'\')">Modifier</button>'; }
     else if(st === 'ign'){ sub = '<div style="font-size:.76rem;margin-top:4px;color:var(--mut)">Ignoré (pas un produit fini de nos composants)</div>'; right = '<button class="btn bsec" style="font-size:.74rem;padding:6px 10px" onclick="compUnignore(\''+ek(r.code)+'\')">Réactiver</button>'; }
@@ -7003,18 +7068,30 @@ function compRender(){
   }).join('');
   box.innerHTML =
     '<h3 style="margin-bottom:4px">🧩 Produits & composants</h3>'+
-    '<div style="font-size:.76rem;color:var(--mut);margin-bottom:10px">Dans EBP, le stock des composants est porté par les produits finis (ex. B56 = 1 coque 56 + 1 pinback 56). Indique ici la composition : seules les compositions <strong>validées</strong> servent aux calculs de l\'inventaire.'+((S_invc && S_invc.ebp)?'':' <strong>Importe d\'abord le fichier EBP (Inventaire › Écarts EBP)</strong> pour voir les produits finis avec du stock.')+'</div>'+
+    '<div style="font-size:.76rem;color:var(--mut);margin-bottom:10px">Dans EBP, le stock des composants est porté par les produits finis (ex. B56 = 1 coque 56 + 1 pinback 56). Vérifie la composition de chaque produit : seules les compositions <strong>validées</strong> servent aux calculs de l\'inventaire.</div>'+
     '<div style="font-size:.78rem;margin-bottom:8px">✅ '+cnt.ok+' validés · 💡 '+cnt.sugg+' suggestions · ⚠️ '+cnt.todo+' sans composition · ignorés '+cnt.ign+'</div>'+
+    (sureN ? '<button class="btn bsuc" style="width:100%;margin-bottom:8px;font-size:.82rem" onclick="compAcceptSure()">✅ Valider les '+sureN+' suggestions sûres</button>' : '')+
     '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">'+chip('todo','À faire ('+(cnt.sugg+cnt.todo)+')')+chip('ok','Validés')+chip('ign','Ignorés')+chip('all','Tous')+'</div>'+
     '<input type="text" id="comp-q" value="'+esc(compQ)+'" oninput="compQ=this.value;compRender();var e=document.getElementById(\'comp-q\');e.focus();e.setSelectionRange(e.value.length,e.value.length)" placeholder="🔍 Rechercher un produit (code ou nom)" style="width:100%;box-sizing:border-box;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.9rem;padding:10px 12px;outline:none;margin-bottom:6px">'+
     '<button class="inv-add-line" onclick="compEditOpen(\'\')">+ Ajouter un produit (code EBP)</button>'+
-    '<div style="margin-top:8px">'+(list || '<div class="empty"><div class="e">🔍</div><p>Aucun produit à afficher.</p></div>')+(shown.length>150?'<div style="font-size:.74rem;color:var(--mut);text-align:center">… '+(shown.length-150)+' autres : affine la recherche</div>':'')+'</div>'+
+    '<div style="margin-top:8px">'+(list || '<div class="empty"><div class="e">🔍</div><p>Aucun produit à afficher.</p></div>')+(shown.length>400?'<div style="font-size:.74rem;color:var(--mut);text-align:center">… '+(shown.length-400)+' autres : affine la recherche</div>':'')+'</div>'+
     '<div class="macts" style="margin-top:12px"><button class="btn bsec" onclick="compClose()">Fermer</button></div>';
 }
 function compPut(code, obj){ fbs('compositions/'+fmtKey(invcNormCode(code)), Object.assign({code:code, maj:Date.now(), par:getMyName()}, obj)); }
 function compAcceptSugg(code){
   if(!iAm) return; var s = compSuggest(code); if(!s) return;
   compPut(code, {comps:s, ok:true}); toast('✅ '+code+' validé');
+}
+function compAcceptSure(){
+  if(!iAm) return;
+  var upd = {}, n = 0;
+  compRows().forEach(function(r){
+    if(compStatus(r) !== 'sugg') return;
+    var sf = compSuggestFull(r.code); if(!sf || !sf.sure) return;
+    upd[fmtKey(invcNormCode(r.code))] = {code:r.code, comps:sf.comps, ok:true, maj:Date.now(), par:getMyName()}; n++;
+  });
+  if(!n) return;
+  db.ref('compositions').update(upd).then(function(){ toast('✅ '+n+' compositions validées'); }).catch(function(e){ toast('⚠️ Échec : '+(e&&e.message||e), 1); });
 }
 function compIgnore(code){ if(!iAm) return; compPut(code, {ignore:true}); }
 function compUnignore(code){ if(!iAm) return; fbd('compositions/'+fmtKey(invcNormCode(code))); }
