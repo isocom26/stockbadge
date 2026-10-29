@@ -1926,7 +1926,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.10.29-1815';
+var APP_VERSION = '2026.10.29-1858';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -6835,7 +6835,12 @@ function invcAnalyse(){
     else if(presN.indexOf(c) >= 0) orphans.pres.push(eb[k]);
     else orphans.autres.push(eb[k]);
   });
-  return {groups:list, orphans:orphans, se:se, hasEbp: !!(S_invc && S_invc.ebp)};
+  var diag = {valid:prods.length, withStock:0, missing:[], zero:[]};
+  prods.forEach(function(pr){
+    var row = eb[fmtKey(pr.code)];
+    if(!row) diag.missing.push(pr.code); else if(row.s > 0) diag.withStock++; else diag.zero.push(pr.code);
+  });
+  return {groups:list, orphans:orphans, se:se, hasEbp: !!(S_invc && S_invc.ebp), diag:diag};
 }
 function invcFmt(n){ return (n<0?'-':'')+Math.abs(Math.round(n)).toLocaleString('fr-FR'); }
 function invcEcartsHtml(){
@@ -6879,6 +6884,13 @@ function invcEcartsHtml(){
   var imp = ebp
     ? '<div style="font-size:.78rem;margin-bottom:8px">📄 <strong>'+esc(ebp.file||'fichier EBP')+'</strong> · importé le '+new Date(ebp.at).toLocaleString('fr-FR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})+' · '+Object.keys(ebp.rows||{}).length+' articles</div>'
     : '<div style="font-size:.78rem;color:var(--mut);margin-bottom:8px">Aucun fichier EBP importé. Colonnes attendues : Code article, Libellé, Stock réel (.xls, .xlsx ou .csv).</div>';
+  var dg = an.diag, dgTxt = '';
+  if(ebp){
+    dgTxt = '<div style="font-size:.76rem;margin-bottom:8px;padding:8px 10px;border-radius:8px;background:var(--sur);border:1px solid var(--brd)">🧩 <strong>'+dg.valid+'</strong> composition(s) validée(s) · <strong>'+dg.withStock+'</strong> avec du stock dans ce fichier EBP'+
+      (dg.missing.length ? '<br><span style="color:#f59e0b">Absents du fichier : '+dg.missing.slice(0,12).map(esc).join(', ')+(dg.missing.length>12?' … (+'+(dg.missing.length-12)+')':'')+'</span>' : '')+
+      (dg.zero.length ? '<br><span style="color:var(--mut)">Stock EBP à 0 : '+dg.zero.slice(0,12).map(esc).join(', ')+(dg.zero.length>12?' … (+'+(dg.zero.length-12)+')':'')+'</span>' : '')+
+      (!dg.valid ? '<br><span style="color:#f59e0b">Aucune composition validée : les composants gardent leur stock EBP direct (souvent 0).</span>' : '')+'</div>';
+  }
   if(ebp){
     var nz = function(a){ return a.filter(function(e){ return e.s !== 0; }); };
     orpTxt = '<details style="margin-top:14px;font-size:.76rem;color:var(--mut)"><summary style="cursor:pointer">Lignes EBP sans composant dans l\'app : '+orp.autres.length+' autre(s) · '+orp.pres.length+' présentoir(s) · '+orp.num.length+' pôle numérique (ignoré)</summary>'+
@@ -6886,7 +6898,7 @@ function invcEcartsHtml(){
       (nz(orp.autres).length ? '<div style="margin-top:6px"><strong>Autres, stock EBP non nul</strong> : '+nz(orp.autres).map(function(e){ return esc(e.c)+' ('+invcFmt(e.s)+')'; }).join(', ')+'</div>' : '')+'</details>';
   }
   return '<div class="inv-card"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px"><div style="font-family:Open Sans,sans-serif;font-weight:800;font-size:.95rem">📊 Écarts avec EBP</div>'+
-    '<button class="btn bsec" style="font-size:.78rem;padding:8px 12px" onclick="invcPane=null;invcRender()">↩︎ Retour</button></div>'+imp+
+    '<button class="btn bsec" style="font-size:.78rem;padding:8px 12px" onclick="invcPane=null;invcRender()">↩︎ Retour</button></div>'+imp+dgTxt+
     '<div style="display:flex;gap:8px"><button class="btn bpri" style="flex:1;font-size:.84rem" onclick="invcPickEbp()">📥 '+(ebp?'Remplacer le fichier EBP':'Importer le stock EBP')+'</button><button class="btn bsec" style="flex:1;font-size:.84rem" onclick="compOpen()">🧩 Produits & composants</button></div>'+
     '<div style="font-size:.74rem;color:var(--mut);margin:12px 0 6px">Seuils : conforme jusqu\'à <input type="text" id="invc-s-ok" value="'+se.ok+'" inputmode="decimal" style="width:42px;text-align:center;background:var(--sur);border:1.5px solid var(--brd);border-radius:6px;color:var(--txt);padding:4px"> % · à recompter jusqu\'à <input type="text" id="invc-s-rec" value="'+se.rec+'" inputmode="decimal" style="width:42px;text-align:center;background:var(--sur);border:1.5px solid var(--brd);border-radius:6px;color:var(--txt);padding:4px"> % · au-delà « absolument » · ignoré sous <input type="text" id="invc-s-min" value="'+se.minPcs+'" inputmode="numeric" style="width:52px;text-align:center;background:var(--sur);border:1.5px solid var(--brd);border-radius:6px;color:var(--txt);padding:4px"> pcs <button class="btn bsec" style="font-size:.72rem;padding:5px 10px;margin-left:4px" onclick="invcSaveSeuils()">OK</button></div></div>'+
     ((ebp && orp.autres.filter(function(e){ return e.s > 0; }).length) ? '<div style="background:rgba(245,158,11,.12);border:1.5px solid #f59e0b;border-radius:10px;padding:9px 12px;margin:10px 0;font-size:.78rem">⚠️ <strong>'+orp.autres.filter(function(e){ return e.s > 0; }).length+' produit(s) fini(s) avec du stock EBP n\'ont pas de composition</strong> : les composants correspondants sont sous-estimés côté EBP. <a href="javascript:compOpen()" style="color:var(--acc);font-weight:700">Ouvrir Produits & composants</a></div>' : '')+
