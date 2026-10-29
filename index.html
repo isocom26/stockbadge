@@ -1926,7 +1926,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.10.29-1738';
+var APP_VERSION = '2026.10.29-1815';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -6987,22 +6987,18 @@ function compSuggestFull(code){
     return out([sh, fl, mg], ['8054','9065','11540'].indexOf(k) >= 0 && !mca && !ov);
   }
   // Porte-clés / pins : EBP ne connaît que le produit fini (= le composant du même nom + loupe [+ papillon pour les pins]).
-  // Proposition : le composant du même nom, + la loupe de même dimension si elle existe dans l'app (pas pour les acryliques PCA, reçus avec loupe).
+  // Proposition : le composant du même nom + les loupes / papillons rangés dans la même catégorie de l'app (s'ils ont une réf. ISOCOM).
   if(COMP_BOTH.test(c)){
-    var lr = compAppRefs(), refs = [];
-    if(lr[c]) refs.push(c);
-    if(/^(PCM|PINS)/.test(c)){
-      var dm = /^PINSROND(\d+)-/.exec(c) || /-(\d+)(?:-M\d)?$/.exec(c), loupe = null, pap = [];
-      Object.keys(lr).forEach(function(rf){
-        lr[rf].forEach(function(nm){
-          var base = String(nm).replace(/\(.*$/, '');
-          if(dm && /LOUPE/i.test(nm) && base.replace(/\D/g, '') === dm[1]) loupe = loupe || rf;
-          if(/^PINS/.test(c) && /PAPILLON/i.test(nm) && pap.indexOf(rf) < 0) pap.push(rf);
-        });
+    var refs = [];
+    S.cats.forEach(function(cat){
+      var its = (cat.items||[]).filter(function(x){ return !x.linked; });
+      if(!its.some(function(x){ return invcNormCode(x.refIso) === c; })) return;
+      refs.push(c);
+      its.forEach(function(x){
+        var rf = invcNormCode(x.refIso);
+        if(rf && rf !== c && /LOUPE|PAPILLON/i.test(x.name||'') && refs.indexOf(rf) < 0) refs.push(rf);
       });
-      if(loupe) refs.push(loupe);
-      if(/^PINS/.test(c) && pap.length === 1) refs.push(pap[0]);
-    }
+    });
     return refs.length ? out(refs, false) : null;
   }
   // Miroirs : MIR{n} = miroir + ring
@@ -7057,13 +7053,57 @@ function compStatus(r){
   if(compSuggest(r.code)) return 'sugg';
   return 'todo';
 }
-function compOpen(){ if(!iAm) return; compQ = ''; compFilter = 'todo'; compEdit = null; compRender(); om('m-prod'); }
-function compClose(){ compEdit = null; cm('m-prod'); if(curTab === 'inventaire' && S_invc) invcRender(); }
+function compOpen(){ if(!iAm) return; compRefsMode = null; compQ = ''; compFilter = 'todo'; compEdit = null; compRender(); om('m-prod'); }
+function compClose(){ compEdit = null; compRefsMode = null; cm('m-prod'); if(curTab === 'inventaire' && S_invc) invcRender(); }
+var compRefsMode = null;
+// Articles sans réf. ISOCOM dont le nom évoque une loupe ou un papillon, avec une référence proposée
+function compRefsCandidates(){
+  var used = {}, out = [];
+  Object.keys(compAppRefs()).forEach(function(k){ used[k] = 1; });
+  S.cats.forEach(function(cat){
+    var its = (cat.items||[]).filter(function(x){ return !x.linked; });
+    var base = null;
+    its.forEach(function(x){ var rf = invcNormCode(x.refIso); if(rf && !base && !/LOUPE|PAPILLON/i.test(x.name||'')) base = rf; });
+    its.forEach(function(x){
+      if(invcNormCode(x.refIso) || !/LOUPE|PAPILLON/i.test(x.name||'')) return;
+      var kind = /PAPILLON/i.test(x.name) ? 'PAPILLON' : 'LOUPE', ref = base ? kind+'-'+base : invcNormCode(x.name).replace(/[^A-Z0-9-]/g,'');
+      out.push({cid:cat.id, iid:x.id, cat:cat.name, name:x.name, ref:ref});
+    });
+  });
+  return out;
+}
+function compRefsOpen(){ if(!iAm) return; compRefsMode = {rows:compRefsCandidates()}; compRender(); }
+function compRefsRender(){
+  var box = document.getElementById('m-prod-body'); if(!box || !compRefsMode) return;
+  var inp = 'background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.85rem;padding:8px 10px;outline:none;min-width:0;text-transform:uppercase';
+  var rows = compRefsMode.rows.map(function(r, i){
+    return '<div style="padding:9px 10px;background:var(--card);border:1.5px solid var(--brd);border-radius:10px;margin-bottom:6px"><div style="font-weight:800;font-size:.84rem">'+esc(r.name)+'</div><div style="font-size:.7rem;color:var(--mut);margin-bottom:6px">'+esc(r.cat)+'</div>'+
+      '<input type="text" value="'+esc(r.ref)+'" oninput="compRefsMode.rows['+i+'].ref=this.value" placeholder="Réf. ISOCOM (laisser vide pour ignorer)" style="width:100%;box-sizing:border-box;'+inp+'"></div>';
+  }).join('');
+  box.innerHTML = '<h3 style="margin-bottom:4px">🏷️ Références des loupes et papillons</h3>'+
+    '<div style="font-size:.76rem;color:var(--mut);margin-bottom:10px">Ces articles n\'ont pas de Réf. ISOCOM : sans elle, ils ne peuvent pas être rattachés aux produits. La référence proposée est modifiable ; laisse vide un article à ignorer. Seule la référence est écrite, rien d\'autre n\'est modifié.</div>'+
+    (rows || '<div class="empty"><div class="e">✅</div><p>Aucune loupe ni papillon sans référence.</p></div>')+
+    '<div class="macts" style="margin-top:12px"><button class="btn bsec" onclick="compRefsMode=null;compRender()">Retour</button>'+(compRefsMode.rows.length ? '<button class="btn bsuc" onclick="compRefsSave()">✅ Enregistrer</button>' : '')+'</div>';
+}
+function compRefsSave(){
+  if(!compRefsMode || !iAm) return;
+  var used = compAppRefs(), known = compEbpCodes(), seen = {}, todo = [], bad = null;
+  compRefsMode.rows.forEach(function(r){
+    var ref = invcNormCode(r.ref); if(!ref) return;
+    if(used[ref] || known[ref] != null || seen[ref]){ bad = bad || '« '+ref+' » est déjà utilisée'; return; }
+    seen[ref] = 1; todo.push({cid:r.cid, iid:r.iid, ref:ref});
+  });
+  if(bad){ toast('⚠️ '+bad, 1); return; }
+  if(!todo.length){ toast('Rien à enregistrer', 1); return; }
+  var upd = {}; todo.forEach(function(t){ upd['categories/'+t.cid+'/items/'+t.iid+'/refIso'] = t.ref; });
+  db.ref().update(upd).then(function(){ toast('✅ '+todo.length+' référence(s) enregistrée(s)'); compRefsMode = null; compRender(); }).catch(function(e){ toast('⚠️ Échec : '+(e&&e.message||e), 1); });
+}
 function compRender(){
   var box = document.getElementById('m-prod-body'); if(!box) return;
+  if(compRefsMode){ compRefsRender(); return; }
   if(compEdit){ compEditRender(); return; }
   var rows = compRows(), q = compQ.trim().toUpperCase();
-  var cnt = {ok:0, ign:0, sugg:0, todo:0, self:0}, sureN = 0;
+  var cnt = {ok:0, ign:0, sugg:0, todo:0, self:0}, sureN = 0, refsN = compRefsCandidates().length;
   rows.forEach(function(r){ var st = compStatus(r); cnt[st]++; if(st === 'sugg'){ var sf = compSuggestFull(r.code); if(sf && sf.sure) sureN++; } });
   var shown = rows.filter(function(r){
     var st = compStatus(r);
@@ -7094,6 +7134,7 @@ function compRender(){
     '<h3 style="margin-bottom:4px">🧩 Produits & composants</h3>'+
     '<div style="font-size:.76rem;color:var(--mut);margin-bottom:10px">Dans EBP, le stock des composants est porté par les produits finis (ex. B56 = 1 coque 56 + 1 pinback 56). Vérifie la composition de chaque produit : seules les compositions <strong>validées</strong> servent aux calculs de l\'inventaire.</div>'+
     '<div style="font-size:.78rem;margin-bottom:8px">✅ '+cnt.ok+' validés · 💡 '+cnt.sugg+' suggestions · ⚠️ '+cnt.todo+' sans composition · ignorés '+cnt.ign+'</div>'+
+    (refsN ? '<button class="btn bsec" style="width:100%;margin-bottom:8px;font-size:.8rem" onclick="compRefsOpen()">🏷️ Donner une référence à '+refsN+' loupe(s) / papillon(s) sans réf.</button>' : '')+
     (sureN ? '<button class="btn bsuc" style="width:100%;margin-bottom:8px;font-size:.82rem" onclick="compAcceptSure()">✅ Valider les '+sureN+' suggestions sûres</button>' : '')+
     (cnt.sugg > sureN ? '<button class="btn bsec" style="width:100%;margin-bottom:8px;font-size:.78rem" onclick="compAcceptAll()">'+(compAllArm ? '⚠️ Cliquer encore pour valider les '+cnt.sugg+' suggestions' : 'Tout valider, même les moins sûres ('+cnt.sugg+')')+'</button>' : '')+
     '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">'+chip('todo','À faire ('+(cnt.sugg+cnt.todo)+')')+chip('ok','Validés')+chip('ign','Ignorés')+chip('all','Tous')+'</div>'+
