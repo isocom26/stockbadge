@@ -662,10 +662,10 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
       <button class="back" id="back-btn" onclick="goBack()">← Retour</button>
       <div id="det-content"></div>
       <div id="det-recipes"></div>
-      <div class="stitle">Sous-références</div>
+      <div class="stitle">Composants</div>
       <div class="icard"><div class="ilist" id="det-items"></div></div>
-      <button class="btn bsec" style="width:100%;margin-bottom:10px" onclick="openAddItemModal()">+ Ajouter une sous-référence</button>
-      <button class="btn bsec" style="width:100%;margin-bottom:10px" onclick="openLinkItemModal()">🔗 Lier une sous-référence existante</button>
+      <button class="btn bsec" style="width:100%;margin-bottom:10px" onclick="openAddItemModal()">+ Ajouter un composant</button>
+      <button class="btn bsec" style="width:100%;margin-bottom:10px" onclick="openLinkItemModal()">🔗 Lier un composant existant</button>
       <div id="det-del"></div>
     </div>
     <div id="view-depiautage" class="view">
@@ -1280,7 +1280,7 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
   <!-- Dupliquer la structure Atelier -> Réserve -->
   <div style="background:var(--card);border:1.5px solid var(--brd);border-radius:14px;padding:14px;margin-bottom:16px">
     <div style="font-family:Open Sans,sans-serif;font-weight:800;font-size:0.95rem;margin-bottom:6px">📋 Dupliquer les références Atelier → Réserve</div>
-    <div style="font-size:.78rem;color:var(--mut);margin-bottom:10px">Recrée dans la Réserve les mêmes catégories et sous-références que l'Atelier (nom, pièces/carton, seuil d'alerte), avec des quantités à 0 — à remplir ensuite manuellement. <strong style="color:var(--red)">Remplace entièrement le contenu actuel de la Réserve.</strong></div>
+    <div style="font-size:.78rem;color:var(--mut);margin-bottom:10px">Recrée dans la Réserve les mêmes catégories et composants que l'Atelier (nom, pièces/carton, seuil d'alerte), avec des quantités à 0 — à remplir ensuite manuellement. <strong style="color:var(--red)">Remplace entièrement le contenu actuel de la Réserve.</strong></div>
     <button onclick="askDuplicateAtelierToReserve()" style="width:100%;padding:9px;border-radius:8px;border:none;background:var(--acc);color:#000;font-family:Open Sans,sans-serif;font-weight:700;font-size:0.89rem;cursor:pointer">📋 Dupliquer maintenant</button>
     <div style="font-size:.75rem;color:var(--mut);margin-top:12px;margin-bottom:8px">Ou, si la Réserve est déjà remplie et que seul l'<strong>ordre</strong> d'affichage est à corriger (sans toucher aux quantités) :</div>
     <button onclick="askReorderReserve()" style="width:100%;padding:9px;border-radius:8px;border:1.5px solid var(--acc);background:none;color:var(--acc);font-family:Open Sans,sans-serif;font-weight:700;font-size:0.89rem;cursor:pointer">🔀 Réordonner la Réserve selon l'Atelier</button>
@@ -1299,6 +1299,13 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
       <button onclick="saveDashboardSettings()" style="padding:9px 16px;border-radius:8px;border:none;background:var(--acc);color:#000;font-family:Open Sans,sans-serif;font-weight:700;font-size:0.89rem;cursor:pointer">💾</button>
     </div>
     <div id="dash-set-saved" style="font-size:.72rem;color:var(--grn);margin-top:6px"></div>
+  </div>
+
+  <!-- Produits & composants -->
+  <div style="background:var(--card);border:1.5px solid var(--brd);border-radius:14px;padding:14px;margin-bottom:16px">
+    <div style="font-family:Open Sans,sans-serif;font-weight:800;font-size:0.95rem;margin-bottom:6px">🧩 Produits & composants</div>
+    <div style="font-size:.78rem;color:var(--mut);margin-bottom:10px">La composition de chaque produit fini (ex. B56 = 1 coque 56 + 1 pinback 56). Sert à l'inventaire (stock EBP des composants) et, plus tard, à la déduction automatique par commande.</div>
+    <button class="btn bsec" style="width:100%" onclick="compOpen()">Ouvrir</button>
   </div>
 
   <!-- Formats par pôle -->
@@ -1487,15 +1494,15 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
 <div class="mover" id="m-item" onclick="cm('m-item')">
   <div class="modal" onclick="event.stopPropagation()">
     <div class="dh"></div>
-    <h3 id="m-item-title">➕ Nouvelle sous-référence</h3>
+    <h3 id="m-item-title">➕ Nouveau composant</h3>
     <div class="ff"><label>Nom *</label><input type="text" id="item-n" placeholder="ex: Coque avant, Épingle…"></div>
     <div class="ff"><label>Réf. ISOCOM</label><input type="text" id="item-refiso" placeholder="ex: 56COQUES" autocomplete="off"></div>
-    <div style="display:flex;gap:8px">
-      <div class="ff" style="flex:1;min-width:0"><label>Fournisseur</label><select id="item-four"><option value="">—</option></select></div>
-      <div class="ff" style="flex:1;min-width:0"><label>Réf. fournisseur</label><input type="text" id="item-reffourn" placeholder="ex: 3002" autocomplete="off"></div>
+    <div class="ff"><label>Fournisseur(s) et référence(s) <span style="font-weight:400;color:var(--mut)">— le 1er est le principal</span></label>
+      <div id="item-fourns"></div>
+      <button type="button" class="inv-add-line" onclick="itemFoursAdd()">+ Ajouter un fournisseur</button>
     </div>
     <div class="ff"><label>Seuil alerte (en pièces)</label><input type="number" id="item-ap" min="0" placeholder="ex: 20000"></div>
-    <div id="item-qty-note" style="font-size:.75rem;color:var(--mut);margin:-8px 0 12px">La quantité en stock et les pièces par carton se gèrent ensuite via les boutons + / − de la sous-référence (ils gèrent plusieurs tailles de carton si besoin).</div>
+    <div id="item-qty-note" style="font-size:.75rem;color:var(--mut);margin:-8px 0 12px">La quantité en stock et les pièces par carton se gèrent ensuite via les boutons + / − du composant (ils gèrent plusieurs tailles de carton si besoin).</div>
     <div class="ff"><label>Photo</label>
       <div class="pha" onclick="document.getElementById('item-ph').click()"><div id="item-ph-prev">📷 Ajouter une photo</div></div>
       <input type="file" id="item-ph" accept="image/*" onchange="prevPhoto('item')">
@@ -1508,10 +1515,10 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
 <div class="mover" id="m-link" onclick="cm('m-link')">
   <div class="modal" onclick="event.stopPropagation()">
     <div class="dh"></div>
-    <h3>🔗 Lier une sous-référence existante</h3>
+    <h3>🔗 Lier un composant existant</h3>
     <div style="font-size:.78rem;color:var(--mut);margin-bottom:10px">Pour un composant partagé (ex: une loupe utilisée sur plusieurs modèles de pins) : la référence choisie reste rattachée à sa catégorie d'origine, avec une seule vraie quantité — modifiable depuis ici comme depuis là-bas.</div>
     <div class="ff">
-      <input type="text" id="link-search" placeholder="🔍 Rechercher une sous-référence…" style="width:100%;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.88rem;padding:9px 12px;outline:none;box-sizing:border-box" oninput="filterLinkResults()">
+      <input type="text" id="link-search" placeholder="🔍 Rechercher un composant…" style="width:100%;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.88rem;padding:9px 12px;outline:none;box-sizing:border-box" oninput="filterLinkResults()">
     </div>
     <div id="link-results" style="margin-top:6px;max-height:340px;overflow-y:auto"></div>
     <div class="macts"><button class="btn bsec" onclick="cm('m-link')">Annuler</button></div>
@@ -1619,6 +1626,9 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
     <div id="cl-body" style="font-size:.8rem"></div>
     <div class="macts"><button class="btn bsec" onclick="cm('m-cmd-lines')">Fermer</button></div>
   </div>
+</div>
+<div class="mover" id="m-prod" onclick="compClose()">
+  <div class="cmod" onclick="event.stopPropagation()" style="max-height:92vh;overflow-y:auto;max-width:640px;width:100%" id="m-prod-body"></div>
 </div>
 <div class="mover" id="m-invc" onclick="invcCloseEdit()">
   <div class="cmod" onclick="event.stopPropagation()" style="max-height:90vh;overflow-y:auto" id="invc-edit"></div>
@@ -1916,7 +1926,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.10.29-1235';
+var APP_VERSION = '2026.10.29-1432';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -2363,7 +2373,7 @@ auth.onAuthStateChanged(function(u) {
     document.getElementById('abadge').style.display = (iAm||isDir) ? 'inline' : 'none';
     document.getElementById('abadge').textContent = iAm ? 'Admin' : 'Direction';
     saveQuickProfile(u.email, u.displayName);
-    if (!inited) { inited = true; startDB(); startMachListener(); startRpListener(); startCmdIndexListener(); startCustomFormatsListener(); startInvcListener(); startGammesListener(); startEtapesSupListener(); startQtyRulesListener(); startAlertSeenListener(); }
+    if (!inited) { inited = true; startDB(); startMachListener(); startRpListener(); startCmdIndexListener(); startCustomFormatsListener(); startInvcListener(); startCompListener(); startGammesListener(); startEtapesSupListener(); startQtyRulesListener(); startAlertSeenListener(); }
     if (location.hash === '#ecran') setTimeout(function(){ ecranAutoOpen(0); }, 400);
 
     // Rendu immédiat depuis le cache local, si on a déjà vu cet utilisateur
@@ -2556,7 +2566,7 @@ function ecranAutoOpen(tries){
 // Pas de correctif technique invisible ici. tag = qui est concerné :
 //   'all' (tout le monde), 'admin' (admin/direction), 'maint' (maintenance), 'stock' (ajout de stock), 'reprint' (réimpressions)
 var NEWS = [
-  {n:43, d:'28/10/2026', tag:'all', t:'Stock : références ISOCOM et fournisseur', x:'Chaque fourniture peut maintenant afficher sa référence ISOCOM, son fournisseur et sa référence fournisseur sous son nom. L\'admin les renseigne avec le crayon ✏️ de la sous-référence.'},
+  {n:43, d:'28/10/2026', tag:'all', t:'Stock : références ISOCOM et fournisseur', x:'Chaque fourniture peut maintenant afficher sa référence ISOCOM, son fournisseur et sa référence fournisseur sous son nom. L\'admin les renseigne avec le crayon ✏️ du composant.'},
   {n:39, d:'28/10/2026', tag:'dashboard', t:'Stats : les pièces produites en table seule sont comptées', x:'Les pièces des formats produits uniquement en table (gamme « Table seule », ex. porte-clés) entrent maintenant dans le total produit, les stats par format, site, semaine et producteur. Les repassages semi-auto vers table restent comptés une seule fois. Sous « Répartition par machine », la table indique « dont X pcs repassées ».'},
   {n:38, d:'28/10/2026', tag:'dashboard', t:'Capacité : même reste à produire que « Charge actuelle »', x:'Le simulateur express de l\'onglet Capacité utilise maintenant le même « reste à produire » que la Charge actuelle de l\'onglet Aujourd\'hui (quantité commandée moins ce qui est déjà produit). Plus d\'écart entre les deux.'},
   {n:37, d:'28/10/2026', tag:'all', t:'Stock : « sachets » pour Porte-clés et Pins', x:'Pour les familles Porte-clés et Pins, le stock parle maintenant de sachets (et plus de cartons) : ajout, retrait, transfert, réception, inventaire et journal. Badges & Magnets restent en cartons.'},
@@ -3301,7 +3311,7 @@ function catCard(cat, zone, q) {
   // En recherche : afficher tous les formats correspondants (jamais tronqué à 3).
   // Si seule la référence matche par son nom (aucun format ne matche), on
   // garde l'affichage habituel des 3 premiers formats.
-  // Résout chaque ligne liée vers sa vraie sous-référence (voir
+  // Résout chaque ligne liée vers son vrai composant (voir
   // resolveLinkedItem) une seule fois, pour l'affichage comme pour la
   // recherche — une ligne dont le lien est cassé est simplement ignorée ici
   // (elle reste visible et supprimable depuis la fiche détail).
@@ -3369,15 +3379,15 @@ function renderDetItems(cat) {
   var dbp   = isRes?'reserve_items':'items';
   var col   = isRes?'var(--pur)':'var(--acc)';
   var canE  = !isRes || iAm;
-  if (!items.length) { el.innerHTML='<div style="padding:18px;text-align:center;color:var(--mut);font-size:.85rem">Aucune sous-référence</div>'; return; }
+  if (!items.length) { el.innerHTML='<div style="padding:18px;text-align:center;color:var(--mut);font-size:.85rem">Aucun composant</div>'; return; }
   el.innerHTML=items.map(function(entry){
     // Ligne "liée" (composant partagé) : aucune donnée propre, on affiche et
-    // on agit sur la vraie sous-référence, ailleurs — voir resolveLinkedItem.
+    // on agit sur le vrai composant, ailleurs — voir resolveLinkedItem.
     if(entry.linked){
       var res = resolveLinkedItem(entry);
       if(!res){
         return '<div class="irow"><div class="iname"><strong>⚠️ Référence introuvable</strong><br>'+
-          '<span style="font-size:.72rem;color:var(--mut)">Ce lien pointe vers une sous-référence qui a peut-être été supprimée.</span></div>'+
+          '<span style="font-size:.72rem;color:var(--mut)">Ce lien pointe vers un composant qui a peut-être été supprimé.</span></div>'+
           '<div class="qctrl"><button class="bedit" style="color:var(--red);border-color:var(--red)" onclick="unlinkItem(\''+cat.id+'\',\''+entry.id+'\',\''+dbp+'\')">🗑</button></div></div>';
       }
       var linkTag = '<br><span style="font-size:.68rem;color:var(--acc);font-weight:700">🔗 lié à '+esc(res.cat.name)+'</span>';
@@ -3388,7 +3398,7 @@ function renderDetItems(cat) {
   }).join('');
 }
 
-// Construit le HTML d'une ligne de sous-référence. Partagé entre une ligne
+// Construit le HTML d'une ligne de composant. Partagé entre une ligne
 // normale et une ligne "liée" (qui affiche/agit sur la vraie référence, avec
 // juste un badge et un bouton "retirer le lien" en plus à la place du crayon
 // d'édition habituel — modifier depuis un lien modifierait la vraie
@@ -3741,7 +3751,7 @@ function buildOB(){
     if(!items.length){
       var empty = document.createElement('div');
       empty.style.cssText = 'padding:12px 14px;color:var(--mut);font-size:.8rem';
-      empty.textContent = 'Aucune sous-reference';
+      empty.textContent = 'Aucun composant';
       catDiv.appendChild(empty);
     } else {
       items.forEach(function(item){
@@ -4603,33 +4613,66 @@ function openAddCatModal(){
 }
 
 // ── RÉFÉRENCES ISOCOM / FOURNISSEUR d'une fourniture (champs facultatifs : refIso, refFourn, fournisseur) ──
+// Fournisseurs d'un composant : liste facultative item.fournisseurs = [{nom, ref}] (le 1er est le principal).
+// Sans liste, on retombe sur les champs historiques fournisseur / refFourn (comportement inchangé).
+function itemFourns(item){
+  var out = [];
+  if(item && Array.isArray(item.fournisseurs)){
+    item.fournisseurs.forEach(function(f){
+      if(!f) return;
+      var nom = String(f.nom||'').trim(), ref = String(f.ref||'').trim();
+      if(nom || ref) out.push({nom:nom, ref:ref});
+    });
+  }
+  if(!out.length && item){
+    var nom0 = String(item.fournisseur||'').trim(), ref0 = String(item.refFourn||'').trim();
+    if(nom0 || ref0) out.push({nom:nom0, ref:ref0});
+  }
+  return out;
+}
 function refLineHtml(item){
-  var a = String(item.refIso||'').trim(), b = String(item.refFourn||'').trim(), f = String(item.fournisseur||'').trim();
-  if(!a && !b && !f) return '';
+  var a = String(item.refIso||'').trim(), fl = itemFourns(item);
+  if(!a && !fl.length) return '';
   var parts = [];
   if(a) parts.push('<strong style="color:var(--txt)">'+esc(a)+'</strong>');
-  if(b) parts.push('réf. '+esc(b)+(f?' ('+esc(f)+')':''));
-  else if(f) parts.push(esc(f));
+  var fs = fl.map(function(f, i){
+    var t = f.ref ? 'réf. '+esc(f.ref)+(f.nom?' ('+esc(f.nom)+')':'') : esc(f.nom);
+    return i===0 && fl.length>1 ? '<strong style="color:var(--acc)">'+t+'</strong>' : t;
+  });
+  if(fs.length) parts.push(fs.join(' / '));
   return '<br><span style="font-size:.7rem;color:var(--mut)">🏷️ '+parts.join(' · ')+'</span>';
 }
+var itemFourState = [], itemFourNames = [];
+function itemFoursRender(){
+  var box = document.getElementById('item-fourns'); if(!box) return;
+  box.innerHTML = itemFourState.map(function(f, i){
+    var names = itemFourNames.slice();
+    if(f.nom && names.indexOf(f.nom) < 0) names.push(f.nom);
+    return '<div style="display:flex;gap:6px;align-items:center;margin-bottom:6px">'+
+      '<select onchange="itemFourState['+i+'].nom=this.value" style="flex:1;min-width:0'+(i===0?';font-weight:700':'')+'"><option value="">'+(i===0?'Fournisseur principal':'Autre fournisseur')+'</option>'+
+        names.map(function(n){ return '<option value="'+esc(n)+'"'+(n===f.nom?' selected':'')+'>'+esc(n)+'</option>'; }).join('')+'</select>'+
+      '<input type="text" value="'+esc(f.ref||'')+'" placeholder="Réf. fournisseur" autocomplete="off" oninput="itemFourState['+i+'].ref=this.value" style="flex:1;min-width:0'+(i===0?';font-weight:700':'')+'">'+
+      (itemFourState.length>1 ? '<button type="button" onclick="itemFoursRemove('+i+')" style="background:none;border:none;color:var(--red);font-size:1.1rem;cursor:pointer;padding:0 4px">✕</button>' : '')+
+    '</div>';
+  }).join('');
+}
+function itemFoursAdd(){ itemFourState.push({nom:'', ref:''}); itemFoursRender(); }
+function itemFoursRemove(i){ if(itemFourState.length<=1) return; itemFourState.splice(i,1); itemFoursRender(); }
 function itemRefsLoad(item){
   document.getElementById('item-refiso').value = (item&&item.refIso)||'';
-  document.getElementById('item-reffourn').value = (item&&item.refFourn)||'';
-  var sel = document.getElementById('item-four'), cur = (item&&item.fournisseur)||'';
-  sel.dataset.ready = '0';
-  sel.innerHTML = '<option value="">—</option>' + (cur ? '<option value="'+esc(cur)+'" selected>'+esc(cur)+'</option>' : '');
+  itemFourState = itemFourns(item).map(function(f){ return {nom:f.nom, ref:f.ref}; });
+  if(!itemFourState.length) itemFourState = [{nom:'', ref:''}];
+  itemFoursRender();
   ensureDefaultSuppliers().then(function(data){
-    var names = Object.keys(data||{}).map(function(k){ return data[k].nom; }).filter(Boolean);
-    if(cur && names.indexOf(cur)<0) names.push(cur);
-    names.sort(function(a,b){ return a.localeCompare(b,'fr'); });
-    sel.innerHTML = '<option value="">—</option>' + names.map(function(n){ return '<option value="'+esc(n)+'">'+esc(n)+'</option>'; }).join('');
-    sel.value = cur; sel.dataset.ready = '1';
+    itemFourNames = Object.keys(data||{}).map(function(k){ return data[k].nom; }).filter(Boolean).sort(function(a,b){ return a.localeCompare(b,'fr'); });
+    itemFoursRender();
   }).catch(function(){});
 }
+// Lecture du formulaire : liste complète + recopie du principal dans les champs historiques (fournisseur / refFourn).
 function itemRefsRead(){
-  var sel = document.getElementById('item-four');
-  return {refIso:document.getElementById('item-refiso').value.trim(), refFourn:document.getElementById('item-reffourn').value.trim(),
-          fournisseur:sel.value, fournReady:sel.dataset.ready==='1'};
+  var list = itemFourState.map(function(f){ return {nom:String(f.nom||'').trim(), ref:String(f.ref||'').trim()}; }).filter(function(f){ return f.nom || f.ref; });
+  return {refIso:document.getElementById('item-refiso').value.trim(), fournisseurs:list,
+          fournisseur:(list[0]&&list[0].nom)||'', refFourn:(list[0]&&list[0].ref)||''};
 }
 
 // ── RAPPROCHEMENT DES RÉFÉRENCES EBP (outil ponctuel, admin) ──
@@ -4696,7 +4739,7 @@ function ebpIndex(){
   });
   return EBP_IDX;
 }
-// Cherche le code EBP d'une fourniture : catName = format (catégorie), itemName = nom de la sous-référence.
+// Cherche le code EBP d'une fourniture : catName = format (catégorie), itemName = nom du composant.
 // Renvoie {status:'sure'|'verify'|'none', cands:[entrées], pick: entrée|null}
 function ebpMatch(catName, itemName){
   var ctx = refNorm(catName+' '+itemName), nm = refNorm(itemName);
@@ -4862,7 +4905,7 @@ function ebpToolUndoAsk(){
 function openAddItemModal(){
   editItemId=null;
   PT.item=null;
-  document.getElementById('m-item-title').textContent='➕ Nouvelle sous-référence';
+  document.getElementById('m-item-title').textContent='➕ Nouveau composant';
   document.getElementById('item-save-btn').textContent='Ajouter';
   document.getElementById('item-save-btn').onclick=saveItem;
   ['item-n'].forEach(function(id){document.getElementById(id).value='';});
@@ -4873,13 +4916,13 @@ function openAddItemModal(){
   om('m-item');
 }
 
-// ── SOUS-RÉFÉRENCES LIÉES (composant partagé entre plusieurs catégories) ──
+// ── COMPOSANTS LIÉS (composant partagé entre plusieurs catégories) ──
 // Une ligne "liée" ne stocke aucune quantité propre : c'est juste un pointeur
-// {linked:true, linkedCatId, linkedItemId} vers une sous-référence bien réelle
+// {linked:true, linkedCatId, linkedItemId} vers un composant bien réel
 // qui vit ailleurs. Elle s'affiche comme une ligne normale (mêmes données,
 // mêmes boutons +/-/transfert), mais toute action agit sur la vraie
 // référence — donc une seule quantité, vue et modifiable des deux côtés.
-// Pas de chaînage : on ne peut lier qu'une sous-référence réelle, jamais un
+// Pas de chaînage : on ne peut lier qu'un composant réel, jamais un
 // lien vers un lien.
 function resolveLinkedItem(entry){
   if(!entry || !entry.linked) return null;
@@ -4921,7 +4964,7 @@ function renderLinkResults(q){
     });
   });
   if(!rows.length){
-    el.innerHTML='<div style="padding:14px;text-align:center;color:var(--mut);font-size:.82rem">'+(q?'Aucun résultat':'Aucune autre sous-référence disponible à lier')+'</div>';
+    el.innerHTML='<div style="padding:14px;text-align:center;color:var(--mut);font-size:.82rem">'+(q?'Aucun résultat':'Aucun autre composant disponible à lier')+'</div>';
     return;
   }
   el.innerHTML = rows.map(function(r){
@@ -4937,13 +4980,13 @@ function linkItem(targetCatId, targetItemId){
   var dbp = isRes?'reserve_items':'items';
   fbs('categories/'+catId+'/'+dbp+'/'+gid(), {linked:true, linkedCatId:targetCatId, linkedItemId:targetItemId, linkedDbp:dbp});
   cm('m-link');
-  toast('🔗 Sous-référence liée');
+  toast('🔗 Composant lié');
 }
 
 function unlinkItem(cid, pointerId, dbp){
   if(!iAm){toast('Seul l\'admin peut modifier les liens',1);return;}
   document.getElementById('cf-title').textContent='Retirer ce lien ?';
-  document.getElementById('cf-msg').textContent='La sous-référence liée ne sera plus visible ici, mais elle reste intacte (son stock ne change pas) dans sa catégorie d\'origine.';
+  document.getElementById('cf-msg').textContent='Le composant lié ne sera plus visible ici, mais il reste intact (son stock ne change pas) dans sa catégorie d\'origine.';
   cfCb=function(){
     fbd('categories/'+cid+'/'+dbp+'/'+pointerId).then(function(){
       cm('m-confirm');
@@ -4958,14 +5001,14 @@ function openEditItem(cid,iid,dbp){
   var items=dbp==='items'?(cat.items||[]):(cat.reserve_items||[]);
   var item=items.find(function(i){return i.id===iid;}); if(!item) return;
   editItemId=iid; catId=cid; PT.item=item.photo||null;
-  document.getElementById('m-item-title').textContent='✏️ Modifier la sous-référence';
+  document.getElementById('m-item-title').textContent='✏️ Modifier le composant';
   document.getElementById('item-save-btn').textContent='Enregistrer';
   document.getElementById('item-save-btn').onclick=function(){updItem(dbp);};
   document.getElementById('item-n').value=item.name;
   itemRefsLoad(item);
   document.getElementById('item-ap').value=item.alertPcs || (item.alert ? item.alert*(item.ppc||1) : '');
   document.getElementById('item-ph-prev').innerHTML=item.photo?'<img src="'+item.photo+'" style="max-height:80px;border-radius:8px">':'📷 Changer la photo';
-  document.getElementById('item-del-wrap').innerHTML='<button class="btn bdano" style="width:100%" onclick="askDelItem(\''+cid+'\',\''+iid+'\',\''+esc(item.name.replace(/'/g,''))+'\',\''+dbp+'\')">🗑️ Supprimer cette sous-référence</button>';
+  document.getElementById('item-del-wrap').innerHTML='<button class="btn bdano" style="width:100%" onclick="askDelItem(\''+cid+'\',\''+iid+'\',\''+esc(item.name.replace(/'/g,''))+'\',\''+dbp+'\')">🗑️ Supprimer ce composant</button>';
   om('m-item');
 }
 
@@ -5007,7 +5050,7 @@ function buildIPick(sel){
   // quel autre composant — on résout juste son nom/quantité pour
   // l'affichage (le pointeur lui-même n'a pas ces données).
   var all=(cat.items||[]);
-  if(!all.length){document.getElementById('ipick').innerHTML='<div style="padding:12px;color:var(--mut);font-size:.82rem;text-align:center">Aucune sous-référence</div>';return;}
+  if(!all.length){document.getElementById('ipick').innerHTML='<div style="padding:12px;color:var(--mut);font-size:.82rem;text-align:center">Aucun composant</div>';return;}
   document.getElementById('ipick').innerHTML=all.map(function(entry){
     var display = entry;
     var linkTag = '';
@@ -5034,7 +5077,7 @@ function saveCat(){
   cm('m-cat'); toast('✅ Référence créée !');
 }
 
-// La sous-référence se crée toujours à 0 : la quantité et le conditionnement
+// Le composant se crée toujours à 0 : la quantité et le conditionnement
 // (pièces par carton) se renseignent ensuite via le bouton + (Ajouter au
 // stock), qui gère nativement plusieurs tailles de carton différentes.
 function saveItem(){
@@ -5046,11 +5089,12 @@ function saveItem(){
   var nextOrder = existing.reduce(function(m,it){ return Math.max(m,(it.order||0)); }, -1) + 1;
   var nu = {name:n,qty:0,alertPcs:parseInt(document.getElementById('item-ap').value)||0,ppc:null,photo:PT.item||null,order:nextOrder};
   var rf = itemRefsRead(); if(rf.refIso) nu.refIso = rf.refIso; if(rf.refFourn) nu.refFourn = rf.refFourn; if(rf.fournisseur) nu.fournisseur = rf.fournisseur;
+  if(rf.fournisseurs.length) nu.fournisseurs = rf.fournisseurs;
   fbs('categories/'+catId+'/'+dbp+'/'+gid(),nu);
-  cm('m-item'); toast('✅ Sous-référence ajoutée !');
+  cm('m-item'); toast('✅ Composant ajouté !');
 }
 
-// Modifier une sous-référence ne touche plus jamais à la quantité ni aux
+// Modifier un composant ne touche plus jamais à la quantité ni aux
 // pièces par carton : changer le conditionnement après coup ici recalculait
 // silencieusement tout le stock existant (qty × nouveau ppc) sans qu'aucun
 // carton n'ait réellement changé. La quantité/le conditionnement passent
@@ -5060,9 +5104,13 @@ function updItem(dbp){
   var n=document.getElementById('item-n').value.trim(); if(!n){toast('Nom obligatoire',1);return;}
   var up = {name:n,alertPcs:parseInt(document.getElementById('item-ap').value)||0,photo:PT.item||null};
   var rf2 = itemRefsRead(); up.refIso = rf2.refIso || null; up.refFourn = rf2.refFourn || null;
-  if(rf2.fournReady) up.fournisseur = rf2.fournisseur || null;   // liste pas encore chargée : on ne touche pas au fournisseur
+  up.fournisseur = rf2.fournisseur || null;
+  up.fournisseurs = rf2.fournisseurs.length ? rf2.fournisseurs : null;
+  // Fournisseur principal modifié à la main : il n'est plus « posé par l'outil EBP » (l'annulation de l'outil ne doit pas l'effacer)
+  var oldCat = gc(catId), oldIt = oldCat ? (oldCat[dbp]||[]).filter(function(i){ return i.id===editItemId; })[0] : null;
+  if(oldIt && oldIt.fournSrc && String(oldIt.fournisseur||'') !== rf2.fournisseur) up.fournSrc = null;
   fbu('categories/'+catId+'/'+dbp+'/'+editItemId,up);
-  cm('m-item'); toast('✅ Sous-référence modifiée !');
+  cm('m-item'); toast('✅ Composant modifié !');
 }
 
 function updateCat(){
@@ -5090,7 +5138,7 @@ function askDelCat(){
   if(!iAm) return;
   var cat=gc(catId);
   document.getElementById('cf-title').textContent='Supprimer "'+(cat?cat.name:'cette référence')+'" ?';
-  document.getElementById('cf-msg').textContent='Toutes les sous-références seront supprimées définitivement.';
+  document.getElementById('cf-msg').textContent='Tous les composants seront supprimés définitivement.';
   cfCb=function(){fbd('categories/'+catId);cm('m-confirm');goBack();toast('🗑 Référence supprimée');};
   om('m-confirm');
 }
@@ -5106,11 +5154,11 @@ function askDelItem(cid, iid, name, dbp){
   if(!iAm){toast('Seul l\'admin peut supprimer',1);return;}
   cm('m-item'); // ne jamais empiler deux fenêtres modales ouvertes
   document.getElementById('cf-title').textContent='Supprimer "'+name+'" ?';
-  document.getElementById('cf-msg').textContent='Cette sous-référence sera supprimée définitivement de ce format.';
+  document.getElementById('cf-msg').textContent='Ce composant sera supprimé définitivement de ce format.';
   cfCb=function(){
     fbd('categories/'+cid+'/'+dbp+'/'+iid).then(function(){
       cm('m-confirm');
-      toast('🗑 Sous-référence supprimée');
+      toast('🗑 Composant supprimé');
     });
   };
   cancelCb=function(){
@@ -6299,19 +6347,21 @@ function updateInventaireBadge(){
   });
 }
 
-// ══ CAMPAGNE D'INVENTAIRE (Atelier) — étape A : comptage à plusieurs, à l'aveugle ══
-// inventaires/{id} = {nom, zone:'atelier', statut:'ouvert', creeLe, creePar,
-//   lignes:{ {iid}: {cid, statut:'compte'|null, cartons:[{ppc,qty}], vrac, totalPcs,
-//                    comptePar, compteLe, claim:{uid,name,at}|null } } }
-// Purement additif : le stock réel n'est PAS modifié par le comptage. Le stock
-// théorique n'est jamais affiché ici (comptage à l'aveugle). Une fourniture
-// ouverte est réservée à son nom (claim, expire seul) ; une fois comptée elle
-// est verrouillée pour les opérateurs (l'admin peut la rouvrir).
+// ══ CAMPAGNE D'INVENTAIRE (Atelier) : comptage à plusieurs, par bloc, à l'aveugle ══
+// inventaires/{id} = {nom, zone:'atelier', statut:'ouvert', essai?, creeLe, creePar,
+//   blocs:{ {cid}: {claim:{uid,name,at}|null} },
+//   lignes:{ {iid}: {cid, statut:'compte', cartons:[{ppc,qty}], ouverts:[n], vrac, stockPcs, prodPcs,
+//                    totalPcs, comptePar, compteLe} } }
+// Un bloc = une catégorie : celui qui l'ouvre le réserve en entier (une personne = un bloc à la fois).
+// Trois zones de comptage : cartons fermés (stock), carton(s) ouvert(s) (stock), bacs (côté production).
+// Le stock réel de l'app n'est PAS modifié ; le stock théorique n'est jamais affiché (comptage à l'aveugle).
 var S_invc = null;            // campagne ouverte (ou null)
-var invcFilter = 'todo';      // todo | all | done
+var invcFilter = 'todo';      // todo | done | all
 var invcQuery = '';
-var invcEdit = null;          // {iid, cid, lines:[{ppc,qty}], vrac}
-var INVC_CLAIM_MS = 20*60*1000;
+var invcBloc = null;          // cid du bloc ouvert à l'écran
+var invcEdit = null;          // {iid, cid, lines:[{ppc,qty}], ouverts:[n|''], vrac}
+var invcOptOpen = false;      // options admin (suppression) repliées par défaut
+var INVC_CLAIM_MS = 30*60*1000;
 function startInvcListener(){
   db.ref('inventaires').on('value', function(snap){
     var raw = snap.val() || {}, best = null;
@@ -6320,7 +6370,8 @@ function startInvcListener(){
       if(c && c.statut === 'ouvert' && (!best || (c.creeLe||0) > (best.creeLe||0))) best = Object.assign({id:id}, c);
     });
     S_invc = best;
-    if(S_invc && !S_invc.lignes) S_invc.lignes = {};
+    if(S_invc){ if(!S_invc.lignes) S_invc.lignes = {}; if(!S_invc.blocs) S_invc.blocs = {}; }
+    else { invcBloc = null; invcPane = null; }
     if(curTab === 'inventaire') renderInventaire();
   });
 }
@@ -6331,17 +6382,37 @@ function invcItems(){
   });
   return out;
 }
-function invcClaimFresh(l){ return l && l.claim && l.claim.at && (Date.now() - l.claim.at) < INVC_CLAIM_MS; }
-function invcState(iid){
-  var l = (S_invc && S_invc.lignes && S_invc.lignes[iid]) || null;
-  if(l && l.statut === 'compte') return {k:'done', l:l};
-  if(invcClaimFresh(l)) return {k: (me && l.claim.uid === me.uid) ? 'mine' : 'busy', l:l};
-  return {k:'todo', l:l};
+function invcDone(iid){ var l = S_invc && S_invc.lignes && S_invc.lignes[iid]; return !!(l && l.statut === 'compte'); }
+function invcClaimFresh(c){ return !!(c && c.at && (Date.now() - c.at) < INVC_CLAIM_MS); }
+// État d'un bloc : done (tout compté) | mine | busy (pris par un autre) | todo
+function invcBlocInfo(cid){
+  var rows = invcItems().filter(function(r){ return r.cat.id === cid; });
+  var done = rows.filter(function(r){ return invcDone(r.item.id); }).length;
+  var c = S_invc && S_invc.blocs && S_invc.blocs[cid] && S_invc.blocs[cid].claim;
+  var k = 'todo';
+  if(rows.length && done === rows.length) k = 'done';
+  else if(invcClaimFresh(c)) k = (me && c.uid === me.uid) ? 'mine' : 'busy';
+  return {k:k, rows:rows, done:done, total:rows.length, claim:c};
 }
-function invcLinePcs(lines, vrac){
-  var tot = 0;
-  (lines||[]).forEach(function(l){ var q = parseInt(l.qty)||0, p = parseInt(l.ppc)||0; tot += q*p; });
-  return tot + (parseInt(vrac)||0);
+function invcMyBloc(){
+  if(!S_invc || !me) return null;
+  var found = null;
+  Object.keys(S_invc.blocs||{}).forEach(function(cid){
+    var c = S_invc.blocs[cid] && S_invc.blocs[cid].claim;
+    if(invcClaimFresh(c) && c.uid === me.uid && invcBlocInfo(cid).k === 'mine') found = cid;
+  });
+  return found;
+}
+function invcSum(arr){ var t = 0; (arr||[]).forEach(function(v){ t += parseInt(v)||0; }); return t; }
+function invcCalc(lines, ouverts, vrac){
+  var cart = 0;
+  (lines||[]).forEach(function(l){ cart += (parseInt(l.qty)||0) * (parseInt(l.ppc)||0); });
+  var stock = cart + invcSum(ouverts), prod = parseInt(vrac)||0;
+  return {cart:cart, stock:stock, prod:prod, total:stock+prod};
+}
+function invcChip(k, label){
+  var on = invcFilter===k;
+  return '<button onclick="invcSetFilter(\''+k+'\')" style="padding:7px 12px;border-radius:99px;border:1.5px solid '+(on?'var(--acc)':'var(--brd)')+';background:'+(on?'var(--acc)':'var(--sur)')+';color:'+(on?'#000':'var(--txt)')+';font-weight:700;font-size:.78rem;cursor:pointer">'+label+'</button>';
 }
 function invcRender(){
   var box = document.getElementById('invc-box');
@@ -6351,64 +6422,84 @@ function invcRender(){
     if(list) list.style.display = ''; if(hist) hist.style.display = '';
     box.innerHTML = iAm
       ? '<div class="inv-card" style="text-align:center"><div style="font-family:Open Sans,sans-serif;font-weight:800;font-size:.95rem;margin-bottom:4px">📋 Inventaire complet</div>'+
-        '<div style="font-size:.78rem;color:var(--mut);margin-bottom:10px">Lance une campagne : toutes les fournitures de l\'Atelier sont à compter par l\'équipe (cartons + pièces en vrac), sans voir le stock théorique.</div>'+
+        '<div style="font-size:.78rem;color:var(--mut);margin-bottom:10px">Lance une campagne : toutes les fournitures de l\'Atelier sont à compter par l\'équipe, bloc par bloc, sans voir le stock théorique.</div>'+
         '<button class="btn bpri" style="width:100%;margin-bottom:8px" onclick="invcStart(false)">🚀 Lancer le vrai inventaire</button>'+
         '<button class="btn bsec" style="width:100%" onclick="invcStart(true)">🧪 Lancer un essai (rien n\'est conservé)</button></div>'
       : '';
     return;
   }
   if(list) list.style.display = 'none'; if(hist) hist.style.display = 'none';
-  var items = invcItems(), tot = items.length, done = 0, busy = 0;
-  items.forEach(function(r){ var st = invcState(r.item.id).k; if(st==='done') done++; else if(st==='busy'||st==='mine') busy++; });
+  var items = invcItems(), tot = items.length, done = items.filter(function(r){ return invcDone(r.item.id); }).length;
   var pct = tot ? Math.round(done*100/tot) : 0;
-  var q = invcQuery.trim().toUpperCase();
-  var byCat = '';
-  S.cats.forEach(function(cat){
-    var rows = items.filter(function(r){ return r.cat.id === cat.id; });
-    if(!rows.length) return;
-    var cDone = rows.filter(function(r){ return invcState(r.item.id).k==='done'; }).length;
-    var shown = rows.filter(function(r){
-      var st = invcState(r.item.id).k;
-      if(invcFilter==='todo' && st==='done') return false;
-      if(invcFilter==='done' && st!=='done') return false;
-      if(q && (r.item.name+' '+cat.name).toUpperCase().indexOf(q) < 0) return false;
-      return true;
-    }).sort(function(a,b){ return a.item.name.localeCompare(b.item.name); });
-    if(!shown.length) return;
-    byCat += '<div style="font-family:Open Sans,sans-serif;font-weight:800;font-size:.76rem;color:var(--mut);text-transform:uppercase;letter-spacing:.05em;margin:14px 0 6px">'+esc(cat.name)+' · '+cDone+'/'+rows.length+'</div>'+
-      shown.map(function(r){
-        var s = invcState(r.item.id), badge, bg = 'var(--card)', bd = 'var(--brd)';
-        if(s.k==='done'){ badge = '<span style="color:var(--grn);font-weight:700">✅ '+esc(s.l.comptePar||'')+'</span>'; bg = 'rgba(34,197,94,.07)'; }
-        else if(s.k==='busy'){ badge = '<span style="color:var(--org,#f59e0b);font-weight:700">🔒 '+esc(s.l.claim.name||'quelqu\'un')+' compte…</span>'; }
-        else if(s.k==='mine'){ badge = '<span style="color:var(--acc);font-weight:700">✏️ en cours (toi)</span>'; bd = 'var(--acc)'; }
-        else badge = '<span style="color:var(--mut)">à compter</span>';
-        return '<div onclick="invcOpen(\''+r.item.id+'\')" style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:11px 12px;background:'+bg+';border:1.5px solid '+bd+';border-radius:10px;margin-bottom:6px;cursor:pointer">'+
-          '<div style="min-width:0;font-weight:700;font-size:.88rem;overflow:hidden;text-overflow:ellipsis">'+esc(r.item.name)+'</div>'+
-          '<div style="font-size:.74rem;white-space:nowrap">'+badge+'</div></div>';
-      }).join('');
-  });
-  function chip(k, label){
-    var on = invcFilter===k;
-    return '<button onclick="invcSetFilter(\''+k+'\')" style="padding:7px 12px;border-radius:99px;border:1.5px solid '+(on?'var(--acc)':'var(--brd)')+';background:'+(on?'var(--acc)':'var(--sur)')+';color:'+(on?'#000':'var(--txt)')+';font-weight:700;font-size:.78rem;cursor:pointer">'+label+'</button>';
-  }
-  var admin = iAm
-    ? '<div style="display:flex;gap:8px;margin-top:10px"><button class="btn bsec" style="flex:1;font-size:.8rem" onclick="invcSheetPDF()">📄 Feuille PDF vierge</button>'+
-      '<button class="btn bsec" style="flex:1;font-size:.8rem;color:var(--red)" onclick="invcDelete()">🗑️ Supprimer</button></div>'
-    : '';
   var essaiBand = S_invc.essai
     ? '<div style="background:rgba(245,158,11,.15);border:1.5px solid #f59e0b;border-radius:10px;padding:8px 12px;margin-bottom:10px;font-size:.8rem;font-weight:700">🧪 MODE ESSAI — pour s\'entraîner. Rien n\'est conservé : le vrai inventaire sera lancé le jour J.</div>'
     : '';
-  if(iAm && S_invc.essai) admin = admin.replace('</div>', '<button class="btn bsec" style="flex:1;font-size:.8rem" onclick="invcSimulate()">🎲 Remplir au hasard</button></div>');
-  box.innerHTML = essaiBand +
+  var admin = '';
+  if(iAm){
+    admin = '<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap"><button class="btn bsec" style="flex:1;font-size:.8rem" onclick="invcSheetPDF()">📄 Feuille PDF vierge</button>'+
+      '<button class="btn bsec" style="flex:1;font-size:.8rem" onclick="invcPane=\'ecarts\';invcRender()">📊 Écarts EBP</button>'+
+      (S_invc.essai ? '<button class="btn bsec" style="flex:1;font-size:.8rem" onclick="invcSimulate()">🎲 Remplir au hasard</button>' : '')+'</div>';
+  }
+  var head = essaiBand +
     '<div class="inv-card"><div style="font-family:Open Sans,sans-serif;font-weight:800;font-size:.95rem">📋 '+esc((S_invc.nom||'Inventaire').replace(/^ESSAI — /,''))+' · 🏭 Atelier</div>'+
-    '<div style="font-size:.78rem;color:var(--mut);margin:4px 0 8px">'+done+' / '+tot+' comptées'+(busy?' · '+busy+' en cours':'')+' · compte tout ce que tu vois : cartons fermés et pièces en vrac (bacs, cartons ouverts)</div>'+
-    '<div style="height:10px;background:var(--sur);border-radius:99px;overflow:hidden"><div style="height:100%;width:'+pct+'%;background:var(--grn)"></div></div>'+
-    admin+'</div>'+
-    '<div style="display:flex;gap:6px;flex-wrap:wrap;margin:10px 0 8px">'+chip('todo','À compter')+chip('done','Comptées')+chip('all','Toutes')+'</div>'+
-    '<input type="text" id="invc-q" value="'+esc(invcQuery)+'" oninput="invcQuery=this.value;invcRender();var e=document.getElementById(\'invc-q\');e.focus();e.setSelectionRange(e.value.length,e.value.length)" placeholder="🔍 Rechercher une fourniture" style="width:100%;box-sizing:border-box;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.9rem;padding:10px 12px;outline:none">'+
-    (byCat || '<div class="empty" style="margin-top:16px"><div class="e">'+(invcFilter==='todo'?'🎉':'🔍')+'</div><p>'+(invcFilter==='todo'&&!q?'Tout est compté !':'Aucune fourniture.')+'</p></div>');
+    '<div style="font-size:.78rem;color:var(--mut);margin:4px 0 8px">'+done+' / '+tot+' fournitures comptées</div>'+
+    '<div style="height:10px;background:var(--sur);border-radius:99px;overflow:hidden"><div style="height:100%;width:'+pct+'%;background:var(--grn)"></div></div>'+admin+'</div>';
+  if(invcPane === 'ecarts' && iAm){ box.innerHTML = essaiBand + invcEcartsHtml() + invcOptHtml(); return; }
+  // ── Un bloc est ouvert : liste de ses fournitures ──
+  if(invcBloc){
+    var bi = invcBlocInfo(invcBloc), cat = gc(invcBloc);
+    if(!cat){ invcBloc = null; invcRender(); return; }
+    var rows = bi.rows.slice().sort(function(a,b){ return a.item.name.localeCompare(b.item.name); });
+    box.innerHTML = head +
+      '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin:14px 0 8px"><div style="font-family:Open Sans,sans-serif;font-weight:800;font-size:1rem">📂 '+esc(cat.name)+' <span style="color:var(--mut);font-size:.8rem;font-weight:700">· '+bi.done+'/'+bi.total+'</span></div>'+
+      '<button class="btn bsec" style="font-size:.78rem;padding:8px 12px" onclick="invcLeaveBloc()">↩︎ Quitter ce bloc</button></div>'+
+      rows.map(function(r){
+        var d = invcDone(r.item.id), l = d ? S_invc.lignes[r.item.id] : null, rc = !d && (S_invc.lignes[r.item.id]||{}).statut === 'recompter';
+        return '<div onclick="invcOpen(\''+r.item.id+'\')" style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px;background:'+(d?'rgba(34,197,94,.07)':'var(--card)')+';border:1.5px solid var(--brd);border-radius:10px;margin-bottom:6px;cursor:pointer">'+
+          '<div style="min-width:0;font-weight:700;font-size:.9rem;overflow:hidden;text-overflow:ellipsis">'+esc(r.item.name)+'</div>'+
+          '<div style="font-size:.74rem;white-space:nowrap">'+(d?'<span style="color:var(--grn);font-weight:700">✅ '+esc(l.comptePar||'')+'</span>':(rc?'<span style="color:#f59e0b;font-weight:700">🔁 à recompter</span>':'<span style="color:var(--mut)">à compter</span>'))+'</div></div>';
+      }).join('') + invcOptHtml();
+    return;
+  }
+  // ── Liste des blocs ──
+  var mine = invcMyBloc(), q = invcQuery.trim().toUpperCase();
+  var resume = '';
+  if(mine && gc(mine)){
+    var mi = invcBlocInfo(mine);
+    resume = '<div onclick="invcOpenBloc(\''+mine+'\')" style="background:rgba(245,158,11,.12);border:2px solid var(--acc);border-radius:12px;padding:12px;margin:10px 0;cursor:pointer;font-weight:700;font-size:.88rem">✏️ Ton bloc en cours : '+esc(gc(mine).name)+' ('+mi.done+'/'+mi.total+') — toucher pour reprendre</div>';
+  }
+  var cards = S.cats.map(function(cat){
+    var bi = invcBlocInfo(cat.id);
+    if(!bi.total) return '';
+    if(invcFilter==='todo' && bi.k==='done') return '';
+    if(invcFilter==='done' && bi.k!=='done') return '';
+    if(q && (cat.name+' '+bi.rows.map(function(r){ return r.item.name; }).join(' ')).toUpperCase().indexOf(q) < 0) return '';
+    var badge, bg = 'var(--card)', bd = 'var(--brd)';
+    if(bi.k==='done'){ badge = '<span style="color:var(--grn);font-weight:700">✅ terminé</span>'; bg = 'rgba(34,197,94,.07)'; }
+    else if(bi.k==='busy'){ badge = '<span style="color:#f59e0b;font-weight:700">🔒 '+esc(bi.claim.name||'quelqu\'un')+' compte…</span>'; }
+    else if(bi.k==='mine'){ badge = '<span style="color:var(--acc);font-weight:700">✏️ en cours (toi)</span>'; bd = 'var(--acc)'; }
+    else badge = '<span style="color:var(--mut)">'+(bi.done?'à finir':'à faire')+'</span>';
+    var nrc = bi.rows.filter(function(r){ return ((S_invc.lignes||{})[r.item.id]||{}).statut === 'recompter'; }).length;
+    if(nrc && bi.k!=='busy' && bi.k!=='mine') badge = '<span style="color:#f59e0b;font-weight:700">🔁 '+nrc+' à recompter</span>';
+    return '<div onclick="invcOpenBloc(\''+cat.id+'\')" style="padding:13px 14px;background:'+bg+';border:1.5px solid '+bd+';border-radius:12px;margin-bottom:8px;cursor:pointer">'+
+      '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px"><div style="font-family:Open Sans,sans-serif;font-weight:800;font-size:.95rem">'+esc(cat.name)+'</div><div style="font-size:.76rem;white-space:nowrap">'+badge+'</div></div>'+
+      '<div style="font-size:.74rem;color:var(--mut);margin-top:3px">'+bi.done+' / '+bi.total+' fournitures comptées</div>'+
+      '<div style="height:6px;background:var(--sur);border-radius:99px;overflow:hidden;margin-top:6px"><div style="height:100%;width:'+Math.round(bi.done*100/bi.total)+'%;background:var(--grn)"></div></div></div>';
+  }).join('');
+  box.innerHTML = head + resume +
+    '<div style="display:flex;gap:6px;flex-wrap:wrap;margin:10px 0 8px">'+invcChip('todo','À faire')+invcChip('done','Terminés')+invcChip('all','Tous')+'</div>'+
+    '<input type="text" id="invc-q" value="'+esc(invcQuery)+'" oninput="invcQuery=this.value;invcRender();var e=document.getElementById(\'invc-q\');e.focus();e.setSelectionRange(e.value.length,e.value.length)" placeholder="🔍 Rechercher un bloc ou une fourniture" style="width:100%;box-sizing:border-box;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.9rem;padding:10px 12px;outline:none;margin-bottom:10px">'+
+    (cards || '<div class="empty" style="margin-top:16px"><div class="e">'+(invcFilter==='todo'&&!q?'🎉':'🔍')+'</div><p>'+(invcFilter==='todo'&&!q?'Tout est compté !':'Aucun bloc.')+'</p></div>') + invcOptHtml();
 }
 function invcSetFilter(k){ invcFilter = k; invcRender(); }
+// Options admin, volontairement discrètes (pas de gros bouton rouge) : la suppression demande une saisie de confirmation.
+function invcOptHtml(){
+  if(!iAm) return '';
+  return '<div style="margin:26px 0 8px;text-align:center">'+
+    '<button onclick="invcOptOpen=!invcOptOpen;invcRender()" style="background:none;border:none;color:var(--mut);font-size:.72rem;cursor:pointer;padding:6px">⚙️ Options de l\'inventaire '+(invcOptOpen?'▴':'▾')+'</button>'+
+    (invcOptOpen ? '<div><button onclick="invcDelete()" style="background:none;border:none;color:var(--mut);font-size:.72rem;text-decoration:underline;cursor:pointer;padding:6px">🗑️ '+(S_invc.essai?'Terminer l\'essai':'Supprimer cet inventaire')+'…</button></div>' : '')+
+  '</div>';
+}
 function invcStart(essai){
   if(!iAm || S_invc) return;
   var d = new Date(), mois = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'][d.getMonth()];
@@ -6426,125 +6517,550 @@ function invcStart(essai){
 }
 function invcDelete(){
   if(!iAm || !S_invc) return;
-  var id = S_invc.id;
-  document.getElementById('cf-title').textContent = S_invc.essai ? '🗑️ Terminer l\'essai ?' : '🗑️ Supprimer cet inventaire ?';
-  document.getElementById('cf-msg').textContent = 'Tous les comptages saisis seront perdus. Le stock de l\'app n\'est pas touché.';
-  var cfBtn = document.querySelector('#m-confirm .btn.bdan'); if(cfBtn) cfBtn.textContent = 'Oui, supprimer';
-  cfCb = function(){ fbd('inventaires/'+id); toast('🗑️ Inventaire supprimé'); };
-  om('m-confirm');
+  var id = S_invc.id, nb = Object.keys(S_invc.lignes||{}).filter(function(k){ return S_invc.lignes[k] && S_invc.lignes[k].statut==='compte'; }).length;
+  if(S_invc.essai){
+    document.getElementById('cf-title').textContent = '🗑️ Terminer l\'essai ?';
+    document.getElementById('cf-msg').textContent = 'Tous les comptages de l\'essai seront perdus. Le stock de l\'app n\'est pas touché.';
+    var cfBtn = document.querySelector('#m-confirm .btn.bdan'); if(cfBtn) cfBtn.textContent = 'Oui, terminer';
+    cfCb = function(){ fbd('inventaires/'+id); invcOptOpen = false; toast('🗑️ Essai terminé'); };
+    om('m-confirm');
+    return;
+  }
+  // Vrai inventaire : on exige de taper SUPPRIMER (pas de suppression par mauvaise manip)
+  invcEdit = null;
+  document.getElementById('invc-edit').innerHTML =
+    '<h3 style="margin-bottom:8px">🗑️ Supprimer l\'inventaire ?</h3>'+
+    '<div style="font-size:.84rem;margin-bottom:12px">« '+esc(S_invc.nom||'')+' » et ses <strong>'+nb+' comptage(s)</strong> seront définitivement supprimés. Le stock de l\'app n\'est pas touché.<br><br>Pour confirmer, tape <strong>SUPPRIMER</strong> :</div>'+
+    '<input type="text" id="invc-del-word" autocomplete="off" oninput="document.getElementById(\'invc-del-ok\').disabled=(this.value.trim().toUpperCase()!==\'SUPPRIMER\')" style="width:100%;box-sizing:border-box;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.95rem;padding:10px 12px;outline:none;margin-bottom:14px">'+
+    '<div class="macts"><button class="btn bsec" onclick="invcCloseEdit()">Annuler</button><button class="btn bdan" id="invc-del-ok" disabled onclick="invcDeleteGo()">Supprimer</button></div>';
+  om('m-invc');
 }
-// Essai uniquement : remplit au hasard les fournitures pas encore comptées (pour voir l'avancement et, plus tard, les écarts).
+function invcDeleteGo(){
+  var w = document.getElementById('invc-del-word');
+  if(!iAm || !S_invc || !w || w.value.trim().toUpperCase() !== 'SUPPRIMER') return;
+  fbd('inventaires/'+S_invc.id); invcOptOpen = false; invcCloseEdit(); toast('🗑️ Inventaire supprimé');
+}
+// Essai uniquement : remplit au hasard les fournitures pas encore comptées.
 function invcSimulate(){
   if(!iAm || !S_invc || !S_invc.essai) return;
   var upd = {}, n = 0;
   invcItems().forEach(function(r){
-    if(invcState(r.item.id).k !== 'todo') return;
+    if(invcDone(r.item.id)) return;
     var ppc = currentPpc(r.item) || r.item.ppc || 100;
-    var qty = Math.floor(Math.random()*6), vrac = Math.floor(Math.random()*300);
+    var qty = Math.floor(Math.random()*6), ouv = Math.random()<0.4 ? [Math.floor(Math.random()*ppc)] : [], vrac = Math.floor(Math.random()*300);
     var cartons = qty ? [{ppc:ppc, qty:qty}] : [];
-    upd[r.item.id] = {cid:r.cat.id, statut:'compte', cartons:cartons, vrac:vrac, totalPcs:qty*ppc+vrac, comptePar:'Simulation', compteLe:Date.now(), claim:null};
+    var stock = qty*ppc + invcSum(ouv);
+    upd[r.item.id] = {cid:r.cat.id, statut:'compte', cartons:cartons, ouverts:ouv, vrac:vrac, stockPcs:stock, prodPcs:vrac, totalPcs:stock+vrac, comptePar:'Simulation', compteLe:Date.now()};
     n++;
   });
   if(!n){ toast('Rien à remplir', 1); return; }
   fbu('inventaires/'+S_invc.id+'/lignes', upd).then(function(){ toast('🎲 '+n+' fournitures remplies au hasard'); }).catch(function(){ toast('Erreur', 1); });
 }
 function invcFindItem(iid){
-  var f = invcItems().filter(function(r){ return r.item.id === iid; })[0];
-  return f || null;
+  return invcItems().filter(function(r){ return r.item.id === iid; })[0] || null;
 }
-// Ouvre une fourniture : la réserve à mon nom (transaction), puis affiche la saisie.
-function invcOpen(iid){
-  if(!S_invc || !me) return;
-  var r = invcFindItem(iid); if(!r) return;
-  var s = invcState(iid);
-  if(s.k === 'busy'){ toast('🔒 '+(s.l.claim.name||'Quelqu\'un')+' est en train de la compter', 1); return; }
-  if(s.k === 'done' && !iAm){ toast('✅ Déjà comptée par '+(s.l.comptePar||'un collègue'), 1); return; }
-  var path = 'inventaires/'+S_invc.id+'/lignes/'+iid;
+// Réserve (ou rafraîchit) un bloc à mon nom. Une personne = un bloc à la fois.
+function invcClaimBloc(cid){
   var myUid = me.uid, myName = getMyName();
-  fbtx(path, function(cur){
+  return fbtx('inventaires/'+S_invc.id+'/blocs/'+cid, function(cur){
     cur = cur || {};
-    if(cur.statut === 'compte' && !iAm) return;   // abandon
     var c = cur.claim;
-    if(c && c.uid !== myUid && c.at && (Date.now() - c.at) < INVC_CLAIM_MS) return;
-    cur.cid = r.cat.id;
+    if(c && c.uid !== myUid && invcClaimFresh(c)) return;   // pris par un autre
     cur.claim = {uid:myUid, name:myName, at:Date.now()};
     return cur;
-  }).then(function(res){
-    if(!res.committed){ toast('🔒 Déjà prise par un collègue', 1); return; }
-    var l = res.snapshot.val() || {};
-    var lines = (l.cartons && l.cartons.length) ? l.cartons.map(function(c){ return {ppc:c.ppc, qty:c.qty}; })
+  });
+}
+function invcOpenBloc(cid){
+  if(!S_invc || !me) return;
+  var bi = invcBlocInfo(cid);
+  if(iAm && bi.k === 'busy'){ invcBloc = cid; invcRender(); return; }   // l'admin peut consulter / reprendre un bloc pris
+  if(bi.k === 'busy'){ toast('🔒 '+(bi.claim.name||'Quelqu\'un')+' compte déjà ce bloc', 1); return; }
+  var mine = invcMyBloc();
+  if(mine && mine !== cid && !iAm){ toast('Termine ou quitte d\'abord « '+(gc(mine)?gc(mine).name:'ton bloc')+' »', 1); return; }
+  if(bi.k === 'done' && !iAm){ invcBloc = cid; invcRender(); return; }
+  invcClaimBloc(cid).then(function(res){
+    if(!res.committed){ toast('🔒 Ce bloc vient d\'être pris par un collègue', 1); return; }
+    invcBloc = cid; invcRender();
+  }).catch(function(){ toast('Erreur réseau, réessaie', 1); });
+}
+function invcLeaveBloc(){
+  var cid = invcBloc; invcBloc = null;
+  var c = cid && S_invc && S_invc.blocs && S_invc.blocs[cid] && S_invc.blocs[cid].claim;
+  if(c && me && c.uid === me.uid) fbu('inventaires/'+S_invc.id+'/blocs/'+cid, {claim:null}).catch(function(){});
+  invcRender();
+}
+// Ouvre la saisie d'une fourniture du bloc affiché.
+function invcOpen(iid){
+  if(!S_invc || !me || !invcBloc) return;
+  var r = invcFindItem(iid); if(!r) return;
+  var l = S_invc.lignes[iid];
+  if(l && l.statut === 'compte' && !iAm){ toast('✅ Déjà comptée par '+(l.comptePar||'un collègue'), 1); return; }
+  if(l && l.statut === 'recompter' && !iAm && l.premierPar && l.premierPar === getMyName()){ toast('🔁 À recompter par un collègue (pas par la personne qui a fait le 1er comptage)', 1); return; }
+  var go = function(){
+    var lines = (l && l.cartons && l.cartons.length) ? l.cartons.map(function(c){ return {ppc:c.ppc, qty:c.qty}; })
       : [{ppc: currentPpc(r.item) || r.item.ppc || '', qty:''}];
-    invcEdit = {iid:iid, cid:r.cat.id, lines:lines, vrac: (l.statut==='compte' ? (l.vrac||0) : '')};
-    invcEditRender();
-    om('m-invc');
+    var done = l && l.statut === 'compte';
+    invcEdit = {iid:iid, cid:r.cat.id, lines:lines, ouverts: (done && l.ouverts && l.ouverts.length) ? l.ouverts.slice() : [''], vrac: done ? (l.vrac||0) : ''};
+    invcEditRender(); om('m-invc');
+  };
+  if(iAm){ go(); return; }
+  invcClaimBloc(r.cat.id).then(function(res){
+    if(!res.committed){ toast('🔒 Ce bloc n\'est plus à toi', 1); invcBloc = null; invcRender(); return; }
+    go();
   }).catch(function(){ toast('Erreur réseau, réessaie', 1); });
 }
 function invcEditRender(){
   var box = document.getElementById('invc-edit'); if(!box || !invcEdit) return;
-  var r = invcFindItem(invcEdit.iid); if(!r){ invcCloseEdit(true); return; }
-  var u = catUnit(r.cat);
+  var r = invcFindItem(invcEdit.iid); if(!r){ invcCloseEdit(); return; }
+  var u = catUnit(r.cat), inp = 'width:100%;box-sizing:border-box;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.95rem;padding:10px 12px;outline:none';
   var rows = invcEdit.lines.map(function(l,i){
     return '<div class="inv-line-row">'+
-      '<input type="text" inputmode="numeric" placeholder="'+u+'s" value="'+(l.qty===''?'':l.qty)+'" oninput="invcSetLine('+i+',\'qty\',this.value)" style="flex:1">'+
+      '<input type="text" inputmode="numeric" placeholder="Nb de '+u+'s" value="'+(l.qty===''?'':l.qty)+'" oninput="invcSetLine('+i+',\'qty\',this.value)" style="flex:1">'+
       '<span style="color:var(--mut);font-size:.8rem">×</span>'+
       '<input type="text" inputmode="numeric" placeholder="'+uPpc(u)+'" value="'+(l.ppc===''?'':l.ppc)+'" oninput="invcSetLine('+i+',\'ppc\',this.value)" style="flex:1">'+
       (invcEdit.lines.length>1 ? '<button onclick="invcRemoveLine('+i+')" style="background:none;border:none;color:var(--red);font-size:1.1rem;cursor:pointer;padding:0 4px">✕</button>' : '')+
     '</div>';
   }).join('');
+  var ouv = invcEdit.ouverts.map(function(v,i){
+    return '<div class="inv-line-row"><input type="text" inputmode="numeric" placeholder="Pièces dans ce '+u+' ouvert" value="'+(v===''?'':v)+'" oninput="invcSetOuvert('+i+',this.value)" style="flex:1">'+
+      (invcEdit.ouverts.length>1 ? '<button onclick="invcRemoveOuvert('+i+')" style="background:none;border:none;color:var(--red);font-size:1.1rem;cursor:pointer;padding:0 4px">✕</button>' : '')+'</div>';
+  }).join('');
   box.innerHTML =
     '<h3 style="margin-bottom:2px">'+esc(r.item.name)+'</h3>'+
     '<div style="font-size:.76rem;color:var(--mut);margin-bottom:12px">'+esc(r.cat.name)+' · 🏭 Atelier</div>'+
-    '<div style="font-size:.78rem;font-weight:700;margin-bottom:4px">📦 '+uCap(u)+'s fermés</div>'+rows+
+    '<div style="font-size:.74rem;font-weight:800;color:var(--mut);text-transform:uppercase;letter-spacing:.05em;margin:4px 0 6px">📦 Partie stock</div>'+
+    '<div style="font-size:.8rem;font-weight:700;margin-bottom:4px">'+uCap(u)+'s fermés <span style="font-weight:400;color:var(--mut)">(nombre × quantité par '+u+')</span></div>'+rows+
     '<button class="inv-add-line" onclick="invcAddLine()">+ Ajouter une autre taille</button>'+
-    '<div style="font-size:.78rem;font-weight:700;margin:12px 0 4px">🧺 Pièces en vrac (bacs, '+u+'s ouverts)</div>'+
-    '<input type="text" inputmode="numeric" id="invc-vrac" placeholder="Nombre de pièces" value="'+(invcEdit.vrac===''?'':invcEdit.vrac)+'" oninput="invcEdit.vrac=this.value===\'\'?\'\':(parseInt(this.value)||0);invcUpdTotal()" style="width:100%;box-sizing:border-box;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.95rem;padding:10px 12px;outline:none">'+
-    '<div id="invc-total" style="margin:12px 0;font-family:Open Sans,sans-serif;font-weight:800;color:var(--acc)"></div>'+
+    '<div style="font-size:.8rem;font-weight:700;margin:12px 0 4px">'+uCap(u)+'(s) ouvert(s) <span style="font-weight:400;color:var(--mut)">(pièces restantes dans chacun)</span></div>'+ouv+
+    '<button class="inv-add-line" onclick="invcAddOuvert()">+ Ajouter un autre '+u+' ouvert</button>'+
+    '<div style="font-size:.74rem;font-weight:800;color:var(--mut);text-transform:uppercase;letter-spacing:.05em;margin:16px 0 6px">🧺 Côté production</div>'+
+    '<div style="font-size:.8rem;font-weight:700;margin-bottom:4px">Pièces dans les bacs</div>'+
+    '<input type="text" inputmode="numeric" id="invc-vrac" placeholder="Nombre de pièces" value="'+(invcEdit.vrac===''?'':invcEdit.vrac)+'" oninput="invcEdit.vrac=this.value===\'\'?\'\':(parseInt(this.value)||0);invcUpdTotal()" style="'+inp+'">'+
+    '<div id="invc-total" style="margin:14px 0;font-family:Open Sans,sans-serif;font-weight:800;color:var(--acc);line-height:1.5"></div>'+
     '<div class="macts"><button class="btn bsec" onclick="invcCloseEdit()">Annuler</button><button class="btn bsuc" onclick="invcSave()">✅ Enregistrer</button></div>';
   invcUpdTotal();
 }
 function invcUpdTotal(){
   var el = document.getElementById('invc-total'); if(!el || !invcEdit) return;
-  el.textContent = 'Total compté : '+invcLinePcs(invcEdit.lines, invcEdit.vrac).toLocaleString('fr-FR')+' pcs';
+  var c = invcCalc(invcEdit.lines, invcEdit.ouverts, invcEdit.vrac), f = function(n){ return n.toLocaleString('fr-FR'); };
+  el.innerHTML = 'Stock : '+f(c.stock)+' · Production : '+f(c.prod)+'<br>Total compté : '+f(c.total)+' pcs';
 }
 function invcSetLine(i, f, v){ if(!invcEdit || !invcEdit.lines[i]) return; invcEdit.lines[i][f] = v==='' ? '' : (parseInt(v)||0); invcUpdTotal(); }
 function invcAddLine(){ if(!invcEdit) return; invcEdit.lines.push({ppc:'', qty:''}); invcEditRender(); }
 function invcRemoveLine(i){ if(!invcEdit || invcEdit.lines.length<=1) return; invcEdit.lines.splice(i,1); invcEditRender(); }
-// Ferme la saisie ; sans enregistrement, la réservation est rendue aux autres.
-function invcCloseEdit(silent){
-  var e = invcEdit; invcEdit = null;
-  cm('m-invc');
-  if(e && S_invc){
-    var l = (S_invc.lignes || {})[e.iid];
-    if(l && l.claim && me && l.claim.uid === me.uid){
-      fbu('inventaires/'+S_invc.id+'/lignes/'+e.iid, {claim:null}).catch(function(){});
-    }
-  }
-}
+function invcSetOuvert(i, v){ if(!invcEdit) return; invcEdit.ouverts[i] = v==='' ? '' : (parseInt(v)||0); invcUpdTotal(); }
+function invcAddOuvert(){ if(!invcEdit) return; invcEdit.ouverts.push(''); invcEditRender(); }
+function invcRemoveOuvert(i){ if(!invcEdit || invcEdit.ouverts.length<=1) return; invcEdit.ouverts.splice(i,1); invcEditRender(); }
+function invcCloseEdit(){ invcEdit = null; cm('m-invc'); }
 function invcSave(){
   if(!invcEdit || !S_invc) return;
   var e = invcEdit;
+  var bad = e.lines.some(function(l){ return (parseInt(l.qty)||0) > 0 && !(parseInt(l.ppc)||0); });
+  if(bad){ toast('Indique la quantité par carton', 1); return; }
   var cartons = e.lines.filter(function(l){ return (parseInt(l.qty)||0) > 0 && (parseInt(l.ppc)||0) > 0; })
     .map(function(l){ return {ppc:parseInt(l.ppc), qty:parseInt(l.qty)}; });
-  var bad = e.lines.some(function(l){ return (parseInt(l.qty)||0) > 0 && !(parseInt(l.ppc)||0); });
-  if(bad){ toast('Indique le nombre de pièces par carton', 1); return; }
-  var zeroCartons = e.lines.some(function(l){ return l.qty === 0; });
-  var hasInput = cartons.length > 0 || e.vrac !== '' || zeroCartons;
-  if(!hasInput){ toast('Indique ce que tu as compté (mets 0 si c\'est vide)', 1); return; }
-  var vrac = parseInt(e.vrac) || 0;
-  var total = invcLinePcs(cartons, vrac);
-  var path = 'inventaires/'+S_invc.id+'/lignes/'+e.iid, myUid = me.uid, myName = getMyName();
-  fbtx(path, function(cur){
-    cur = cur || {};
-    var c = cur.claim;
-    if(c && c.uid !== myUid && c.at && (Date.now() - c.at) < INVC_CLAIM_MS) return;   // quelqu'un d'autre l'a prise entre-temps
-    if(cur.statut === 'compte' && !iAm && cur.comptePar !== myName) return;
-    return {cid:e.cid, statut:'compte', cartons:cartons, vrac:vrac, totalPcs:total, comptePar:myName, compteLe:Date.now(), claim:null};
+  var ouverts = e.ouverts.filter(function(v){ return (parseInt(v)||0) > 0; }).map(function(v){ return parseInt(v); });
+  var zeroGiven = e.lines.some(function(l){ return l.qty === 0; }) || e.ouverts.some(function(v){ return v === 0; });
+  if(!(cartons.length || ouverts.length || e.vrac !== '' || zeroGiven)){ toast('Indique ce que tu as compté (mets 0 si c\'est vide)', 1); return; }
+  var vrac = parseInt(e.vrac) || 0, c = invcCalc(cartons, ouverts, vrac);
+  var myName = getMyName(), iid = e.iid, cid = e.cid;
+  fbtx('inventaires/'+S_invc.id+'/lignes/'+iid, function(cur){
+    if(cur && cur.statut === 'compte' && !iAm) return;   // déjà comptée par un autre
+    var nl = {cid:cid, statut:'compte', cartons:cartons, ouverts:ouverts, vrac:vrac, stockPcs:c.stock, prodPcs:c.prod, totalPcs:c.total, comptePar:myName, compteLe:Date.now()};
+    if(cur && cur.comptage1) nl.comptage1 = cur.comptage1;   // recomptage : on garde le 1er comptage à côté
+    return nl;
   }).then(function(res){
-    if(!res.committed){ toast('Impossible : déjà comptée par un collègue', 1); return; }
+    if(!res.committed){ toast('Déjà comptée par un collègue', 1); return; }
     invcEdit = null; cm('m-invc');
-    toast('✅ Enregistré · '+total.toLocaleString('fr-FR')+' pcs');
+    toast('✅ Enregistré · '+c.total.toLocaleString('fr-FR')+' pcs');
+    // Dernière fourniture du bloc : on libère le bloc ; sinon on relance le délai d'inactivité
+    S_invc.lignes[iid] = Object.assign({}, S_invc.lignes[iid]||{}, {statut:'compte'});   // l'écouteur confirmera ; évite d'attendre pour décider
+    var bi = invcBlocInfo(cid);
+    if(bi.done >= bi.total){
+      fbu('inventaires/'+S_invc.id+'/blocs/'+cid, {claim:null}).catch(function(){});
+      invcBloc = null; toast('🎉 Bloc « '+(gc(cid)?gc(cid).name:'')+' » terminé !');
+      invcRender();
+    } else if(!iAm){
+      invcClaimBloc(cid).catch(function(){});
+    }
   }).catch(function(){ toast('Erreur réseau, réessaie', 1); });
 }
+// ══ ÉTAPE B : comparaison avec le stock EBP + recomptage (admin) ══
+// inventaires/{id}/ebp = {at, file, by, rows:{ {clé}: {c:code, l:libellé, s:stock} }}   (remplaçable : on réimporte le vrai fichier le jour J)
+// inventaires/{id}/seuils = {ok, rec, minPcs}   (par défaut : conforme ≤ 5 %, à recompter ≤ 25 %, au-delà « absolument » ; minimum 100 pcs)
+// inventaires/{id}/lignes/{iid}: statut 'recompter' (+ comptage1 = premier comptage) quand l'admin demande un nouveau comptage.
+// Les opérateurs ne voient jamais les valeurs EBP ni les écarts (comptage à l'aveugle).
+var invcPane = null;          // null | 'ecarts'
+var invcEcFilter = 'todo';    // todo | all | nc
+function invcNormCode(c){ return String(c==null?'':c).toUpperCase().replace(/\s+/g,' ').trim(); }
+function invcSeuils(){
+  var s = (S_invc && S_invc.seuils) || {};
+  return {ok: isFinite(parseFloat(s.ok)) ? parseFloat(s.ok) : 5, rec: isFinite(parseFloat(s.rec)) ? parseFloat(s.rec) : 25, minPcs: isFinite(parseFloat(s.minPcs)) ? parseFloat(s.minPcs) : 100};
+}
+function invcLoadXlsx(){
+  return new Promise(function(res, rej){
+    if(window.XLSX) return res();
+    var sc = document.createElement('script');
+    sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+    sc.onload = function(){ res(); }; sc.onerror = function(){ rej(new Error('lib')); };
+    document.head.appendChild(sc);
+  });
+}
+// Lignes d'un tableau (tableau de tableaux) -> [{code, lib, stock}] ; détecte les colonnes par leur titre.
+function invcParseEbpRows(aoa){
+  var hi = -1, cCode = 0, cLib = 1, cStock = 2;
+  for(var i = 0; i < Math.min(aoa.length, 10); i++){
+    var r = aoa[i] || [], hc = -1, hs = -1, hl = -1;
+    r.forEach(function(v, j){
+      var t = String(v||'').toLowerCase();
+      if(/code/.test(t) && hc < 0) hc = j;
+      if(/stock/.test(t) && hs < 0) hs = j;
+      if(/libell|désignation|designation/.test(t) && hl < 0) hl = j;
+    });
+    if(hc >= 0 && hs >= 0){ hi = i; cCode = hc; cStock = hs; cLib = hl >= 0 ? hl : -1; break; }
+  }
+  var out = [], skipped = 0;
+  for(var k = hi + 1; k < aoa.length; k++){
+    var row = aoa[k] || [], code = String(row[cCode]==null?'':row[cCode]).trim();
+    if(!code){ skipped++; continue; }
+    var raw = row[cStock], n = typeof raw === 'number' ? raw : parseFloat(String(raw==null?'':raw).replace(/\s/g,'').replace(',','.'));
+    if(!isFinite(n)){ skipped++; continue; }
+    out.push({code:code, lib: cLib >= 0 ? String(row[cLib]==null?'':row[cLib]).trim() : '', stock: Math.round(n)});
+  }
+  return {rows:out, skipped:skipped, headerFound: hi >= 0};
+}
+function invcPickEbp(){
+  if(!iAm || !S_invc) return;
+  var inp = document.getElementById('invc-file');
+  if(!inp){
+    inp = document.createElement('input'); inp.type = 'file'; inp.id = 'invc-file'; inp.accept = '.xls,.xlsx,.csv'; inp.style.display = 'none';
+    inp.onchange = function(){ if(inp.files && inp.files[0]) invcImportEbp(inp.files[0]); inp.value = ''; };
+    document.body.appendChild(inp);
+  }
+  inp.click();
+}
+function invcImportEbp(file){
+  invcLoadXlsx().then(function(){
+    var fr = new FileReader();
+    fr.onload = function(){
+      try{
+        var wb = window.XLSX.read(fr.result, {type:'array'});
+        var aoa = window.XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], {header:1, defval:''});
+        var p = invcParseEbpRows(aoa);
+        if(!p.rows.length){ toast('Aucune ligne lisible (colonnes attendues : Code article, Libellé, Stock réel)', 1); return; }
+        var rows = {};
+        p.rows.forEach(function(r){ rows[fmtKey(invcNormCode(r.code))] = {c:r.code, l:r.lib, s:r.stock}; });
+        fbs('inventaires/'+S_invc.id+'/ebp', {at:Date.now(), file:file.name, by:getMyName(), rows:rows});
+        toast('✅ Fichier EBP importé : '+p.rows.length+' articles');
+      }catch(e){ toast('Fichier illisible', 1); }
+    };
+    fr.readAsArrayBuffer(file);
+  }).catch(function(){ toast('Impossible de charger le lecteur de fichiers Excel (connexion ?)', 1); });
+}
+function invcSaveSeuils(){
+  if(!iAm || !S_invc) return;
+  var g = function(id){ return parseFloat(String(document.getElementById(id).value).replace(',','.')); };
+  var ok = g('invc-s-ok'), rec = g('invc-s-rec'), mp = g('invc-s-min');
+  if(!isFinite(ok) || !isFinite(rec) || !isFinite(mp) || ok < 0 || rec <= ok || mp < 0){ toast('Seuils invalides (le 2e doit être plus grand que le 1er)', 1); return; }
+  fbs('inventaires/'+S_invc.id+'/seuils', {ok:ok, rec:rec, minPcs:mp});
+  toast('✅ Seuils enregistrés');
+}
+// Compare un total compté à la valeur EBP. -> {k, diff, pct}
+//  ok | rec (à recompter) | crit (à recompter absolument) | nc (pas de valeur EBP exploitable) | neg (EBP négatif)
+function invcCompare(counted, ebp, se){
+  if(ebp == null) return {k:'nc', why:'absent du fichier EBP'};
+  if(ebp < 0) return {k:'neg', why:'stock EBP négatif'};
+  if(ebp === 0) return {k:'nc', why:'EBP à 0'};
+  var diff = counted - ebp, ad = Math.abs(diff), pct = ad * 100 / ebp;
+  if(ad < se.minPcs || pct <= se.ok) return {k:'ok', diff:diff, pct:pct};
+  if(pct <= se.rec) return {k:'rec', diff:diff, pct:pct};
+  return {k:'crit', diff:diff, pct:pct};
+}
+// Regroupe les fournitures par référence ISOCOM (code EBP) et compare quand tout le groupe est compté.
+function invcAnalyse(){
+  var se = invcSeuils(), eb = (S_invc && S_invc.ebp && S_invc.ebp.rows) || {};
+  var groups = {}, order = [], prods = compValid();
+  invcItems().forEach(function(r){
+    var code = invcNormCode(r.item.refIso), key = code || ('#'+r.item.id);
+    if(!groups[key]){ groups[key] = {key:key, code:code, items:[], cat:r.cat}; order.push(key); }
+    groups[key].items.push(r);
+  });
+  var used = {};
+  var list = order.map(function(key){
+    var g = groups[key], e = g.code ? eb[fmtKey(g.code)] : null;
+    if(e) used[fmtKey(g.code)] = 1;
+    // EBP porte le stock des composants dans les produits finis : direct + Σ (stock produit fini × quantité) — compositions validées seulement
+    g.direct = e ? e.s : null; g.via = [];
+    if(g.code){
+      prods.forEach(function(pr){
+        var row = eb[fmtKey(pr.code)]; if(!row || !(row.s > 0)) return;
+        pr.comps.forEach(function(c){ if(c.ref === g.code && c.qty > 0) g.via.push({code:pr.code, qty:c.qty, stock:row.s}); });
+      });
+    }
+    var sumEbp = g.direct > 0 ? g.direct : 0; g.via.forEach(function(v){ sumEbp += v.stock * v.qty; });
+    g.ebp = (e || g.via.length) ? sumEbp : null;
+    g.ebpNeg = !!(e && e.s < 0 && !g.via.length);
+    var lg = g.items.map(function(r){ return (S_invc.lignes||{})[r.item.id]; });
+    g.pending = g.items.some(function(r){ var l = (S_invc.lignes||{})[r.item.id]; return l && l.statut === 'recompter'; });
+    g.allDone = lg.every(function(l){ return l && l.statut === 'compte'; });
+    g.counted = 0; g.stockPcs = 0; g.prodPcs = 0;
+    lg.forEach(function(l){ if(l && l.statut === 'compte'){ g.counted += l.totalPcs||0; g.stockPcs += l.stockPcs||0; g.prodPcs += l.prodPcs||0; } });
+    g.first = 0; g.hasFirst = false;
+    lg.forEach(function(l){ if(l && l.comptage1){ g.hasFirst = true; g.first += l.comptage1.totalPcs||0; } });
+    g.res = !g.allDone ? {k: g.pending ? 'pending' : 'wait'} : (g.code ? (g.ebpNeg ? {k:'neg', why:'stock EBP négatif'} : invcCompare(g.counted, g.ebp, se)) : {k:'nc', why:'pas de réf. ISOCOM'});
+    return g;
+  });
+  // lignes EBP sans composant dans l'app
+  var dig = typeof DIGITAL_FORMATS !== 'undefined' ? DIGITAL_FORMATS : [], pres = typeof PRESENTOIR_FORMATS !== 'undefined' ? PRESENTOIR_FORMATS : [];
+  var digN = dig.map(invcNormCode), presN = pres.map(invcNormCode), orphans = {num:[], pres:[], autres:[], compo:0, negProd:0};
+  Object.keys(eb).forEach(function(k){
+    if(used[k]) return;
+    var c = invcNormCode(eb[k].c), cp = S_comp[k];
+    if(cp && (cp.ok === true || cp.ignore)){ orphans.compo++; if(cp.ok === true && eb[k].s < 0) orphans.negProd++; return; }
+    if(digN.indexOf(c) >= 0) orphans.num.push(eb[k]);
+    else if(presN.indexOf(c) >= 0) orphans.pres.push(eb[k]);
+    else orphans.autres.push(eb[k]);
+  });
+  return {groups:list, orphans:orphans, se:se, hasEbp: !!(S_invc && S_invc.ebp)};
+}
+function invcFmt(n){ return (n<0?'-':'')+Math.abs(Math.round(n)).toLocaleString('fr-FR'); }
+function invcEcartsHtml(){
+  var an = invcAnalyse(), g = an.groups, se = an.se, ebp = S_invc.ebp, orp = an.orphans, orpTxt = '';
+  var cnt = {ok:0, rec:0, crit:0, nc:0, neg:0, wait:0, pending:0};
+  g.forEach(function(x){ cnt[x.res.k]++; });
+  var todo = g.filter(function(x){ return x.res.k==='rec' || x.res.k==='crit' || x.res.k==='pending'; });
+  var shown = g.filter(function(x){
+    if(invcEcFilter === 'todo') return x.res.k==='rec' || x.res.k==='crit' || x.res.k==='pending';
+    if(invcEcFilter === 'nc') return x.res.k==='nc' || x.res.k==='neg';
+    return x.res.k !== 'wait';
+  }).sort(function(a,b){
+    var rank = {crit:0, rec:1, pending:2, ok:3, neg:4, nc:5};
+    return (rank[a.res.k]-rank[b.res.k]) || ((b.res.pct||0)-(a.res.pct||0));
+  });
+  function chip(k, label){
+    var on = invcEcFilter===k;
+    return '<button onclick="invcEcFilter=\''+k+'\';invcRender()" style="padding:7px 12px;border-radius:99px;border:1.5px solid '+(on?'var(--acc)':'var(--brd)')+';background:'+(on?'var(--acc)':'var(--sur)')+';color:'+(on?'#000':'var(--txt)')+';font-weight:700;font-size:.78rem;cursor:pointer">'+label+'</button>';
+  }
+  var badge = {ok:'<span style="color:var(--grn);font-weight:800">✅ Conforme</span>', rec:'<span style="color:#f59e0b;font-weight:800">🟠 À recompter</span>', crit:'<span style="color:var(--red);font-weight:800">🔴 À recompter absolument</span>',
+               nc:'<span style="color:var(--mut);font-weight:700">⚪ Non comparable</span>', neg:'<span style="color:var(--mut);font-weight:700">⚪ EBP négatif</span>', pending:'<span style="color:var(--acc);font-weight:800">🔁 Recomptage demandé</span>'};
+  var rows = shown.map(function(x){
+    var names = x.items.map(function(r){ return esc(r.item.name); }).join(' + ');
+    var l1 = '<div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start"><div style="min-width:0"><div style="font-weight:800;font-size:.88rem">'+names+'</div>'+
+      '<div style="font-size:.7rem;color:var(--mut)">'+esc(x.cat.name)+(x.code?' · '+esc(x.code):' · pas de réf. ISOCOM')+'</div></div><div style="font-size:.74rem;white-space:nowrap;text-align:right">'+badge[x.res.k]+'</div></div>';
+    var l2 = '';
+    if(x.res.k === 'pending'){
+      l2 = '<div style="font-size:.76rem;margin-top:5px">1er comptage : '+invcFmt(x.first)+' pcs · en attente du recomptage (par une autre personne)</div>';
+    } else {
+      l2 = '<div style="font-size:.76rem;margin-top:5px;line-height:1.5">Compté <strong>'+invcFmt(x.counted)+'</strong> pcs <span style="color:var(--mut)">(stock '+invcFmt(x.stockPcs)+' + production '+invcFmt(x.prodPcs)+')</span>'+
+        (x.ebp != null ? ' · EBP <strong>'+invcFmt(x.ebp)+'</strong>' : '')+
+        (x.res.diff != null ? ' · écart <strong>'+(x.res.diff>0?'+':'')+invcFmt(x.res.diff)+'</strong> ('+(x.res.diff>0?'+':(x.res.diff<0?'-':''))+(x.res.pct>=100?Math.round(x.res.pct):x.res.pct.toFixed(1))+' %)' : (x.res.why ? ' · <span style="color:var(--mut)">'+esc(x.res.why)+'</span>' : ''))+
+        (x.via && x.via.length ? '<br><span style="color:var(--mut)">EBP = '+invcFmt(x.direct>0?x.direct:0)+' direct'+x.via.map(function(v){ return ' + '+invcFmt(v.stock*v.qty)+' via '+esc(v.code); }).join('')+'</span>' : '')+
+        (x.hasFirst ? '<br><span style="color:var(--mut)">1er comptage : '+invcFmt(x.first)+' pcs → recompté</span>' : '')+'</div>';
+      if(x.res.k==='rec' || x.res.k==='crit') l2 += '<button class="btn bsec" style="margin-top:8px;font-size:.76rem;padding:7px 12px" onclick="invcAskRecount(\''+x.key.replace(/'/g,"\\'")+'\')">🔁 Demander un recomptage</button>';
+    }
+    var bd = x.res.k==='crit' ? 'var(--red)' : (x.res.k==='rec' ? '#f59e0b' : 'var(--brd)');
+    return '<div style="padding:11px 12px;background:var(--card);border:1.5px solid '+bd+';border-radius:10px;margin-bottom:8px">'+l1+l2+'</div>';
+  }).join('');
+  var imp = ebp
+    ? '<div style="font-size:.78rem;margin-bottom:8px">📄 <strong>'+esc(ebp.file||'fichier EBP')+'</strong> · importé le '+new Date(ebp.at).toLocaleString('fr-FR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})+' · '+Object.keys(ebp.rows||{}).length+' articles</div>'
+    : '<div style="font-size:.78rem;color:var(--mut);margin-bottom:8px">Aucun fichier EBP importé. Colonnes attendues : Code article, Libellé, Stock réel (.xls, .xlsx ou .csv).</div>';
+  if(ebp){
+    var nz = function(a){ return a.filter(function(e){ return e.s !== 0; }); };
+    orpTxt = '<details style="margin-top:14px;font-size:.76rem;color:var(--mut)"><summary style="cursor:pointer">Lignes EBP sans composant dans l\'app : '+orp.autres.length+' autre(s) · '+orp.pres.length+' présentoir(s) · '+orp.num.length+' pôle numérique (ignoré)</summary>'+
+      (orp.pres.length ? '<div style="margin-top:6px"><strong>Présentoirs</strong> (section stock à créer) : '+orp.pres.map(function(e){ return esc(e.c)+' ('+invcFmt(e.s)+')'; }).join(', ')+'</div>' : '')+
+      (nz(orp.autres).length ? '<div style="margin-top:6px"><strong>Autres, stock EBP non nul</strong> : '+nz(orp.autres).map(function(e){ return esc(e.c)+' ('+invcFmt(e.s)+')'; }).join(', ')+'</div>' : '')+'</details>';
+  }
+  return '<div class="inv-card"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px"><div style="font-family:Open Sans,sans-serif;font-weight:800;font-size:.95rem">📊 Écarts avec EBP</div>'+
+    '<button class="btn bsec" style="font-size:.78rem;padding:8px 12px" onclick="invcPane=null;invcRender()">↩︎ Retour</button></div>'+imp+
+    '<div style="display:flex;gap:8px"><button class="btn bpri" style="flex:1;font-size:.84rem" onclick="invcPickEbp()">📥 '+(ebp?'Remplacer le fichier EBP':'Importer le stock EBP')+'</button><button class="btn bsec" style="flex:1;font-size:.84rem" onclick="compOpen()">🧩 Produits & composants</button></div>'+
+    '<div style="font-size:.74rem;color:var(--mut);margin:12px 0 6px">Seuils : conforme jusqu\'à <input type="text" id="invc-s-ok" value="'+se.ok+'" inputmode="decimal" style="width:42px;text-align:center;background:var(--sur);border:1.5px solid var(--brd);border-radius:6px;color:var(--txt);padding:4px"> % · à recompter jusqu\'à <input type="text" id="invc-s-rec" value="'+se.rec+'" inputmode="decimal" style="width:42px;text-align:center;background:var(--sur);border:1.5px solid var(--brd);border-radius:6px;color:var(--txt);padding:4px"> % · au-delà « absolument » · ignoré sous <input type="text" id="invc-s-min" value="'+se.minPcs+'" inputmode="numeric" style="width:52px;text-align:center;background:var(--sur);border:1.5px solid var(--brd);border-radius:6px;color:var(--txt);padding:4px"> pcs <button class="btn bsec" style="font-size:.72rem;padding:5px 10px;margin-left:4px" onclick="invcSaveSeuils()">OK</button></div></div>'+
+    ((ebp && orp.autres.filter(function(e){ return e.s > 0; }).length) ? '<div style="background:rgba(245,158,11,.12);border:1.5px solid #f59e0b;border-radius:10px;padding:9px 12px;margin:10px 0;font-size:.78rem">⚠️ <strong>'+orp.autres.filter(function(e){ return e.s > 0; }).length+' produit(s) fini(s) avec du stock EBP n\'ont pas de composition</strong> : les composants correspondants sont sous-estimés côté EBP. <a href="javascript:compOpen()" style="color:var(--acc);font-weight:700">Ouvrir Produits & composants</a></div>' : '')+
+    '<div style="font-size:.8rem;margin:10px 0 8px">✅ '+cnt.ok+' · 🟠 '+cnt.rec+' · 🔴 '+cnt.crit+' · 🔁 '+cnt.pending+' · ⚪ '+(cnt.nc+cnt.neg)+' non comparables · ⏳ '+cnt.wait+' pas encore comptées</div>'+
+    '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">'+chip('todo','À traiter ('+todo.length+')')+chip('all','Tous les comptés')+chip('nc','Non comparables')+'</div>'+
+    (rows || '<div class="empty"><div class="e">'+(invcEcFilter==='todo'?'✅':'🔍')+'</div><p>'+(ebp?(invcEcFilter==='todo'?'Aucun écart à traiter pour le moment.':'Rien à afficher.'):'Importe d\'abord le fichier EBP.')+'</p></div>')+orpTxt;
+}
+// Demande un recomptage : le premier comptage est conservé, la fourniture revient « à compter » (par une autre personne).
+function invcAskRecount(key){
+  if(!iAm || !S_invc) return;
+  var g = invcAnalyse().groups.filter(function(x){ return x.key === key; })[0];
+  if(!g) return;
+  var upd = {};
+  g.items.forEach(function(r){
+    var l = (S_invc.lignes||{})[r.item.id];
+    if(!l || l.statut !== 'compte') return;
+    var first = {cartons:l.cartons||[], ouverts:l.ouverts||[], vrac:l.vrac||0, stockPcs:l.stockPcs||0, prodPcs:l.prodPcs||0, totalPcs:l.totalPcs||0, comptePar:l.comptePar||'', compteLe:l.compteLe||0};
+    upd[r.item.id] = {cid:l.cid||r.cat.id, statut:'recompter', comptage1: l.comptage1 || first, premierPar:l.comptePar||''};
+  });
+  if(!Object.keys(upd).length) return;
+  fbu('inventaires/'+S_invc.id+'/lignes', upd).then(function(){ toast('🔁 Recomptage demandé'); }).catch(function(){ toast('Erreur', 1); });
+}
+
+// ══ PRODUITS & COMPOSANTS (compositions) — admin ══
+// compositions/{clé} = {code, comps:[{ref, qty}], ok:true, maj, par}  |  {code, ignore:true}
+// « ref » = code EBP du composant (= Réf. ISOCOM du composant dans l'app). Dans EBP, le stock des composants est porté par
+// les produits finis : EBP théorique d'un composant = son stock direct + Σ (stock du produit fini × quantité par produit).
+// Seules les compositions VALIDÉES (ok:true) comptent dans les calculs. Même table, plus tard, pour la déduction par commande.
+var S_comp = {};
+var compQ = '', compFilter = 'todo', compEdit = null;
+function startCompListener(){
+  db.ref('compositions').on('value', function(snap){
+    S_comp = snap.val() || {};
+    var m = document.getElementById('m-prod');
+    if(m && m.classList.contains('open') && !compEdit) compRender();
+    if(curTab === 'inventaire' && S_invc && invcPane === 'ecarts') invcRender();
+  });
+}
+var _ebpSet = null;
+function compEbpCodes(){
+  if(!_ebpSet){ _ebpSet = {}; EBP_REFS.forEach(function(r){ _ebpSet[invcNormCode(r[0])] = r[1] || ''; }); }
+  return _ebpSet;
+}
+// Composants connus de l'app (par Réf. ISOCOM) : {REF: [noms]}
+function compAppRefs(){
+  var out = {};
+  invcItems().forEach(function(r){
+    var c = invcNormCode(r.item.refIso); if(!c) return;
+    (out[c] = out[c] || []).push(r.item.name+' ('+r.cat.name+')');
+  });
+  return out;
+}
+// Proposition (à valider) d'après le nom du produit : B56 -> coque + pinback ; MAG56 -> coque + magnet. Sinon rien.
+function compSuggest(code){
+  var c = invcNormCode(code), ex = compEbpCodes(), m;
+  function has(x){ return ex[x] != null; }
+  if((m = /^B(\d{2,3})$/.exec(c))){
+    var n = m[1], pin = has(n+'PINBACK') ? n+'PINBACK' : (has(n+'PIN') ? n+'PIN' : null);
+    if(has(n+'COQUES') && pin) return [{ref:n+'COQUES', qty:1}, {ref:pin, qty:1}];
+  }
+  if((m = /^MAG(\d{2,3})$/.exec(c))){
+    var k = m[1];
+    if(has(k+'COQUES') && has(k+'MAGNET')) return [{ref:k+'COQUES', qty:1}, {ref:k+'MAGNET', qty:1}];
+  }
+  return null;
+}
+function compValid(){   // compositions validées : [{code, comps:[{ref, qty}]}]
+  var out = [];
+  Object.keys(S_comp||{}).forEach(function(k){
+    var c = S_comp[k];
+    if(c && c.ok === true && !c.ignore && Array.isArray(c.comps) && c.comps.length) out.push({code:invcNormCode(c.code), comps:c.comps.map(function(x){ return {ref:invcNormCode(x.ref), qty:parseFloat(x.qty)||0}; })});
+  });
+  return out;
+}
+function compCompText(comps){ return (comps||[]).map(function(c){ return c.qty+' × '+c.ref; }).join(' + '); }
+// Lignes du module : produits avec composition (validée/ignorée) + lignes EBP sans composant (stock non nul)
+function compRows(){
+  var rows = {}, eb = (S_invc && S_invc.ebp && S_invc.ebp.rows) || {}, refs = compAppRefs();
+  var digN = DIGITAL_FORMATS.map(invcNormCode), presN = PRESENTOIR_FORMATS.map(invcNormCode);
+  Object.keys(eb).forEach(function(k){
+    var code = invcNormCode(eb[k].c);
+    if(refs[code]) return;                       // composant de l'app : pas un produit fini
+    if(digN.indexOf(code) >= 0 || presN.indexOf(code) >= 0) return;
+    if(eb[k].s === 0 && !S_comp[k]) return;
+    rows[k] = {key:k, code:eb[k].c, lib:eb[k].l||'', stock:eb[k].s, comp:S_comp[k]||null};
+  });
+  Object.keys(S_comp||{}).forEach(function(k){
+    if(rows[k]) return;
+    var c = S_comp[k]; if(!c) return;
+    rows[k] = {key:k, code:c.code||k, lib:compEbpCodes()[invcNormCode(c.code)]||'', stock:(eb[k]?eb[k].s:null), comp:c};
+  });
+  return Object.keys(rows).map(function(k){ return rows[k]; });
+}
+function compStatus(r){
+  if(r.comp && r.comp.ignore) return 'ign';
+  if(r.comp && r.comp.ok === true) return 'ok';
+  return compSuggest(r.code) ? 'sugg' : 'todo';
+}
+function compOpen(){ if(!iAm) return; compQ = ''; compFilter = 'todo'; compEdit = null; compRender(); om('m-prod'); }
+function compClose(){ compEdit = null; cm('m-prod'); if(curTab === 'inventaire' && S_invc) invcRender(); }
+function compRender(){
+  var box = document.getElementById('m-prod-body'); if(!box) return;
+  if(compEdit){ compEditRender(); return; }
+  var rows = compRows(), q = compQ.trim().toUpperCase();
+  var cnt = {ok:0, ign:0, sugg:0, todo:0};
+  rows.forEach(function(r){ cnt[compStatus(r)]++; });
+  var shown = rows.filter(function(r){
+    var st = compStatus(r);
+    if(compFilter === 'todo' && !(st === 'todo' || st === 'sugg')) return false;
+    if(compFilter === 'ok' && st !== 'ok') return false;
+    if(compFilter === 'ign' && st !== 'ign') return false;
+    if(q && (r.code+' '+r.lib).toUpperCase().indexOf(q) < 0) return false;
+    return true;
+  }).sort(function(a,b){ return (Math.abs(b.stock||0) - Math.abs(a.stock||0)) || String(a.code).localeCompare(String(b.code)); });
+  function chip(k, label){
+    var on = compFilter === k;
+    return '<button onclick="compFilter=\''+k+'\';compRender()" style="padding:7px 12px;border-radius:99px;border:1.5px solid '+(on?'var(--acc)':'var(--brd)')+';background:'+(on?'var(--acc)':'var(--sur)')+';color:'+(on?'#000':'var(--txt)')+';font-weight:700;font-size:.78rem;cursor:pointer">'+label+'</button>';
+  }
+  var ek = function(s){ return String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'"); };
+  var list = shown.slice(0, 150).map(function(r){
+    var st = compStatus(r), sug = st === 'sugg' ? compSuggest(r.code) : null, right = '', sub = '';
+    if(st === 'ok'){ sub = '<div style="font-size:.76rem;margin-top:4px;color:var(--grn)">✅ '+esc(compCompText(r.comp.comps))+'</div>'; right = '<button class="btn bsec" style="font-size:.74rem;padding:6px 10px" onclick="compEditOpen(\''+ek(r.code)+'\')">Modifier</button>'; }
+    else if(st === 'ign'){ sub = '<div style="font-size:.76rem;margin-top:4px;color:var(--mut)">Ignoré (pas un produit fini de nos composants)</div>'; right = '<button class="btn bsec" style="font-size:.74rem;padding:6px 10px" onclick="compUnignore(\''+ek(r.code)+'\')">Réactiver</button>'; }
+    else if(st === 'sugg'){ sub = '<div style="font-size:.76rem;margin-top:4px">💡 Suggestion : '+esc(compCompText(sug))+'</div>'; right = '<button class="btn bsuc" style="font-size:.74rem;padding:6px 10px" onclick="compAcceptSugg(\''+ek(r.code)+'\')">✓ Valider</button><button class="btn bsec" style="font-size:.74rem;padding:6px 10px" onclick="compEditOpen(\''+ek(r.code)+'\')">Modifier</button>'; }
+    else { sub = '<div style="font-size:.76rem;margin-top:4px;color:#f59e0b">⚠️ Pas de composition</div>'; right = '<button class="btn bpri" style="font-size:.74rem;padding:6px 10px" onclick="compEditOpen(\''+ek(r.code)+'\')">Composer</button><button class="btn bsec" style="font-size:.74rem;padding:6px 10px" onclick="compIgnore(\''+ek(r.code)+'\')">Ignorer</button>'; }
+    return '<div style="padding:10px 12px;background:var(--card);border:1.5px solid var(--brd);border-radius:10px;margin-bottom:6px">'+
+      '<div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start"><div style="min-width:0"><div style="font-weight:800;font-size:.88rem">'+esc(r.code)+(r.stock!=null?' <span style="font-weight:600;color:'+(r.stock<0?'var(--red)':'var(--mut)')+';font-size:.76rem">· EBP '+invcFmt(r.stock)+'</span>':'')+'</div>'+
+      '<div style="font-size:.72rem;color:var(--mut)">'+esc(r.lib)+'</div></div><div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">'+right+'</div></div>'+sub+'</div>';
+  }).join('');
+  box.innerHTML =
+    '<h3 style="margin-bottom:4px">🧩 Produits & composants</h3>'+
+    '<div style="font-size:.76rem;color:var(--mut);margin-bottom:10px">Dans EBP, le stock des composants est porté par les produits finis (ex. B56 = 1 coque 56 + 1 pinback 56). Indique ici la composition : seules les compositions <strong>validées</strong> servent aux calculs de l\'inventaire.'+((S_invc && S_invc.ebp)?'':' <strong>Importe d\'abord le fichier EBP (Inventaire › Écarts EBP)</strong> pour voir les produits finis avec du stock.')+'</div>'+
+    '<div style="font-size:.78rem;margin-bottom:8px">✅ '+cnt.ok+' validés · 💡 '+cnt.sugg+' suggestions · ⚠️ '+cnt.todo+' sans composition · ignorés '+cnt.ign+'</div>'+
+    '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">'+chip('todo','À faire ('+(cnt.sugg+cnt.todo)+')')+chip('ok','Validés')+chip('ign','Ignorés')+chip('all','Tous')+'</div>'+
+    '<input type="text" id="comp-q" value="'+esc(compQ)+'" oninput="compQ=this.value;compRender();var e=document.getElementById(\'comp-q\');e.focus();e.setSelectionRange(e.value.length,e.value.length)" placeholder="🔍 Rechercher un produit (code ou nom)" style="width:100%;box-sizing:border-box;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.9rem;padding:10px 12px;outline:none;margin-bottom:6px">'+
+    '<button class="inv-add-line" onclick="compEditOpen(\'\')">+ Ajouter un produit (code EBP)</button>'+
+    '<div style="margin-top:8px">'+(list || '<div class="empty"><div class="e">🔍</div><p>Aucun produit à afficher.</p></div>')+(shown.length>150?'<div style="font-size:.74rem;color:var(--mut);text-align:center">… '+(shown.length-150)+' autres : affine la recherche</div>':'')+'</div>'+
+    '<div class="macts" style="margin-top:12px"><button class="btn bsec" onclick="compClose()">Fermer</button></div>';
+}
+function compPut(code, obj){ fbs('compositions/'+fmtKey(invcNormCode(code)), Object.assign({code:code, maj:Date.now(), par:getMyName()}, obj)); }
+function compAcceptSugg(code){
+  if(!iAm) return; var s = compSuggest(code); if(!s) return;
+  compPut(code, {comps:s, ok:true}); toast('✅ '+code+' validé');
+}
+function compIgnore(code){ if(!iAm) return; compPut(code, {ignore:true}); }
+function compUnignore(code){ if(!iAm) return; fbd('compositions/'+fmtKey(invcNormCode(code))); }
+function compEditOpen(code){
+  if(!iAm) return;
+  var c = code ? S_comp[fmtKey(invcNormCode(code))] : null, comps;
+  if(c && Array.isArray(c.comps) && c.comps.length) comps = c.comps.map(function(x){ return {ref:x.ref, qty:x.qty}; });
+  else comps = (code && compSuggest(code)) || [{ref:'', qty:1}];
+  compEdit = {code:code||'', isNew:!code, comps:comps};
+  compRender();
+}
+function compEditRender(){
+  var box = document.getElementById('m-prod-body'); if(!box || !compEdit) return;
+  var refs = compAppRefs(), dl = Object.keys(refs).sort().map(function(k){ return '<option value="'+esc(k)+'" label="'+esc(refs[k].join(' / '))+'"></option>'; }).join('');
+  var inp = 'background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.9rem;padding:9px 10px;outline:none;min-width:0';
+  var rows = compEdit.comps.map(function(c, i){
+    return '<div class="inv-line-row"><input type="text" list="comp-dl" value="'+esc(c.ref||'')+'" placeholder="Réf. du composant (ex. 56COQUES)" oninput="compEdit.comps['+i+'].ref=this.value" style="flex:2;'+inp+';text-transform:uppercase">'+
+      '<span style="color:var(--mut);font-size:.8rem">×</span><input type="text" inputmode="decimal" value="'+esc(String(c.qty))+'" oninput="compEdit.comps['+i+'].qty=this.value" style="flex:0 0 60px;text-align:center;'+inp+'">'+
+      (compEdit.comps.length>1 ? '<button onclick="compEdit.comps.splice('+i+',1);compEditRender()" style="background:none;border:none;color:var(--red);font-size:1.1rem;cursor:pointer;padding:0 4px">✕</button>' : '')+'</div>';
+  }).join('');
+  box.innerHTML =
+    '<h3 style="margin-bottom:4px">🧩 '+(compEdit.isNew?'Nouveau produit':esc(compEdit.code))+'</h3>'+
+    (compEdit.isNew ? '<input type="text" id="comp-newcode" placeholder="Code EBP du produit (ex. B56)" value="" oninput="compEdit.code=this.value" style="width:100%;box-sizing:border-box;'+inp+';text-transform:uppercase;margin-bottom:10px">' : '')+
+    '<div style="font-size:.78rem;color:var(--mut);margin-bottom:8px">Composants consommés par <strong>1 unité</strong> de ce produit :</div>'+
+    '<datalist id="comp-dl">'+dl+'</datalist>'+rows+
+    '<button class="inv-add-line" onclick="compEdit.comps.push({ref:\'\',qty:1});compEditRender()">+ Ajouter un composant</button>'+
+    '<div class="macts" style="margin-top:14px"><button class="btn bsec" onclick="compEdit=null;compRender()">Annuler</button><button class="btn bsuc" onclick="compEditSave()">✅ Valider</button></div>';
+}
+function compEditSave(){
+  if(!compEdit || !iAm) return;
+  var code = String(compEdit.code||'').trim();
+  if(!code){ toast('Code du produit obligatoire', 1); return; }
+  var known = compEbpCodes(), refs = compAppRefs(), comps = [], bad = null;
+  compEdit.comps.forEach(function(c){
+    var ref = invcNormCode(c.ref); if(!ref) return;
+    var q = parseFloat(String(c.qty).replace(',','.'));
+    if(!(q > 0)){ bad = 'Quantité invalide pour '+ref; return; }
+    if(known[ref] == null && !refs[ref]){ bad = '« '+ref+' » : code inconnu (ni dans EBP, ni dans l\'app)'; return; }
+    comps.push({ref:ref, qty:q});
+  });
+  if(bad){ toast(bad, 1); return; }
+  if(!comps.length){ toast('Ajoute au moins un composant', 1); return; }
+  compPut(invcNormCode(code), {comps:comps, ok:true});
+  compEdit = null; toast('✅ '+code+' enregistré'); compRender();
+}
+
 // Feuille vierge à imprimer (comptage à l'aveugle : aucune quantité théorique).
 function invcSheetPDF(){
   if(!iAm) return;
@@ -6563,11 +7079,11 @@ function invcSheetPDF(){
     y += 20;
     doc.autoTable({
       startY: y, margin:{left:margin, right:margin},
-      head: [['Référence','Cartons fermés (nb × pcs/carton)','Pièces en vrac (bacs)','Initiales']],
-      body: rows.map(function(i){ return [i.name,'','','']; }),
+      head: [['Référence','STOCK : cartons fermés (nb x pcs/carton)','STOCK : carton(s) ouvert(s) (pièces)','PRODUCTION : bacs (pièces)','Initiales']],
+      body: rows.map(function(i){ return [i.name,'','','','']; }),
       theme:'grid', styles:{fontSize:9, cellPadding:{top:7,bottom:7,left:5,right:5}, textColor:PDF_C.txt, lineColor:PDF_C.brd, minCellHeight:24},
       headStyles: pdfTableHead(),
-      columnStyles:{0:{cellWidth:220}, 1:{minCellWidth:200}, 2:{minCellWidth:130}, 3:{minCellWidth:60}}
+      columnStyles:{0:{cellWidth:150}, 1:{minCellWidth:150}, 2:{minCellWidth:120}, 3:{minCellWidth:110}, 4:{minCellWidth:50}}
     });
     y = doc.lastAutoTable.finalY + 20;
   });
@@ -17802,7 +18318,7 @@ function admQtyCorrSave(){
   });
 }
 
-// Duplique la structure des sous-références (nom, ppc, seuil) de l'Atelier
+// Duplique la structure des composants (nom, ppc, seuil) de l'Atelier
 // vers la Réserve, quantités à 0 — remplace entièrement le contenu réserve
 // existant, avec confirmation explicite avant écrasement.
 function askDuplicateAtelierToReserve(){
