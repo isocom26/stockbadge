@@ -1916,7 +1916,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.10.29-1215';
+var APP_VERSION = '2026.10.29-1235';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -6352,7 +6352,8 @@ function invcRender(){
     box.innerHTML = iAm
       ? '<div class="inv-card" style="text-align:center"><div style="font-family:Open Sans,sans-serif;font-weight:800;font-size:.95rem;margin-bottom:4px">📋 Inventaire complet</div>'+
         '<div style="font-size:.78rem;color:var(--mut);margin-bottom:10px">Lance une campagne : toutes les fournitures de l\'Atelier sont à compter par l\'équipe (cartons + pièces en vrac), sans voir le stock théorique.</div>'+
-        '<button class="btn bpri" style="width:100%" onclick="invcStart()">🚀 Lancer un inventaire</button></div>'
+        '<button class="btn bpri" style="width:100%;margin-bottom:8px" onclick="invcStart(false)">🚀 Lancer le vrai inventaire</button>'+
+        '<button class="btn bsec" style="width:100%" onclick="invcStart(true)">🧪 Lancer un essai (rien n\'est conservé)</button></div>'
       : '';
     return;
   }
@@ -6394,8 +6395,12 @@ function invcRender(){
     ? '<div style="display:flex;gap:8px;margin-top:10px"><button class="btn bsec" style="flex:1;font-size:.8rem" onclick="invcSheetPDF()">📄 Feuille PDF vierge</button>'+
       '<button class="btn bsec" style="flex:1;font-size:.8rem;color:var(--red)" onclick="invcDelete()">🗑️ Supprimer</button></div>'
     : '';
-  box.innerHTML =
-    '<div class="inv-card"><div style="font-family:Open Sans,sans-serif;font-weight:800;font-size:.95rem">📋 '+esc(S_invc.nom||'Inventaire')+' · 🏭 Atelier</div>'+
+  var essaiBand = S_invc.essai
+    ? '<div style="background:rgba(245,158,11,.15);border:1.5px solid #f59e0b;border-radius:10px;padding:8px 12px;margin-bottom:10px;font-size:.8rem;font-weight:700">🧪 MODE ESSAI — pour s\'entraîner. Rien n\'est conservé : le vrai inventaire sera lancé le jour J.</div>'
+    : '';
+  if(iAm && S_invc.essai) admin = admin.replace('</div>', '<button class="btn bsec" style="flex:1;font-size:.8rem" onclick="invcSimulate()">🎲 Remplir au hasard</button></div>');
+  box.innerHTML = essaiBand +
+    '<div class="inv-card"><div style="font-family:Open Sans,sans-serif;font-weight:800;font-size:.95rem">📋 '+esc((S_invc.nom||'Inventaire').replace(/^ESSAI — /,''))+' · 🏭 Atelier</div>'+
     '<div style="font-size:.78rem;color:var(--mut);margin:4px 0 8px">'+done+' / '+tot+' comptées'+(busy?' · '+busy+' en cours':'')+' · compte tout ce que tu vois : cartons fermés et pièces en vrac (bacs, cartons ouverts)</div>'+
     '<div style="height:10px;background:var(--sur);border-radius:99px;overflow:hidden"><div style="height:100%;width:'+pct+'%;background:var(--grn)"></div></div>'+
     admin+'</div>'+
@@ -6404,27 +6409,44 @@ function invcRender(){
     (byCat || '<div class="empty" style="margin-top:16px"><div class="e">'+(invcFilter==='todo'?'🎉':'🔍')+'</div><p>'+(invcFilter==='todo'&&!q?'Tout est compté !':'Aucune fourniture.')+'</p></div>');
 }
 function invcSetFilter(k){ invcFilter = k; invcRender(); }
-function invcStart(){
+function invcStart(essai){
   if(!iAm || S_invc) return;
   var d = new Date(), mois = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'][d.getMonth()];
-  var nom = 'Inventaire '+mois+' '+d.getFullYear();
-  document.getElementById('cf-title').textContent = '🚀 Lancer « '+nom+' » ?';
-  document.getElementById('cf-msg').textContent = 'Toutes les fournitures de l\'Atelier seront à compter. Le stock de l\'app n\'est pas modifié par le comptage.';
+  var nom = (essai ? 'ESSAI — ' : '') + 'Inventaire '+mois+' '+d.getFullYear();
+  document.getElementById('cf-title').textContent = (essai ? '🧪 Lancer un essai ?' : '🚀 Lancer « '+nom+' » ?');
+  document.getElementById('cf-msg').textContent = essai
+    ? 'Même fonctionnement que le vrai inventaire, pour s\'entraîner. Tu pourras le supprimer ensuite. Le stock de l\'app n\'est pas modifié.'
+    : 'Toutes les fournitures de l\'Atelier seront à compter. Le stock de l\'app n\'est pas modifié par le comptage.';
   var cfBtn = document.querySelector('#m-confirm .btn.bdan'); if(cfBtn) cfBtn.textContent = 'Oui, lancer';
   cfCb = function(){
-    fbs('inventaires/'+gid(), {nom:nom, zone:'atelier', statut:'ouvert', creeLe:Date.now(), creePar:getMyName()});
-    toast('✅ Inventaire lancé');
+    fbs('inventaires/'+gid(), {nom:nom, zone:'atelier', statut:'ouvert', essai:!!essai, creeLe:Date.now(), creePar:getMyName()});
+    toast(essai ? '🧪 Essai lancé' : '✅ Inventaire lancé');
   };
   om('m-confirm');
 }
 function invcDelete(){
   if(!iAm || !S_invc) return;
   var id = S_invc.id;
-  document.getElementById('cf-title').textContent = '🗑️ Supprimer cet inventaire ?';
+  document.getElementById('cf-title').textContent = S_invc.essai ? '🗑️ Terminer l\'essai ?' : '🗑️ Supprimer cet inventaire ?';
   document.getElementById('cf-msg').textContent = 'Tous les comptages saisis seront perdus. Le stock de l\'app n\'est pas touché.';
   var cfBtn = document.querySelector('#m-confirm .btn.bdan'); if(cfBtn) cfBtn.textContent = 'Oui, supprimer';
   cfCb = function(){ fbd('inventaires/'+id); toast('🗑️ Inventaire supprimé'); };
   om('m-confirm');
+}
+// Essai uniquement : remplit au hasard les fournitures pas encore comptées (pour voir l'avancement et, plus tard, les écarts).
+function invcSimulate(){
+  if(!iAm || !S_invc || !S_invc.essai) return;
+  var upd = {}, n = 0;
+  invcItems().forEach(function(r){
+    if(invcState(r.item.id).k !== 'todo') return;
+    var ppc = currentPpc(r.item) || r.item.ppc || 100;
+    var qty = Math.floor(Math.random()*6), vrac = Math.floor(Math.random()*300);
+    var cartons = qty ? [{ppc:ppc, qty:qty}] : [];
+    upd[r.item.id] = {cid:r.cat.id, statut:'compte', cartons:cartons, vrac:vrac, totalPcs:qty*ppc+vrac, comptePar:'Simulation', compteLe:Date.now(), claim:null};
+    n++;
+  });
+  if(!n){ toast('Rien à remplir', 1); return; }
+  fbu('inventaires/'+S_invc.id+'/lignes', upd).then(function(){ toast('🎲 '+n+' fournitures remplies au hasard'); }).catch(function(){ toast('Erreur', 1); });
 }
 function invcFindItem(iid){
   var f = invcItems().filter(function(r){ return r.item.id === iid; })[0];
