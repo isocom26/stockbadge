@@ -1946,7 +1946,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.10.30-1422';
+var APP_VERSION = '2026.10.30-1435';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -9992,7 +9992,7 @@ function rptLineHTML(l, di, hi, sec, canEdit, wk){
   var doneTime = isDone && l.doneAt ? new Date(l.doneAt).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}) : '';
 
   // Badge réimpression active
-  var activeRp = (!isDone && l.site && l.cmd) ? findActiveReprint(l.site, l.cmd, l.cmdId) : null;
+  var activeRp = (!isDone && sec !== 'sub' && l.site && l.cmd) ? findActiveReprint(l.site, l.cmd, l.cmdId) : null;
   // Ligne terminée : le badge reste affiché tant qu'une réimpression active existe pour CE format
   // (ex. réimpression demandée dans la fenêtre « Terminer »). Purement visuel : activeRp reste réservé aux lignes en cours.
   var shownRp = activeRp;
