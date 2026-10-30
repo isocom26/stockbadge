@@ -1946,7 +1946,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.10.30-1352';
+var APP_VERSION = '2026.10.30-1403';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -2360,6 +2360,8 @@ function fmtInViewPole(f){
   if(viewPole === 'tout') return true;
   return (f.pole || 'badges') === viewPole;
 }
+// Collaborateur du pôle numérique : absent des tableaux et classements du pôle badges (réunion, capacité, statistiques)
+function isNumPoleUser(u){ return !!u && u.pole === 'numerique'; }
 // Rapport : la section « Sublimation » (sec = 'sub') appartient au pôle numérique.
 // Vue badges : lignes 'sub' masquées ; vue numérique : seulement les lignes 'sub' ;
 // vue « tout » : tout. (Pôle badges inchangé : aucune ligne 'sub' n'y existe.)
@@ -10882,7 +10884,7 @@ function mtgRenderRecto(){
   fbg('users').then(function(usnap){
     var users = usnap.val() || {};
     var prodUids = Object.keys(users).filter(function(uid){
-      return users[uid].perms && users[uid].perms.production;
+      return users[uid].perms && users[uid].perms.production && !isNumPoleUser(users[uid]);
     });
     var promises = prodUids.map(function(uid){
       return fbg('reports/'+uid+'/'+wk).then(function(snap){
@@ -10908,6 +10910,7 @@ function mtgPerPersonDayTotals(data){
       lines.forEach(function(l){
         var q = parseInt(l.qty)||0;
         var s = l.sec||'semi';
+        if(s==='sub') return;   // la sublimation (pôle numérique) n'entre pas dans le tableau de réunion badges
         if(s==='table') table[di] += q;
         else prod[di] += q; // semi + auto combined into "PROD" column like the paper sheet
       });
@@ -11306,7 +11309,7 @@ function mtgExportPDF(){
   fbg('users').then(function(usnap){
     var users = usnap.val() || {};
     var prodUids = Object.keys(users).filter(function(uid){
-      return users[uid].perms && users[uid].perms.production;
+      return users[uid].perms && users[uid].perms.production && !isNumPoleUser(users[uid]);
     });
     var promises = prodUids.map(function(uid){
       return fbg('reports/'+uid+'/'+wk).then(function(snap){
@@ -17432,7 +17435,7 @@ function loadStats(){
         .filter(function(uid){
           var u = users[uid];
           return (u.role==='admin' || (u.perms&&u.perms.production)) &&
-                 u.role!=='direction' && u.role!=='admin' && u.isProducer!==false;
+                 u.role!=='direction' && u.role!=='admin' && u.isProducer!==false && !isNumPoleUser(u);
         })
         .sort(function(a,b){ return (users[a].name||'').localeCompare(users[b].name||''); })
         .forEach(function(uid){
@@ -17481,7 +17484,7 @@ function loadStats(){
         // Les admins ont toujours accès à la production même sans perms.production
         var hasProduction = u.role === 'admin' || (u.perms && u.perms.production);
         var isProducer = hasProduction && u.role !== 'direction' &&
-                         u.isProducer !== false && u.role !== 'admin';
+                         u.isProducer !== false && u.role !== 'admin' && !isNumPoleUser(u);
 
         if(!hasProduction) return; // ignorer ceux sans perm production
         if(pf && r.uid !== pf) return; // filtre producteur actif
@@ -17581,7 +17584,7 @@ function loadStats(){
         var u = users[uid];
         if(!u) return;
         var hasProd = u.role === 'admin' || (u.perms && u.perms.production);
-        var isProd = hasProd && u.role !== 'direction' && u.isProducer !== false && u.role !== 'admin';
+        var isProd = hasProd && u.role !== 'direction' && u.isProducer !== false && u.role !== 'admin' && !isNumPoleUser(u);
         if(!isProd) return;
         if(pf && uid !== pf) return;
         if(!prodByUser[uid]) prodByUser[uid] = {name:u.name||u.email,semi:0,auto:0,table:0,total:0,cmds:{}};
@@ -18293,6 +18296,7 @@ function exportStatsCSV(){
         if(u.role==='admin'||u.role==='direction') return;
         if(!u.perms||!u.perms.production) return;
         if(u.isProducer===false) return;
+        if(isNumPoleUser(u)) return;   // pôle numérique : pas dans le classement badges
         if(pf && r.uid !== pf) return; // filtre producteur actif
         Object.keys(r.data).forEach(function(wk){
           var csvF = statsDateKey(firstDay), csvT = statsDateKey(lastDay);
@@ -19529,6 +19533,7 @@ function dashActiveProducers(users){
     if(!u) return false;
     if(u.role==='admin' || u.role==='direction') return false;
     if(u.isProducer===false) return false;
+    if(isNumPoleUser(u)) return false;
     return !!(u.perms && u.perms.production);
   }).map(function(uid){
     var u = users[uid];
