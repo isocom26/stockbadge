@@ -1947,7 +1947,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.10.30-1514';
+var APP_VERSION = '2026.10.30-1520';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -2507,6 +2507,7 @@ function polesSync(cmdId){
   }).catch(function(){});
 }
 function applyPoleMenus(){
+  try { stockApplyPole(); } catch(e){}   // catégories/commandes de stock selon le pôle affiché (aussi au démarrage)
   var num = (viewPole === 'numerique');
   // Pôle numérique : pas de maintenance, réunion, réimpression.
   ['grp-maintenance','grp-meeting'].forEach(function(id){
@@ -14365,7 +14366,7 @@ function openStatsMonth(){
             for(var hi=0;hi<2;hi++){
               var lines = ((weekData['d'+di]||{})['h'+hi]||{}).lines||[];
               lines.forEach(function(l){
-                if(l.status !== 'done') return;
+                if(l.status !== 'done' || l.sec === 'sub') return;   // Sublimation : hors classement badges
                 if(!stats[r.uid]) stats[r.uid] = {name:r.name, semi:0, auto:0, table:0, total:0, cmds:{}};
                 var qty = parseInt(l.qty)||0;
                 var sec = l.sec||'semi';
@@ -18531,7 +18532,7 @@ function exportStatsCSV(){
             for(var hi=0;hi<2;hi++){
               var lines = ((weekData['d'+di]||{})['h'+hi]||{}).lines||[];
               lines.forEach(function(l){
-                if(l.status!=='done') return;
+                if(l.status!=='done' || l.sec==='sub') return;   // Sublimation : hors export badges
                 if(!stats[r.uid]) stats[r.uid]={name:u.name||u.email,semi:0,auto:0,table:0,total:0,cmds:{}};
                 var qty=parseInt(l.qty)||0; var sec=l.sec||'semi';
                 stats[r.uid][sec]=(stats[r.uid][sec]||0)+qty;
