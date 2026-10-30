@@ -1934,7 +1934,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.10.30-0956';
+var APP_VERSION = '2026.10.30-1025';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -6383,6 +6383,22 @@ function startInvcListener(){
     if(curTab === 'inventaire') renderInventaire();
   });
 }
+// Ordre d'affichage des formats : Badges & Magnets (ronds du plus petit au plus grand : 25 mm → 100 mm, puis les autres formats), puis Porte-clés, Pins, Divers.
+var INVC_FAM_ORDER = ['badge_magnet','porte_cle','pins','divers'];
+var INVC_FAM_LABEL = {badge_magnet:'🏷️ Badges & Magnets', porte_cle:'🔑 Porte-clés', pins:'📌 Pins', divers:'📦 Divers'};
+function invcCatCmp(a, b){
+  var fa = INVC_FAM_ORDER.indexOf(catFamille(a)), fb = INVC_FAM_ORDER.indexOf(catFamille(b));
+  if(fa < 0) fa = 99; if(fb < 0) fb = 99;
+  if(fa !== fb) return fa - fb;
+  if(fa === 0){
+    var ma = /^\s*(\d+)\s*mm\b/i.exec(a.name||''), mb = /^\s*(\d+)\s*mm\b/i.exec(b.name||'');
+    if(ma && mb) return parseInt(ma[1]) - parseInt(mb[1]);
+    if(ma) return -1; if(mb) return 1;
+  }
+  return String(a.name||'').localeCompare(String(b.name||''), 'fr', {numeric:true});
+}
+function invcSortedCats(){ return S.cats.slice().sort(invcCatCmp); }
+function invcCatIdx(cat){ var l = invcSortedCats(); for(var i = 0; i < l.length; i++){ if(l[i].id === cat.id) return i; } return 999; }
 function invcItems(){
   var out = [];
   S.cats.forEach(function(cat){
@@ -6481,7 +6497,8 @@ function invcRender(){
     var mi = invcBlocInfo(mine);
     resume = '<div onclick="invcOpenBloc(\''+mine+'\')" style="background:rgba(245,158,11,.12);border:2px solid var(--acc);border-radius:12px;padding:12px;margin:10px 0;cursor:pointer;font-weight:700;font-size:.88rem">✏️ Ton bloc en cours : '+esc(gc(mine).name)+' ('+mi.done+'/'+mi.total+') — toucher pour reprendre</div>';
   }
-  var cards = S.cats.map(function(cat){
+  var lastFam = null;
+  var cards = invcSortedCats().map(function(cat){
     var bi = invcBlocInfo(cat.id);
     if(!bi.total) return '';
     if(invcFilter==='todo' && bi.k==='done') return '';
@@ -6494,7 +6511,9 @@ function invcRender(){
     else badge = '<span style="color:var(--mut)">'+(bi.done?'à finir':'à faire')+'</span>';
     var nrc = bi.rows.filter(function(r){ return ((S_invc.lignes||{})[r.item.id]||{}).statut === 'recompter'; }).length;
     if(nrc && bi.k!=='busy' && bi.k!=='mine') badge = '<span style="color:#f59e0b;font-weight:700">🔁 '+nrc+' à recompter</span>';
-    return '<div onclick="invcOpenBloc(\''+cat.id+'\')" style="padding:13px 14px;background:'+bg+';border:1.5px solid '+bd+';border-radius:12px;margin-bottom:8px;cursor:pointer">'+
+    var fam = catFamille(cat), famHead = '';
+    if(fam !== lastFam){ lastFam = fam; famHead = '<div style="font-family:Open Sans,sans-serif;font-weight:800;font-size:.78rem;color:var(--mut);text-transform:uppercase;letter-spacing:.05em;margin:14px 0 8px">'+(INVC_FAM_LABEL[fam]||esc(fam))+'</div>'; }
+    return famHead+'<div onclick="invcOpenBloc(\''+cat.id+'\')" style="padding:13px 14px;background:'+bg+';border:1.5px solid '+bd+';border-radius:12px;margin-bottom:8px;cursor:pointer">'+
       '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px"><div style="font-family:Open Sans,sans-serif;font-weight:800;font-size:.95rem">'+esc(cat.name)+'</div><div style="font-size:.76rem;white-space:nowrap">'+badge+'</div></div>'+
       '<div style="font-size:.74rem;color:var(--mut);margin-top:3px">'+bi.done+' / '+bi.total+' fournitures comptées</div>'+
       '<div style="height:6px;background:var(--sur);border-radius:99px;overflow:hidden;margin-top:6px"><div style="height:100%;width:'+Math.round(bi.done*100/bi.total)+'%;background:var(--grn)"></div></div></div>';
@@ -6875,7 +6894,7 @@ function invcEcartsHtml(){
     return x.res.k !== 'wait';
   }).sort(function(a,b){
     var rank = {crit:0, rec:1, pending:2, ok:3, neg:4, nc:5};
-    var ia = S.cats.indexOf(a.cat), ib = S.cats.indexOf(b.cat);
+    var ia = invcCatIdx(a.cat), ib = invcCatIdx(b.cat);
     return (ia-ib) || (rank[a.res.k]-rank[b.res.k]) || ((b.res.pct||0)-(a.res.pct||0));
   });
   var perCat = {}; shown.forEach(function(x){ perCat[x.cat.id] = (perCat[x.cat.id]||0)+1; });
@@ -7416,6 +7435,7 @@ function invcValidHtml(){
 }
 // ── Rapport PDF et tableau Excel (photo figée si validé, sinon brouillon en direct)
 function invcReportRows(){
+  // Le rapport (PDF et Excel) reste classé par nom de format, puis par article : c'est l'ordre voulu pour la lecture par la direction.
   var rows = invcValidRows(); rows.sort(function(a,b){ return String(a.cat).localeCompare(String(b.cat)) || String(a.n).localeCompare(String(b.n)); });
   return rows;
 }
@@ -7488,7 +7508,7 @@ function invcSheetPDF(){
   var dateLabel = new Date().toLocaleDateString('fr-FR');
   function head(){ return pdfHeader(doc, pageW, (S_invc && S_invc.nom || 'Inventaire')+' — Atelier', 'Date : '+dateLabel); }
   var y = head();
-  S.cats.forEach(function(cat){
+  invcSortedCats().forEach(function(cat){
     var rows = (cat.items||[]).filter(function(i){ return !i.linked; }).slice().sort(function(a,b){ return a.name.localeCompare(b.name); });
     if(!rows.length) return;
     if(y > 470){ doc.addPage(); y = head(); }
