@@ -1946,7 +1946,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.10.30-1505';
+var APP_VERSION = '2026.10.30-1507';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -2295,6 +2295,9 @@ var STOCK_FAMS = [
 function famPole(f){ for(var i=0;i<STOCK_FAMS.length;i++){ if(STOCK_FAMS[i][0]===f) return STOCK_FAMS[i][2]; } return 'badges'; }
 function famLabel(f){ for(var i=0;i<STOCK_FAMS.length;i++){ if(STOCK_FAMS[i][0]===f) return STOCK_FAMS[i][1]; } return '🏷️ Badges & Magnets'; }
 function catPole(cat){ return famPole(catFamille(cat)); }
+// Gestion du stock (créer/modifier/supprimer références et articles, réserve) : admin partout ; le pôle numérique gère SES familles.
+function stockAdmin(cat){ return !!iAm || (typeof me_pole !== 'undefined' && me_pole === 'numerique' && !!cat && catPole(cat) === 'numerique'); }
+function stockAdminFam(fam){ return !!iAm || (typeof me_pole !== 'undefined' && me_pole === 'numerique' && famPole(fam) === 'numerique'); }
 // Familles proposées selon la vue (badges / numérique / tout)
 function famsInView(){
   return STOCK_FAMS.filter(function(f){ return typeof viewPole === 'undefined' || viewPole === 'tout' || f[2] === viewPole; });
@@ -3552,7 +3555,7 @@ function catCard(cat, zone, q) {
   var bc    = lows>0?'low':isRes?'res':'';
   var badge = lows>0?'<div class="cbadge low">⚠️ '+lows+'</div>':'<div class="cbadge '+bc+'">'+uQty(catUnit(cat),total)+'</div>';
   var dbp   = isRes?'reserve_items':'items';
-  var canE  = !isRes || iAm;
+  var canE  = !isRes || stockAdmin(cat);
   // En recherche : afficher tous les formats correspondants (jamais tronqué à 3).
   // Si seule la référence matche par son nom (aucun format ne matche), on
   // garde l'affichage habituel des 3 premiers formats.
@@ -3602,7 +3605,7 @@ function openDet(cid, zone) {
   document.getElementById('view-detail').classList.add('active');
   document.getElementById('back-btn').textContent = '← '+(zone==='atelier'?'🏭 Atelier':'🏢 Réserve');
   renderDet(cat); renderDetItems(cat); renderRecipes(cat);
-  document.getElementById('det-del').innerHTML = iAm?'<button class="btn bdano" style="width:100%;margin-top:6px" onclick="askDelCat()">🗑 Supprimer cette référence</button>':'';
+  document.getElementById('det-del').innerHTML = stockAdmin(cat)?'<button class="btn bdano" style="width:100%;margin-top:6px" onclick="askDelCat()">🗑 Supprimer cette référence</button>':'';
 }
 
 function renderDet(cat) {
@@ -3611,7 +3614,7 @@ function renderDet(cat) {
   // vérifier visuellement le format) ; la modification passe par un bouton
   // dédié à côté, plutôt que par un clic sur l'image elle-même.
   var ec = cat.photo ? ' onclick="openLightboxStatic(\''+cat.photo+'\')" style="cursor:pointer"' : '';
-  var editBtn = iAm ? '<button onclick="openEditCat(\''+cat.id+'\')" style="margin-top:8px;padding:7px 14px;border-radius:8px;border:1px solid var(--brd);background:var(--sur);color:var(--mut);font-family:Open Sans,sans-serif;font-weight:700;font-size:.8rem;cursor:pointer">✏️ Modifier</button>' : '';
+  var editBtn = stockAdmin(cat) ? '<button onclick="openEditCat(\''+cat.id+'\')" style="margin-top:8px;padding:7px 14px;border-radius:8px;border:1px solid var(--brd);background:var(--sur);color:var(--mut);font-family:Open Sans,sans-serif;font-weight:700;font-size:.8rem;cursor:pointer">✏️ Modifier</button>' : '';
   document.getElementById('det-content').innerHTML='<div class="dhdr"><div class="dthumb"'+ec+'>'+th+'</div>'+
     '<div class="dmeta"><h2>'+esc(cat.name)+'</h2><p>'+(cat.desc||'')+'</p>'+
     '<p style="color:var(--grn);font-size:.74rem;margin-top:4px">🟢 Synchronisé en temps réel</p>'+editBtn+'</div></div>';
@@ -3623,7 +3626,7 @@ function renderDetItems(cat) {
   var items = isRes?(cat.reserve_items||[]):(cat.items||[]);
   var dbp   = isRes?'reserve_items':'items';
   var col   = isRes?'var(--pur)':'var(--acc)';
-  var canE  = !isRes || iAm;
+  var canE  = !isRes || stockAdmin(cat);
   if (!items.length) { el.innerHTML='<div style="padding:18px;text-align:center;color:var(--mut);font-size:.85rem">Aucun composant</div>'; return; }
   el.innerHTML=items.map(function(entry){
     // Ligne "liée" (composant partagé) : aucune donnée propre, on affiche et
@@ -3685,11 +3688,11 @@ function renderDetRow(item, cat, dbp, col, canE, extraTag, extraBtn){
     // au-dessus de la fonction) : extraBtn (le bouton "retirer le lien")
     // prend sa place.
     var eb = extraBtn;
-    if(!extraBtn && iAm){
+    if(!extraBtn && stockAdmin(cat)){
       eb = '<button class="bedit" onclick="openEditItem(\'' + cat.id + '\',\'' + item.id + '\',\'' + dbp + '\')">✏️</button>';
     }
     var tb = '';
-    if(canE && (iAm||canAddStock())){
+    if(canE && (stockAdmin(cat)||canAddStock())){
       tb = '<button class="bedit" style="color:#1d4ed8;border-color:#1d4ed8;margin-left:4px" onclick="openTransferModal(\'' + cat.id + '\',\'' + item.id + '\',\'' + dbp + '\')">🔄</button>';
     }
     var ctrl=canE
@@ -3740,7 +3743,7 @@ function renderRecipes(cat) {
 function chg(e,cid,iid,d,dbp){
   if(e){e.preventDefault();e.stopPropagation();}
   var now=Date.now(); if(now-lt<300) return; lt=now;
-  if(dbp==='reserve_items'&&!iAm){toast('🔒 Stock réserve : admin uniquement',1);return;}
+  if(dbp==='reserve_items'&&!stockAdmin(gc(cid))){toast('🔒 Stock réserve : admin uniquement',1);return;}
   // Show qty selector before removing stock
   if(d<0){
     var cat=gc(cid); if(!cat) return;
@@ -4846,7 +4849,7 @@ function om(id){ document.getElementById(id).classList.add('open'); }
 function cm(id){ document.getElementById(id).classList.remove('open'); }
 
 function openAddCatModal(){
-  if(!iAm){toast('Seul l\'admin peut créer des références',1);return;}
+  if(!iAm && !(me_pole==='numerique')){toast('Seul l\'admin peut créer des références',1);return;}
   PT.cat=null;
   document.getElementById('cat-n').value='';
   document.getElementById('cat-d').value='';
@@ -5259,7 +5262,7 @@ function openEditItem(cid,iid,dbp){
 }
 
 function openEditCat(cid){
-  if(!iAm) return; editCatId=cid;
+  if(!stockAdmin(gc(cid))) return; editCatId=cid;
   var cat=gc(cid); PT.ecat=cat.photo||null;
   document.getElementById('ecat-n').value=cat.name;
   document.getElementById('ecat-d').value=cat.desc||'';
@@ -5316,7 +5319,7 @@ function buildIPick(sel){
 function getSel(){ return Array.from(document.querySelectorAll('#ipick input:checked')).map(function(c){return c.value;}); }
 
 function saveCat(){
-  if(!iAm) return;
+  if(!stockAdminFam(document.getElementById('cat-fam').value)) return;
   if(PT.busy.cat){ toast('Patiente, la photo est en cours d\'envoi…',1); return; }
   var n=document.getElementById('cat-n').value.trim(); if(!n){toast('Nom obligatoire',1);return;}
   var ord = parseInt(document.getElementById('cat-o').value)||99;
@@ -5362,7 +5365,7 @@ function updItem(dbp){
 }
 
 function updateCat(){
-  if(!iAm) return;
+  if(!stockAdmin(gc(editCatId)) || !stockAdminFam(document.getElementById('ecat-fam').value)) return;
   if(PT.busy.ecat){ toast('Patiente, la photo est en cours d\'envoi…',1); return; }
   var n=document.getElementById('ecat-n').value.trim(); if(!n){toast('Nom obligatoire',1);return;}
   var u={name:n,desc:document.getElementById('ecat-d').value.trim(),order:parseInt(document.getElementById('ecat-o').value)||99,famille:document.getElementById('ecat-fam').value||'badge_magnet'};
@@ -5383,7 +5386,7 @@ function updRecipe(){
 }
 
 function askDelCat(){
-  if(!iAm) return;
+  if(!stockAdmin(gc(catId))) return;
   var cat=gc(catId);
   document.getElementById('cf-title').textContent='Supprimer "'+(cat?cat.name:'cette référence')+'" ?';
   document.getElementById('cf-msg').textContent='Tous les composants seront supprimés définitivement.';
@@ -5399,7 +5402,7 @@ function askDelRec(rid,name){
 }
 
 function askDelItem(cid, iid, name, dbp){
-  if(!iAm){toast('Seul l\'admin peut supprimer',1);return;}
+  if(!stockAdmin(gc(cid))){toast('Seul l\'admin peut supprimer',1);return;}
   cm('m-item'); // ne jamais empiler deux fenêtres modales ouvertes
   document.getElementById('cf-title').textContent='Supprimer "'+name+'" ?';
   document.getElementById('cf-msg').textContent='Ce composant sera supprimé définitivement de ce format.';
