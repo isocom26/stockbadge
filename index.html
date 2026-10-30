@@ -1946,7 +1946,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.10.30-1138';
+var APP_VERSION = '2026.10.30-1352';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -14802,7 +14802,7 @@ function openAddCmdManuelle(){
   // Reset formats : garder une seule ligne vide
   var fmtsEl = document.getElementById('dep-man-formats');
   fmtsEl.innerHTML = '<div class="dep-man-fmt-row" style="display:flex;gap:6px;margin-bottom:8px">'
-    +'<div style="flex:2;position:relative"><input type="text" class="dep-man-fmt-input" placeholder="Format (ex: B38)" autocomplete="off" oninput="depManFmtAutocomplete(this)" style="width:100%;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.85rem;padding:8px 10px;outline:none;box-sizing:border-box"></div>'
+    +'<div style="flex:2;position:relative"><input type="text" class="dep-man-fmt-input" placeholder="Format (ex: '+(viewPole==='numerique'?'MUGS':'B38')+')" autocomplete="off" oninput="depManFmtAutocomplete(this)" style="width:100%;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.85rem;padding:8px 10px;outline:none;box-sizing:border-box"></div>'
     +'<input type="number" class="dep-man-qty-input" placeholder="Qté" min="1" style="flex:1;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.85rem;padding:8px;outline:none">'
     +'</div>';
   om('m-dep-manual');
@@ -14820,13 +14820,20 @@ function depManAddFmtRow(){
   el.appendChild(row);
 }
 
+// Formats proposés à la saisie manuelle selon le pôle affiché : badges (comme avant),
+// numérique (produits numériques), « tout » (tous les pôles, pour une commande mixte).
+function depManFmtPool(){
+  if(viewPole === 'numerique') return DIGITAL_FORMATS;
+  if(viewPole === 'tout') return PRODUCT_FORMATS.concat(DIGITAL_FORMATS, PRESENTOIR_FORMATS);
+  return PRODUCT_FORMATS;
+}
 function depManFmtAutocomplete(input){
   // Supprimer suggestions existantes
   var old = input.parentElement.querySelector('.dep-fmt-sug');
   if(old) old.remove();
   var val = input.value.trim().toUpperCase();
   if(!val || val.length < 1) return;
-  var matches = PRODUCT_FORMATS.filter(function(f){
+  var matches = depManFmtPool().filter(function(f){
     return f.toUpperCase().indexOf(val) >= 0;
   }).slice(0,6);
   if(!matches.length) return;
