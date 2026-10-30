@@ -1934,7 +1934,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.10.30-0901';
+var APP_VERSION = '2026.10.30-0956';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -6446,13 +6446,18 @@ function invcRender(){
   if(iAm){
     admin = '<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap"><button class="btn bsec" style="flex:1;font-size:.8rem" onclick="invcSheetPDF()">📄 Feuille PDF vierge</button>'+
       '<button class="btn bsec" style="flex:1;font-size:.8rem" onclick="invcPane=\'ecarts\';invcRender()">📊 Écarts EBP</button>'+
-      (S_invc.essai ? '<button class="btn bsec" style="flex:1;font-size:.8rem" onclick="invcSimulate()">🎲 Remplir au hasard</button>' : '')+'</div>';
+      (S_invc.essai && !invcLocked() ? '<button class="btn bsec" style="flex:1;font-size:.8rem" onclick="invcSimulate()">🎲 Remplir au hasard</button>' : '')+
+      (invcLocked() ? '<button class="btn bpri" style="flex:1 0 100%;font-size:.84rem" onclick="invcPane=\'valid\';invcRender()">✅ Validation</button>'
+                    : '<button class="btn bpri" style="flex:1 0 100%;font-size:.84rem" onclick="invcSubmit()">📤 Soumettre à validation</button>')+'</div>';
+  } else if(isDir && invcLocked()){
+    admin = '<div style="margin-top:10px"><button class="btn bpri" style="width:100%;font-size:.84rem" onclick="invcPane=\'valid\';invcRender()">✅ Validation</button></div>';
   }
-  var head = essaiBand +
+  var head = essaiBand + invcPhaseBar() +
     '<div class="inv-card"><div style="font-family:Open Sans,sans-serif;font-weight:800;font-size:.95rem">📋 '+esc((S_invc.nom||'Inventaire').replace(/^ESSAI — /,''))+' · 🏭 Atelier</div>'+
     '<div style="font-size:.78rem;color:var(--mut);margin:4px 0 8px">'+done+' / '+tot+' fournitures comptées</div>'+
     '<div style="height:10px;background:var(--sur);border-radius:99px;overflow:hidden"><div style="height:100%;width:'+pct+'%;background:var(--grn)"></div></div>'+admin+'</div>';
   if(invcPane === 'ecarts' && iAm){ box.innerHTML = essaiBand + invcEcartsHtml() + invcOptHtml(); return; }
+  if(invcPane === 'valid' && (iAm || isDir)){ box.innerHTML = essaiBand + invcValidHtml() + invcOptHtml(); return; }
   // ── Un bloc est ouvert : liste de ses fournitures ──
   if(invcBloc){
     var bi = invcBlocInfo(invcBloc), cat = gc(invcBloc);
@@ -6551,6 +6556,7 @@ function invcDeleteGo(){
 // Essai uniquement : remplit au hasard les fournitures pas encore comptées.
 function invcSimulate(){
   if(!iAm || !S_invc || !S_invc.essai) return;
+  if(invcLocked()){ invcLockToast(); return; }
   var upd = {}, n = 0;
   invcItems().forEach(function(r){
     if(invcDone(r.item.id)) return;
@@ -6580,6 +6586,7 @@ function invcClaimBloc(cid){
 }
 function invcOpenBloc(cid){
   if(!S_invc || !me) return;
+  if(invcLocked()){ invcLockToast(); return; }
   var bi = invcBlocInfo(cid);
   if(iAm && bi.k === 'busy'){ invcBloc = cid; invcRender(); return; }   // l'admin peut consulter / reprendre un bloc pris
   if(bi.k === 'busy'){ toast('🔒 '+(bi.claim.name||'Quelqu\'un')+' compte déjà ce bloc', 1); return; }
@@ -6600,13 +6607,14 @@ function invcLeaveBloc(){
 // Ouvre la saisie d'une fourniture du bloc affiché.
 function invcOpen(iid){
   if(!S_invc || !me || !invcBloc) return;
+  if(invcLocked()){ invcLockToast(); return; }
   var r = invcFindItem(iid); if(!r) return;
   var l = S_invc.lignes[iid];
   if(l && l.statut === 'compte' && !iAm){ toast('✅ Déjà comptée par '+(l.comptePar||'un collègue'), 1); return; }
   if(l && l.statut === 'recompter' && !iAm && l.premierPar && l.premierPar === getMyName()){ toast('🔁 À recompter par un collègue (pas par la personne qui a fait le 1er comptage)', 1); return; }
   var go = function(){
     var lines = (l && l.cartons && l.cartons.length) ? l.cartons.map(function(c){ return {ppc:c.ppc, qty:c.qty}; })
-      : [{ppc: currentPpc(r.item) || r.item.ppc || '', qty:''}];
+      : [{ppc: catUnit(r.cat)==='piece' ? 1 : (currentPpc(r.item) || r.item.ppc || ''), qty:''}];
     var done = l && l.statut === 'compte';
     invcEdit = {iid:iid, cid:r.cat.id, lines:lines, ouverts: (done && l.ouverts && l.ouverts.length) ? l.ouverts.slice() : [''], vrac: done ? (l.vrac||0) : ''};
     invcEditRender(); om('m-invc');
@@ -6621,7 +6629,8 @@ function invcEditRender(){
   var box = document.getElementById('invc-edit'); if(!box || !invcEdit) return;
   var r = invcFindItem(invcEdit.iid); if(!r){ invcCloseEdit(); return; }
   var u = catUnit(r.cat), inp = 'width:100%;box-sizing:border-box;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.95rem;padding:10px 12px;outline:none';
-  var rows = invcEdit.lines.map(function(l,i){
+  var pce = (u === 'piece');   // famille Divers : on compte des pièces, ni carton ni taille
+  var rows = pce ? '<div class="inv-line-row"><input type="text" inputmode="numeric" placeholder="Nombre de pièces" value="'+(invcEdit.lines[0].qty===''?'':invcEdit.lines[0].qty)+'" oninput="invcEdit.lines[0].ppc=1;invcSetLine(0,\'qty\',this.value)" style="flex:1"></div>' : invcEdit.lines.map(function(l,i){
     return '<div class="inv-line-row">'+
       '<input type="text" inputmode="numeric" placeholder="Nb de '+u+'s" value="'+(l.qty===''?'':l.qty)+'" oninput="invcSetLine('+i+',\'qty\',this.value)" style="flex:1">'+
       '<span style="color:var(--mut);font-size:.8rem">×</span>'+
@@ -6637,10 +6646,11 @@ function invcEditRender(){
     '<h3 style="margin-bottom:2px">'+esc(r.item.name)+'</h3>'+
     '<div style="font-size:.76rem;color:var(--mut);margin-bottom:12px">'+esc(r.cat.name)+' · 🏭 Atelier</div>'+
     '<div style="font-size:.74rem;font-weight:800;color:var(--mut);text-transform:uppercase;letter-spacing:.05em;margin:4px 0 6px">📦 Partie stock</div>'+
-    '<div style="font-size:.8rem;font-weight:700;margin-bottom:4px">'+uCap(u)+'s fermés <span style="font-weight:400;color:var(--mut)">(nombre × quantité par '+u+')</span></div>'+rows+
-    '<button class="inv-add-line" onclick="invcAddLine()">+ Ajouter une autre taille</button>'+
-    '<div style="font-size:.8rem;font-weight:700;margin:12px 0 4px">'+uCap(u)+'(s) ouvert(s) <span style="font-weight:400;color:var(--mut)">(pièces restantes dans chacun)</span></div>'+ouv+
-    '<button class="inv-add-line" onclick="invcAddOuvert()">+ Ajouter un autre '+u+' ouvert</button>'+
+    (pce ? '<div style="font-size:.8rem;font-weight:700;margin-bottom:4px">Pièces en stock</div>'+rows
+      : '<div style="font-size:.8rem;font-weight:700;margin-bottom:4px">'+uCap(u)+'s fermés <span style="font-weight:400;color:var(--mut)">(nombre × quantité par '+u+')</span></div>'+rows+
+        '<button class="inv-add-line" onclick="invcAddLine()">+ Ajouter une autre taille</button>'+
+        '<div style="font-size:.8rem;font-weight:700;margin:12px 0 4px">'+uCap(u)+'(s) ouvert(s) <span style="font-weight:400;color:var(--mut)">(pièces restantes dans chacun)</span></div>'+ouv+
+        '<button class="inv-add-line" onclick="invcAddOuvert()">+ Ajouter un autre '+u+' ouvert</button>')+
     '<div style="font-size:.74rem;font-weight:800;color:var(--mut);text-transform:uppercase;letter-spacing:.05em;margin:16px 0 6px">🧺 Côté production</div>'+
     '<div style="font-size:.8rem;font-weight:700;margin-bottom:4px">Pièces dans les bacs</div>'+
     '<input type="text" inputmode="numeric" id="invc-vrac" placeholder="Nombre de pièces" value="'+(invcEdit.vrac===''?'':invcEdit.vrac)+'" oninput="invcEdit.vrac=this.value===\'\'?\'\':(parseInt(this.value)||0);invcUpdTotal()" style="'+inp+'">'+
@@ -6662,6 +6672,7 @@ function invcRemoveOuvert(i){ if(!invcEdit || invcEdit.ouverts.length<=1) return
 function invcCloseEdit(){ invcEdit = null; cm('m-invc'); }
 function invcSave(){
   if(!invcEdit || !S_invc) return;
+  if(invcLocked()){ invcLockToast(); invcCloseEdit(); return; }
   var e = invcEdit;
   var bad = e.lines.some(function(l){ return (parseInt(l.qty)||0) > 0 && !(parseInt(l.ppc)||0); });
   if(bad){ toast('Indique la quantité par carton', 1); return; }
@@ -6748,6 +6759,7 @@ function invcPickEbp(){
   inp.click();
 }
 function invcImportEbp(file){
+  if(invcLocked()){ invcLockToast(); return; }
   invcLoadXlsx().then(function(){
     var fr = new FileReader();
     fr.onload = function(){
@@ -6923,6 +6935,7 @@ function invcEcartsHtml(){
 // Demande un recomptage : le premier comptage est conservé, la fourniture revient « à compter » (par une autre personne).
 function invcAskRecount(key){
   if(!iAm || !S_invc) return;
+  if(invcLocked()){ invcLockToast(); return; }
   var g = invcAnalyse().groups.filter(function(x){ return x.key === key; })[0];
   if(!g) return;
   var upd = {};
@@ -7099,9 +7112,11 @@ function divAsk(){
   cfCb = function(){ cm('m-confirm'); divCreate(); };
   om('m-confirm');
 }
+var _divBusy = false;
 function divCreate(){
-  if(!iAm) return;
+  if(!iAm || _divBusy) return;
   var todo = divPlan(); if(!todo.length) return;
+  _divBusy = true; setTimeout(function(){ _divBusy = false; }, 5000);
   var cat = S.cats.filter(function(c){ return catFamille(c) === 'divers' && /^divers$/i.test(c.name||''); })[0], cid = cat ? cat.id : gid(), upd = {};
   if(!cat){
     var ord = S.cats.reduce(function(m,c){ return Math.max(m, c.order||0); }, 0) + 1;
@@ -7279,6 +7294,188 @@ function compEditSave(){
   if(!comps.length){ toast('Ajoute au moins un composant', 1); return; }
   compPut(invcNormCode(code), {comps:comps, ok:true});
   compEdit = null; toast('✅ '+code+' enregistré'); compRender();
+}
+
+// ══ ÉTAPE C1 : soumission, validation (toi puis la direction), photo figée, rapport ══
+// inventaires/{id}: phase = (absent)|'comptage' → 'soumis' → 'valide1' → 'valide'
+//   soumis/valide1/valide2 = {par, le} ; commentaires/{clé} = {t, par, le} ; fige = {at, seuils, groupes:[…], lignes:{iid:{…}}}
+// Le stock de l'app n'est PAS modifié (le recalage éventuel viendra dans une étape séparée).
+var INVC_ST = {ok:'Conforme', rec:'À recompter', crit:'À recompter absolument', nc:'Non comparable', neg:'EBP négatif', wait:'Non compté', pending:'Recomptage demandé'};
+function invcPhase(){ return (S_invc && S_invc.phase) || 'comptage'; }
+function invcLocked(){ return invcPhase() !== 'comptage'; }
+function invcLockToast(){ toast('🔒 Comptage verrouillé : inventaire soumis à validation', 1); }
+function invcFmtWhen(o){ return o && o.le ? new Date(o.le).toLocaleString('fr-FR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}) : ''; }
+function invcViaText(g){
+  var t = [];
+  if(g.direct > 0) t.push(invcFmt(g.direct)+' direct');
+  (g.via||[]).forEach(function(v){ t.push(invcFmt(v.stock*v.qty)+' via '+v.code); });
+  return t.join(' + ');
+}
+// Lignes de comparaison : celles de la photo figée si l'inventaire est validé, sinon calculées en direct
+function invcValidRows(){
+  var f = S_invc && S_invc.fige, com = (S_invc && S_invc.commentaires) || {};
+  if(f && Array.isArray(f.groupes)) return f.groupes.map(function(r){ return Object.assign({}, r); });
+  var an = invcAnalyse();
+  return an.groups.map(function(g){
+    var c = com[fmtKey(g.key)];
+    return {k:g.key, n:g.items.map(function(r){ return r.item.name; }).join(' + '), cat:g.cat.name, code:g.code||'', compte:g.counted||0, stock:g.stockPcs||0, prod:g.prodPcs||0,
+      ebp:(g.ebp==null?null:g.ebp), diff:(g.res.diff==null?null:Math.round(g.res.diff)), pct:(g.res.pct==null?null:Math.round(g.res.pct*10)/10), st:g.res.k, via:invcViaText(g), com:(c && c.t) || ''};
+  });
+}
+function invcNeedCom(rows){ return rows.filter(function(r){ return (r.st === 'rec' || r.st === 'crit') && !String(r.com||'').trim(); }); }
+function invcSubmit(){
+  if(!iAm || !S_invc || invcLocked()) return;
+  if(!S_invc.ebp){ toast('Importe d\'abord le fichier EBP (Écarts EBP)', 1); return; }
+  var rows = invcValidRows(), left = rows.filter(function(r){ return r.st === 'wait' || r.st === 'pending'; });
+  if(left.length){ toast(left.length+' fourniture(s) pas encore comptée(s) ou à recompter', 1); return; }
+  document.getElementById('cf-title').textContent = '📤 Soumettre à validation ?';
+  document.getElementById('cf-msg').textContent = 'Le comptage sera verrouillé. Tu pourras ensuite commenter les écarts, puis valider ; la direction validera en dernier.';
+  cfCb = function(){ fbu('inventaires/'+S_invc.id, {phase:'soumis', soumis:{par:getMyName(), le:Date.now()}, valide1:null, valide2:null}).then(function(){ invcPane = 'valid'; toast('📤 Soumis à validation'); invcRender(); }).catch(function(){ toast('Erreur', 1); }); };
+  om('m-confirm');
+}
+function invcReopen(){
+  if(!iAm || !S_invc || !(invcPhase() === 'soumis' || invcPhase() === 'valide1')) return;
+  document.getElementById('cf-title').textContent = '🔓 Rouvrir le comptage ?';
+  document.getElementById('cf-msg').textContent = 'Les validations déjà faites seront effacées (les commentaires sont conservés).';
+  cfCb = function(){ fbu('inventaires/'+S_invc.id, {phase:'comptage', soumis:null, valide1:null, valide2:null}).then(function(){ invcPane = null; toast('🔓 Comptage rouvert'); invcRender(); }).catch(function(){ toast('Erreur', 1); }); };
+  om('m-confirm');
+}
+function invcComment(key, el){
+  if(!(iAm || isDir) || !S_invc || !(invcPhase() === 'soumis' || invcPhase() === 'valide1')) return;
+  var t = String(el.value||'').trim(), p = 'inventaires/'+S_invc.id+'/commentaires/'+fmtKey(key);
+  if(!S_invc.commentaires) S_invc.commentaires = {};
+  if(t){ S_invc.commentaires[fmtKey(key)] = {t:t, par:getMyName(), le:Date.now()}; fbs(p, {t:t, par:getMyName(), le:Date.now()}); }
+  else { delete S_invc.commentaires[fmtKey(key)]; fbd(p); }
+}
+function invcValidate1(){
+  if(!iAm || !S_invc || invcPhase() !== 'soumis') return;
+  var need = invcNeedCom(invcValidRows());
+  if(need.length){ toast(need.length+' écart(s) sans commentaire', 1); return; }
+  document.getElementById('cf-title').textContent = '✅ Valider l\'inventaire ?';
+  document.getElementById('cf-msg').textContent = 'Ta validation est enregistrée. La direction doit ensuite valider à son tour pour figer le stock.';
+  cfCb = function(){ fbu('inventaires/'+S_invc.id, {phase:'valide1', valide1:{par:getMyName(), le:Date.now()}}).then(function(){ toast('✅ Validé — en attente de la direction'); invcRender(); }).catch(function(){ toast('Erreur', 1); }); };
+  om('m-confirm');
+}
+function invcBuildFige(){
+  var rows = invcValidRows(), lignes = {};
+  invcItems().forEach(function(r){
+    var l = (S_invc.lignes||{})[r.item.id]; if(!l || l.statut !== 'compte') return;
+    lignes[r.item.id] = {n:r.item.name, cat:r.cat.name, ref:invcNormCode(r.item.refIso)||'', s:l.stockPcs||0, p:l.prodPcs||0, t:l.totalPcs||0, par:l.comptePar||''};
+  });
+  return {at:Date.now(), seuils:invcSeuils(), groupes:rows, lignes:lignes};
+}
+function invcValidate2(){
+  if(!isDir || !S_invc || invcPhase() !== 'valide1') return;
+  var v1 = S_invc.valide1 || {};
+  if(!iAm && v1.par && v1.par === getMyName()){ toast('La 2e validation doit être faite par une autre personne', 1); return; }
+  if(iAm){ toast('La 2e validation est réservée à la direction', 1); return; }
+  document.getElementById('cf-title').textContent = '🔒 Valider et figer ?';
+  document.getElementById('cf-msg').textContent = 'Le stock compté sera figé (photo datée, non modifiable). Le stock de l\'app n\'est pas modifié.';
+  cfCb = function(){
+    fbu('inventaires/'+S_invc.id, {phase:'valide', valide2:{par:getMyName(), le:Date.now()}, fige:invcBuildFige()}).then(function(){ toast('🔒 Inventaire validé et figé'); invcRender(); }).catch(function(){ toast('Erreur', 1); });
+  };
+  om('m-confirm');
+}
+function invcPhaseBar(){
+  var p = invcPhase(), s = S_invc || {}, t = '', bg = 'var(--sur)';
+  if(p === 'soumis'){ t = '📤 Soumis à validation par '+esc((s.soumis||{}).par||'')+' le '+invcFmtWhen(s.soumis); bg = 'rgba(245,158,11,.12)'; }
+  else if(p === 'valide1'){ t = '✅ Validé par '+esc((s.valide1||{}).par||'')+' le '+invcFmtWhen(s.valide1)+' — en attente de la direction'; bg = 'rgba(245,158,11,.12)'; }
+  else if(p === 'valide'){ t = '🔒 Inventaire validé et figé · '+esc((s.valide1||{}).par||'')+' le '+invcFmtWhen(s.valide1)+' · '+esc((s.valide2||{}).par||'')+' le '+invcFmtWhen(s.valide2); bg = 'rgba(34,197,94,.1)'; }
+  else return '';
+  return '<div style="background:'+bg+';border:1.5px solid var(--brd);border-radius:10px;padding:8px 12px;margin-bottom:10px;font-size:.78rem;font-weight:700">'+t+'</div>';
+}
+function invcValidHtml(){
+  var p = invcPhase(), rows = invcValidRows(), cnt = {ok:0, rec:0, crit:0, nc:0, neg:0, wait:0, pending:0};
+  rows.forEach(function(r){ cnt[r.st] = (cnt[r.st]||0)+1; });
+  var editable = (iAm || isDir) && (p === 'soumis' || p === 'valide1');
+  var need = rows.filter(function(r){ return r.st === 'rec' || r.st === 'crit'; });
+  var others = rows.filter(function(r){ return (r.st === 'neg' || r.st === 'nc') && (r.com || editable); });
+  var lacks = invcNeedCom(rows).length;
+  function line(r, force){
+    var key = r.k, ek = String(key).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+    var sig = r.diff == null ? '' : ' · écart <strong>'+(r.diff>0?'+':'')+invcFmt(r.diff)+'</strong>'+(r.pct!=null?' ('+(r.diff>0?'+':(r.diff<0?'-':''))+r.pct+' %)':'');
+    var bd = r.st === 'crit' ? 'var(--red)' : (r.st === 'rec' ? '#f59e0b' : 'var(--brd)');
+    return '<div style="padding:10px 12px;background:var(--card);border:1.5px solid '+bd+';border-radius:10px;margin-bottom:8px"><div style="font-weight:800;font-size:.86rem">'+esc(r.n)+'</div>'+
+      '<div style="font-size:.7rem;color:var(--mut)">'+esc(r.cat)+(r.code?' · '+esc(r.code):'')+' · '+INVC_ST[r.st]+'</div>'+
+      '<div style="font-size:.78rem;margin:4px 0">Compté <strong>'+invcFmt(r.compte)+'</strong>'+(r.ebp!=null?' · EBP <strong>'+invcFmt(r.ebp)+'</strong>':'')+sig+(r.via?'<br><span style="color:var(--mut)">EBP = '+esc(r.via)+'</span>':'')+'</div>'+
+      (editable ? '<input type="text" value="'+esc(r.com||'')+'" placeholder="Commentaire'+((r.st==='rec'||r.st==='crit')?' (obligatoire)':'')+'" onchange="invcComment(\''+ek+'\',this)" style="width:100%;box-sizing:border-box;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.85rem;padding:8px 10px;outline:none">'
+                : (r.com ? '<div style="font-size:.78rem;padding:6px 8px;background:var(--sur);border-radius:8px">💬 '+esc(r.com)+'</div>' : ''))+'</div>';
+  }
+  var v1 = S_invc.valide1 || {}, canV1 = iAm && p === 'soumis', canV2 = isDir && !iAm && p === 'valide1' && !(v1.par && v1.par === getMyName());
+  var btns = '';
+  if(canV1) btns += '<button class="btn bsuc" style="width:100%;margin-top:10px'+(lacks?';opacity:.5':'')+'" onclick="invcValidate1()">✅ Valider (toi)'+(lacks?' — '+lacks+' commentaire(s) manquant(s)':'')+'</button>';
+  if(canV2) btns += '<button class="btn bsuc" style="width:100%;margin-top:10px" onclick="invcValidate2()">🔒 Valider et figer (direction)</button>';
+  if(iAm && (p === 'soumis' || p === 'valide1')) btns += '<button class="btn bsec" style="width:100%;margin-top:8px" onclick="invcReopen()">🔓 Rouvrir le comptage</button>';
+  return '<div class="inv-card"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px"><div style="font-family:Open Sans,sans-serif;font-weight:800;font-size:.95rem">✅ Validation</div>'+
+    '<button class="btn bsec" style="font-size:.78rem;padding:8px 12px" onclick="invcPane=null;invcRender()">↩︎ Retour</button></div>'+invcPhaseBar()+
+    '<div style="font-size:.8rem;margin-bottom:10px">✅ '+cnt.ok+' conformes · 🟠 '+cnt.rec+' · 🔴 '+cnt.crit+' · ⚪ '+(cnt.nc+cnt.neg)+' non comparables</div>'+
+    '<div style="display:flex;gap:8px;margin-bottom:12px"><button class="btn bsec" style="flex:1;font-size:.8rem" onclick="invcReportPDF()">📄 Rapport PDF</button><button class="btn bsec" style="flex:1;font-size:.8rem" onclick="invcReportXlsx()">📊 Tableau Excel</button></div>'+
+    (need.length ? '<div style="font-size:.74rem;font-weight:800;color:var(--mut);text-transform:uppercase;margin:6px 0">Écarts à commenter ('+need.length+')</div>'+need.map(function(r){ return line(r); }).join('') : '<div style="font-size:.8rem;color:var(--grn);margin:8px 0">✅ Aucun écart à commenter.</div>')+
+    (others.length ? '<details style="margin-top:10px"><summary style="cursor:pointer;font-size:.78rem;color:var(--mut)">Non comparables / EBP négatif ('+others.length+') — commentaire facultatif</summary><div style="margin-top:8px">'+others.map(function(r){ return line(r); }).join('')+'</div></details>' : '')+
+    btns+'</div>';
+}
+// ── Rapport PDF et tableau Excel (photo figée si validé, sinon brouillon en direct)
+function invcReportRows(){
+  var rows = invcValidRows(); rows.sort(function(a,b){ return String(a.cat).localeCompare(String(b.cat)) || String(a.n).localeCompare(String(b.n)); });
+  return rows;
+}
+function invcReportTitle(){ return (S_invc.nom||'Inventaire').replace(/^ESSAI — /,'')+(S_invc.essai?' (essai)':'')+' — Atelier'; }
+function invcReportPDF(){
+  if(!(iAm || isDir) || !S_invc) return;
+  var jsPDF = window.jspdf ? window.jspdf.jsPDF : null;
+  if(!jsPDF){ toast('⚠️ PDF indisponible', 1); return; }
+  var doc = new jsPDF({unit:'pt', format:'a4', orientation:'landscape'}), pageW = doc.internal.pageSize.getWidth(), margin = 30;
+  var p = invcPhase(), draft = p !== 'valide', rows = invcReportRows(), fmt = function(n){ return n == null ? '' : invcFmt(n).replace(/[  ]/g,' '); };
+  var y = pdfHeader(doc, pageW, invcReportTitle(), (draft ? 'BROUILLON — ' : '')+'édité le '+new Date().toLocaleDateString('fr-FR'));
+  var cnt = {}; rows.forEach(function(r){ cnt[r.st] = (cnt[r.st]||0)+1; });
+  var s = S_invc, v1 = s.valide1 || {}, v2 = s.valide2 || {};
+  pdfSectionTitle(doc, 'Synthèse', margin, y+12); y += 20;
+  doc.autoTable({startY:y, margin:{left:margin,right:margin}, theme:'grid', styles:{fontSize:9, textColor:PDF_C.txt, lineColor:PDF_C.brd}, headStyles:pdfTableHead(),
+    head:[['Références','Conformes','À recompter','À recompter absolument','Non comparables','Soumis','Validé (1)','Validé (direction)']],
+    body:[[rows.length, cnt.ok||0, cnt.rec||0, cnt.crit||0, (cnt.nc||0)+(cnt.neg||0), s.soumis ? s.soumis.par+' '+invcFmtWhen(s.soumis) : '—', v1.par ? v1.par+' '+invcFmtWhen(v1) : '—', v2.par ? v2.par+' '+invcFmtWhen(v2) : '—']]});
+  y = doc.lastAutoTable.finalY + 18;
+  var ec = rows.filter(function(r){ return r.st === 'rec' || r.st === 'crit' || r.com; });
+  if(ec.length){
+    if(y > 430){ doc.addPage(); y = pdfHeader(doc, pageW, invcReportTitle(), ''); }
+    pdfSectionTitle(doc, 'Écarts et commentaires', margin, y+12); y += 20;
+    doc.autoTable({startY:y, margin:{left:margin,right:margin}, theme:'grid', styles:{fontSize:8.5, textColor:PDF_C.txt, lineColor:PDF_C.brd}, headStyles:pdfTableHead(),
+      head:[['Format','Article','Compté','EBP','Écart','Statut','Commentaire']],
+      body:ec.map(function(r){ return [r.cat, r.n, fmt(r.compte), fmt(r.ebp), r.diff==null?'':(r.diff>0?'+':'')+fmt(r.diff)+(r.pct!=null?' ('+r.pct+' %)':''), INVC_ST[r.st], r.com||'']; }),
+      columnStyles:{6:{cellWidth:200}}});
+    y = doc.lastAutoTable.finalY + 18;
+  }
+  var cats = []; rows.forEach(function(r){ if(cats.indexOf(r.cat) < 0) cats.push(r.cat); });
+  cats.forEach(function(c){
+    var rs = rows.filter(function(r){ return r.cat === c; });
+    if(y > 470){ doc.addPage(); y = pdfHeader(doc, pageW, invcReportTitle(), ''); }
+    pdfSectionTitle(doc, c, margin, y+12); y += 20;
+    doc.autoTable({startY:y, margin:{left:margin,right:margin}, theme:'grid', styles:{fontSize:8.5, textColor:PDF_C.txt, lineColor:PDF_C.brd}, headStyles:pdfTableHead(),
+      head:[['Article','Réf.','Stock','Production','Total compté','EBP','Écart','Statut']],
+      body:rs.map(function(r){ return [r.n, r.code, fmt(r.stock), fmt(r.prod), fmt(r.compte), fmt(r.ebp), r.diff==null?'':(r.diff>0?'+':'')+fmt(r.diff), INVC_ST[r.st]]; })});
+    y = doc.lastAutoTable.finalY + 16;
+  });
+  pdfFooterAllPages(doc);
+  doc.save('rapport_inventaire_'+(draft?'brouillon_':'')+new Date().toISOString().slice(0,10)+'.pdf');
+  toast('✅ Rapport PDF exporté');
+}
+function invcReportXlsx(){
+  if(!(iAm || isDir) || !S_invc) return;
+  invcLoadXlsx().then(function(){
+    var rows = invcReportRows(), X = window.XLSX;
+    var a = [['Format','Article','Réf. ISOCOM','Stock (pcs)','Production (pcs)','Total compté (pcs)','Stock EBP (théorique)','Écart (pcs)','Écart (%)','Statut','Commentaire']];
+    rows.forEach(function(r){ a.push([r.cat, r.n, r.code, r.stock, r.prod, r.compte, r.ebp, r.diff, r.pct, INVC_ST[r.st], r.com||'']); });
+    var wb = X.utils.book_new();
+    X.utils.book_append_sheet(wb, X.utils.aoa_to_sheet(a), 'Inventaire');
+    var f = S_invc.fige;
+    if(f && f.lignes){
+      var b = [['Format','Article','Réf. ISOCOM','Stock (pcs)','Production (pcs)','Total (pcs)','Compté par']];
+      Object.keys(f.lignes).map(function(k){ return f.lignes[k]; }).sort(function(x,y){ return String(x.cat).localeCompare(String(y.cat)) || String(x.n).localeCompare(String(y.n)); })
+        .forEach(function(l){ b.push([l.cat, l.n, l.ref, l.s, l.p, l.t, l.par]); });
+      X.utils.book_append_sheet(wb, X.utils.aoa_to_sheet(b), 'Détail par article');
+    }
+    X.writeFile(wb, 'inventaire_'+(invcPhase()==='valide'?'valide_':'brouillon_')+new Date().toISOString().slice(0,10)+'.xlsx');
+    toast('✅ Tableau Excel exporté');
+  }).catch(function(){ toast('Impossible de générer le fichier Excel', 1); });
 }
 
 // Feuille vierge à imprimer (comptage à l'aveugle : aucune quantité théorique).
