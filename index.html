@@ -648,7 +648,7 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
   <main>
     <div id="view-atelier" class="view">
       <div class="sw-wrap"><span class="sw-ico">🔍</span><input type="text" id="atelier-search-input" placeholder="Rechercher un format…" oninput="filterZone('atelier')"><button class="sw-clear" id="clear-atelier-search-input" onclick="clearZoneSearch('atelier')">✕</button></div>
-      <button onclick="zoneQuickSearch('atelier','8054')" style="width:100%;margin-bottom:12px;padding:9px;border-radius:10px;border:1.5px solid var(--brd);background:none;color:var(--txt);font-family:Open Sans,sans-serif;font-weight:700;font-size:0.86rem;cursor:pointer">🔖 Format 8054</button>
+      <button id="quick-8054" onclick="zoneQuickSearch('atelier','8054')" style="width:100%;margin-bottom:12px;padding:9px;border-radius:10px;border:1.5px solid var(--brd);background:none;color:var(--txt);font-family:Open Sans,sans-serif;font-weight:700;font-size:0.86rem;cursor:pointer">🔖 Format 8054</button>
       <div style="display:flex;gap:8px;margin-bottom:12px">
         <button onclick="exportInventaireCSV('atelier')" style="flex:1;padding:10px;border-radius:10px;border:1.5px solid var(--brd);background:none;color:var(--txt);font-family:Open Sans,sans-serif;font-weight:700;font-size:0.86rem;cursor:pointer">📥 Export CSV</button>
         <button onclick="exportInventairePDF('atelier')" style="flex:1;padding:10px;border-radius:10px;border:1.5px solid var(--acc);background:none;color:var(--acc);font-family:Open Sans,sans-serif;font-weight:700;font-size:0.86rem;cursor:pointer">📄 Export PDF</button>
@@ -1946,7 +1946,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.10.30-1503';
+var APP_VERSION = '2026.10.30-1505';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -2515,6 +2515,9 @@ function applyPoleMenus(){
   // L'inventaire (comptage, EBP) ne concerne que les badges
   var si = document.getElementById('sub-inventaire');
   if(si && num) si.style.display = 'none';
+  var q8 = document.getElementById('quick-8054');   // raccourci du format MAG8054 : badges uniquement
+  if(q8) q8.style.display = num ? 'none' : '';
+  try { updateInventaireBadge(); } catch(e){}
   var rp = document.getElementById('sub-reprint');
   if(rp) rp.style.display = num ? 'none' : '';
   if(num && (['maintenance','meeting','stats','dashboard'].indexOf(activeGroup) >= 0 || activeSubTab === 'reprint' || activeSubTab === 'inventaire')){
@@ -6587,7 +6590,8 @@ function renderInventaire(){
 
 function updateInventaireBadge(){
   var n = 0;
-  invCats().forEach(function(cat){
+  // L'inventaire ne concerne que les badges : pastille masquée en vue numérique
+  if(typeof viewPole === 'undefined' || viewPole !== 'numerique') invCats().forEach(function(cat){
     ['items','reserve_items'].forEach(function(dbp){
       (cat[dbp]||[]).forEach(function(item){ if(!item.linked && item.needsInventoryCheck) n++; });
     });
