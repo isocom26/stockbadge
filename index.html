@@ -2353,6 +2353,14 @@ function fmtInViewPole(f){
   if(viewPole === 'tout') return true;
   return (f.pole || 'badges') === viewPole;
 }
+// Rapport : la section « Sublimation » (sec = 'sub') appartient au pôle numérique.
+// Vue badges : lignes 'sub' masquées ; vue numérique : seulement les lignes 'sub' ;
+// vue « tout » : tout. (Pôle badges inchangé : aucune ligne 'sub' n'y existe.)
+function rptLineInView(l){
+  var sub = !!(l && l.sec === 'sub');
+  if(viewPole === 'tout') return true;
+  return viewPole === 'numerique' ? sub : !sub;
+}
 function applyPoleMenus(){
   var num = (viewPole === 'numerique');
   // Pôle numérique : pas de maintenance, réunion, réimpression. Stock, stats
@@ -9743,7 +9751,7 @@ function rptRenderDays(data, wk, canEdit){
     RPT_HALVES.forEach(function(h,hi){
       var hKey = 'h'+hi;
       var hData = dayData[hKey] || {};
-      var lines = hData.lines || [];
+      var lines = (hData.lines || []).filter(rptLineInView);
       lines.forEach(function(l){
         var s = l.sec||'semi';
         daySecTotals[s] = (daySecTotals[s]||0) + (parseInt(l.qty)||0);
@@ -9757,7 +9765,7 @@ function rptRenderDays(data, wk, canEdit){
     RPT_HALVES.forEach(function(h,hi){
       var hKey = 'h'+hi;
       var hData = dayData[hKey] || {};
-      var lines = hData.lines || [];
+      var lines = (hData.lines || []).filter(rptLineInView);
       var halfSecTotals = {semi:0, auto:0, table:0};
       lines.forEach(function(l){
         var s = l.sec||'semi';
@@ -9769,18 +9777,26 @@ function rptRenderDays(data, wk, canEdit){
       html += '<div class="rpt-half-lbl">'+halfIcon+' '+h+
         '<span id="rpt-half-total-'+di+'-'+hi+'" style="color:var(--grn);font-size:.8rem;font-weight:700;margin-left:4px">'+rptSecTotalsLabel(halfSecTotals)+'</span></div>';
 
-      // Section MACHINE SEMI-AUTO
-      html += rptSectionHTML(lines.filter(function(l){return l.sec!=='auto'&&l.sec!=='table';}),
-        di,hi,'semi','🔧 Machine semi-auto',canEdit,wk);
-      // Section MACHINE AUTO
-      html += rptSectionHTML(lines.filter(function(l){return l.sec==='auto';}),
-        di,hi,'auto','⚙️ Machine automatique',canEdit,wk);
-      // Section TABLE
-      var tableLines = lines.filter(function(l){ return l.sec==='table'; });
-      html += rptSectionHTML(tableLines, di, hi, 'table', '🪑 Table', canEdit, wk);
+      if(viewPole !== 'numerique'){
+        // Section MACHINE SEMI-AUTO
+        html += rptSectionHTML(lines.filter(function(l){return l.sec!=='auto'&&l.sec!=='table'&&l.sec!=='sub';}),
+          di,hi,'semi','🔧 Machine semi-auto',canEdit,wk);
+        // Section MACHINE AUTO
+        html += rptSectionHTML(lines.filter(function(l){return l.sec==='auto';}),
+          di,hi,'auto','⚙️ Machine automatique',canEdit,wk);
+        // Section TABLE
+        var tableLines = lines.filter(function(l){ return l.sec==='table'; });
+        html += rptSectionHTML(tableLines, di, hi, 'table', '🪑 Table', canEdit, wk);
+      }
+      // Section SUBLIMATION (pôle numérique)
+      if(viewPole !== 'badges'){
+        html += rptSectionHTML(lines.filter(function(l){ return l.sec==='sub'; }), di, hi, 'sub', '🖨️ Sublimation', canEdit, wk);
+      }
 
-      // Étapes supplémentaires (cartonnette, sachet…) : zone à part, jamais dans les totaux
-      html += '<div class="rpt-esup" id="rpt-esup-'+di+'-'+hi+'" data-wk="'+wk+'" data-di="'+di+'" data-hi="'+hi+'" data-edit="'+(canEdit?1:0)+'">'+esupSlotInner(wk,di,hi,canEdit)+'</div>';
+      // Étapes supplémentaires (cartonnette, sachet…) : zone à part, jamais dans les totaux (pôle badges seulement)
+      if(viewPole !== 'numerique'){
+        html += '<div class="rpt-esup" id="rpt-esup-'+di+'-'+hi+'" data-wk="'+wk+'" data-di="'+di+'" data-hi="'+hi+'" data-edit="'+(canEdit?1:0)+'">'+esupSlotInner(wk,di,hi,canEdit)+'</div>';
+      }
       // Extra: tâches diverses (multiple) + expéditions + dépiautage commande
       var taches = hData.taches || [];
       if(typeof taches === 'string'){ taches = taches ? [taches] : []; } // migrate legacy single-string format
@@ -9824,6 +9840,7 @@ function rptSecTotalsLabel(t){
   if(t.semi)  parts.push(t.semi+' semi-auto');
   if(t.auto)  parts.push(t.auto+' auto');
   if(t.table) parts.push(t.table+' table');
+  if(t.sub)   parts.push(t.sub+' sublimation');
   return parts.length ? parts.join(' · ') : '';
 }
 
@@ -9916,7 +9933,7 @@ function rptLineHTML(l, di, hi, sec, canEdit, wk){
 
   var isReadyForTable = !isDone && l.readyForTable;
   // Règles de quantité actives + ligne liée à une commande : identité verrouillée, quantité saisie au « Terminer »
-  var qlinked = qtyRulesOn() && !!l.cmdId && true;
+  var qlinked = qtyRulesOn() && !!l.cmdId && sec !== 'sub';   // sublimation : pas de règles de quantité badges
   var statusCtrl;
   if(isDone){
     statusCtrl = '<span class="rpt-done-tag">✅ '+(doneTime||'OK')+'</span>';
@@ -9995,7 +10012,7 @@ function findActiveReprint(site, cmd, cmdId){
 
 // ★ MARQUER UNE LIGNE COMME TERMINÉE
 function rptMarkLineDone(wk, di, hi, sec, btn, fullLi){
-  if(typeof fullLi !== 'number' && qtyInterceptTerminer('done', wk, di, hi, sec, btn)) return;
+  if(typeof fullLi !== 'number' && sec !== 'sub' && qtyInterceptTerminer('done', wk, di, hi, sec, btn)) return;
   var p = window._rptBtnParams && btn.dataset.key ? window._rptBtnParams[btn.dataset.key] : null;
   var rpId = p ? p.rpId : null;
   var rpStatus = p ? p.rpStatus : null;
@@ -10303,7 +10320,7 @@ function rptUpdateInlineTotals(data){
     var daySecTotals = {semi:0, auto:0, table:0};
     RPT_HALVES.forEach(function(h,hi){
       var hData = dayData['h'+hi] || {};
-      var lines = hData.lines || [];
+      var lines = (hData.lines || []).filter(rptLineInView);
       var halfSecTotals = {semi:0, auto:0, table:0};
       lines.forEach(function(l){
         var q = parseInt(l.qty)||0;
@@ -10313,7 +10330,7 @@ function rptUpdateInlineTotals(data){
       });
       var halfLbl = document.getElementById('rpt-half-total-'+di+'-'+hi);
       if(halfLbl) halfLbl.textContent = rptSecTotalsLabel(halfSecTotals);
-      ['semi','auto','table'].forEach(function(s){
+      ['semi','auto','table','sub'].forEach(function(s){
         var secLbl = document.getElementById('rpt-sec-total-'+di+'-'+hi+'-'+s);
         if(secLbl) secLbl.textContent = halfSecTotals[s] ? (halfSecTotals[s]+' pcs') : '';
       });
@@ -10500,6 +10517,7 @@ function rptRenderTotals(data){
     for(var hi=0;hi<2;hi++){
       var lines = (dayData['h'+hi]||{}).lines||[];
       lines.forEach(function(l){
+        if(!rptLineInView(l)) return;
         var q = parseInt(l.qty)||0;
         var s = l.sec||'semi';
         grand += q;
@@ -10531,6 +10549,7 @@ function rptRenderTotals(data){
     (bySec.semi?'<div class="rpt-totals-row"><span>🔧 Semi-auto</span><span>'+bySec.semi.toLocaleString('fr-FR')+' pcs</span></div>':'')+
     (bySec.auto?'<div class="rpt-totals-row"><span>⚙️ Automatique</span><span>'+bySec.auto.toLocaleString('fr-FR')+' pcs</span></div>':'')+
     (bySec.table?'<div class="rpt-totals-row"><span>🪑 Table</span><span>'+bySec.table.toLocaleString('fr-FR')+' pcs</span></div>':'')+
+    (bySec.sub?'<div class="rpt-totals-row"><span>🖨️ Sublimation</span><span>'+bySec.sub.toLocaleString('fr-FR')+' pcs</span></div>':'')+
     '<div class="rpt-totals-row grand"><span>Total semaine</span><span>'+grand.toLocaleString('fr-FR')+' pcs</span></div>'+
     esupRowsHtml+
     '</div>';
@@ -13618,17 +13637,19 @@ function applyTabPermsGroups(){
 }
 
 // ── AUTOCOMPLETE FORMAT ──
-function formatIsKnown(val){
+function formatIsKnown(val, sec){
   if(!val) return true; // vide = pas d'alerte
-  return PRODUCT_FORMATS.indexOf(val.trim().toUpperCase()) >= 0
-    || PRODUCT_FORMATS.indexOf(val.trim()) >= 0;
+  var pool = (sec === 'sub') ? DIGITAL_FORMATS : PRODUCT_FORMATS;
+  return pool.indexOf(val.trim().toUpperCase()) >= 0
+    || pool.indexOf(val.trim()) >= 0;
 }
 
 function rptFormatInput(lineKey, isDone, currentVal){
   // Génère le HTML du champ format avec autocomplétion
   var id = 'fmt-input-' + lineKey;
   var warnId = 'fmt-warn-' + lineKey;
-  var isKnown = formatIsKnown(currentVal);
+  var fSec = (window._rptBtnParams && window._rptBtnParams[lineKey] || {}).sec;
+  var isKnown = formatIsKnown(currentVal, fSec);
   return '<div class="fmt-wrap">'+
     '<input type="text" id="'+id+'" placeholder="Format" value="'+(currentVal||'')+'"'+
     ' data-key="'+lineKey+'" data-field="format"'+
@@ -13651,7 +13672,8 @@ function rptFormatInputHandler(input){
   var warnId = 'fmt-warn-' + lineKey;
 
   // Mise à jour alerte
-  var isKnown = formatIsKnown(input.value);
+  var hSec = (window._rptBtnParams && window._rptBtnParams[lineKey] || {}).sec;
+  var isKnown = formatIsKnown(input.value, hSec);
   input.classList.toggle('fmt-unknown', !!(input.value && !isKnown));
   var warn = document.getElementById(warnId);
   if(warn) warn.style.display = (input.value && !isKnown) ? 'block' : 'none';
@@ -13662,7 +13684,7 @@ function rptFormatInputHandler(input){
   if(!val || val.length < 1) return;
 
   // Filtrer les formats correspondants
-  var matches = PRODUCT_FORMATS.filter(function(f){
+  var matches = (hSec === 'sub' ? DIGITAL_FORMATS : PRODUCT_FORMATS).filter(function(f){
     return f.toUpperCase().indexOf(val) >= 0;
   }).slice(0, 8); // max 8 suggestions
 
@@ -16746,11 +16768,18 @@ function pendingTableHasFormat(pendingTable, c, format){
 // les formats semi→table déjà marqués prêts (voir pendingTableHasFormat).
 // Un format sans gamme reste toujours proposé (point A, rien ne change).
 function pickEligibleFormats(c, sec, pendingTable){
+  // Sublimation (pôle numérique) : produits numériques de la commande, sans gamme ni règles de quantité badges
+  if(sec === 'sub'){
+    var nf = (c.formats||[]).filter(function(f){ return f && f.pole === 'numerique' && f.qty>0; });
+    if(!nf.length) nf = (c.formats||[]).filter(function(f){ return f && f.pole === 'numerique'; });
+    return nf;
+  }
   // Règles de quantité : formats encore à produire sur ce poste (qty = RESTE), calculés sur les lignes de tous les producteurs
   if(qtyRulesOn() && sec && window._qtyAllLines) return qtyEligibleFormats(c, sec, window._qtyAllLines);
   var fmts = (c.formats||[]).filter(function(f){ return f.qty>0 && (!f.pole||f.pole==='badges'); });
   if(!fmts.length) fmts = (c.formats||[]).filter(function(f){ return !f.pole||f.pole==='badges'; });
-  if(!fmts.length) fmts = c.formats||[];
+  // (Avant : une commande sans aucun produit badge retombait sur tous ses produits,
+  // ce qui proposait les commandes 100 % numériques aux postes badges. Elles n'y sont plus proposées.)
   if(!sec) return fmts;
   return fmts.filter(function(f){
     return gammeSecDirect(f.format, sec) || (sec==='table' && pendingTableHasFormat(pendingTable, c, f.format));
@@ -16934,7 +16963,7 @@ function pickConfirmFormat(cmdId, c, fmt){
       site:    c.site||'',
       cmd:     c.cmd||'',
       format:  fmt.format||'',
-      qty:     qtyRulesOn() ? '' : String(fmt.qty||''),   // règles de quantité : saisie au « Terminer »
+      qty:     (qtyRulesOn() && ctx.sec !== 'sub') ? '' : String(fmt.qty||''),   // règles de quantité : saisie au « Terminer »
       sec:     ctx.sec,
       status:  'ongoing',
       startedAt: Date.now(),
@@ -17124,13 +17153,21 @@ function checkAllLinesDone(cmdId, site, cmd, cb){
         var badgeFmts = cData.formats
           .filter(function(f){ return qtyIsBadgeFmt(f); })
           .map(function(f){ return (f.format||'').trim().toLowerCase(); });
-        if(!badgeFmts.length){ cb(allLinesDone); return; }
         // Pour chaque format badge, vérifier qu'il y a au moins 1 ligne done
         var doneFormats = {};
         relevant.forEach(function(l){
           if(l.status === 'done')
             doneFormats[(l.format||'').trim().toLowerCase()] = true;
         });
+        if(!badgeFmts.length){
+          // Commande 100 % numérique : chaque produit numérique doit avoir une ligne terminée
+          var numFmts = cData.formats
+            .filter(function(f){ return f && f.pole === 'numerique'; })
+            .map(function(f){ return (f.format||'').trim().toLowerCase(); });
+          if(!numFmts.length){ cb(allLinesDone); return; }
+          cb(numFmts.every(function(f){ return doneFormats[f]; }));
+          return;
+        }
         var allFmtsDone = badgeFmts.every(function(f){ return doneFormats[f]; });
         cb(allFmtsDone);
       }).catch(function(){ cb(false); });
