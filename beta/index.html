@@ -1946,7 +1946,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.10.30-1435';
+var APP_VERSION = '2026.10.30-1445';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -13585,7 +13585,8 @@ function cqHandleConfirm(btn){
   }
   // Règles de quantité : une réimpression non terminée bloque la validation (état frais)
   var cqCmdObj = window._cqCmds && window._cqCmds[cqKey];
-  if(qtyRulesOn() && cqCmdObj && qtyReprintOpen(cqCmdObj, S_rp)){
+  var cqPoleH = (window._cqIds && window._cqIds[cqKey] && window._cqIds[cqKey].pole) || 'badges';
+  if(qtyRulesOn() && cqCmdObj && cqPoleH !== 'numerique' && qtyReprintOpen(cqCmdObj, S_rp)){
     toast('⛔ Réimpression en cours sur cette commande — validation impossible', 1);
     renderQualite();
     return;
