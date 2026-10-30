@@ -600,6 +600,11 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
     <div class="logo">Iso<span>Prod</span><small>Production · ISOCOM</small></div>
     <div class="hdr-r">
       <div class="sdot" id="sdot"></div>
+      <select id="pole-sel" onchange="setViewPole(this.value)" style="display:none;background:var(--sur);color:var(--txt);border:1.5px solid var(--brd);border-radius:8px;font-size:.74rem;padding:4px 6px;margin-right:6px;max-width:112px" title="Pôle affiché">
+        <option value="badges">🏷️ Badges</option>
+        <option value="numerique">🖨️ Numérique</option>
+        <option value="tout">🔀 Tout</option>
+      </select>
       <div class="chip" onclick="openUserMenu()">
         <div class="av" id="uav">?</div>
         <span id="uname">…</span>
@@ -1934,7 +1939,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.10.30-1025';
+var APP_VERSION = '2026.10.30-1111';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -2317,15 +2322,86 @@ function saveCachedPerms(uid, data){
   try { localStorage.setItem(PERMS_CACHE_PREFIX+uid, JSON.stringify(data)); } catch(e){}
 }
 
-function applyPermsValues(role, perms, machineType){
+function applyPermsValues(role, perms, machineType, pole){
   me_role = role || 'employee';
   me_perms = perms || {};
   me_machineType = machineType || 'semi';
+  me_pole = (pole==='numerique' || pole==='tous') ? pole : 'badges';
   isDir = iAm || (me_role === 'direction');
+  computeViewPole();
 }
+
+// ── PÔLE (badges / numérique) ──
+// Champ optionnel users/{uid}/pole : 'badges' (défaut, = comportement
+// historique), 'numerique' ou 'tous'. viewPole = pôle actuellement affiché :
+// 'badges' | 'numerique' | 'tout'. Admin, direction et comptes « tous »
+// peuvent changer d'affichage avec le sélecteur de l'en-tête.
+var me_pole = 'badges', viewPole = 'badges';
+var POLE_VIEW_KEY = 'isoprod_view_pole';
+var _viewPoleMem = '';   // repli si le stockage du navigateur est indisponible
+function poleCanSwitch(){ return !!(iAm || isDir || me_pole === 'tous'); }
+function computeViewPole(){
+  var def = (me_pole === 'numerique') ? 'numerique' : (me_pole === 'tous' ? 'tout' : 'badges');
+  if(!poleCanSwitch()){ viewPole = def; return; }
+  var v = _viewPoleMem;
+  if(!v){ try { v = localStorage.getItem(POLE_VIEW_KEY) || ''; } catch(e){} }
+  viewPole = (v === 'badges' || v === 'numerique' || v === 'tout') ? v : def;
+}
+// Un produit de commande (f.pole vide = badges) fait-il partie du pôle affiché ?
+function fmtInViewPole(f){
+  if(!f) return false;
+  if(viewPole === 'tout') return true;
+  return (f.pole || 'badges') === viewPole;
+}
+function applyPoleMenus(){
+  var num = (viewPole === 'numerique');
+  // Pôle numérique : pas de maintenance, réunion, réimpression. Stock, stats
+  // et tableau de bord sont masqués en attendant leurs versions « numérique ».
+  ['grp-maintenance','grp-meeting','grp-stats','grp-dashboard'].forEach(function(id){
+    var el = document.getElementById(id);
+    if(el && num) el.style.display = 'none';   // (re)montrés par applyTabPerms selon les droits
+  });
+  var gs = document.getElementById('grp-stock');   // pas de classe « ao » : on le rétablit nous-mêmes
+  if(gs) gs.style.display = num ? 'none' : '';
+  var rp = document.getElementById('sub-reprint');
+  if(rp) rp.style.display = num ? 'none' : '';
+  if(num && (['maintenance','meeting','stock','stats','dashboard'].indexOf(activeGroup) >= 0 || activeSubTab === 'reprint')){
+    switchGroup('production');
+  }
+  var sel = document.getElementById('pole-sel');
+  if(sel){
+    sel.style.display = poleCanSwitch() ? '' : 'none';
+    sel.value = viewPole;
+  }
+}
+function refreshPoleUI(){
+  try { applyTabPerms(); } catch(e){}
+  applyPoleMenus();
+}
+function setViewPole(v){
+  if(!poleCanSwitch()) return;
+  if(v !== 'badges' && v !== 'numerique' && v !== 'tout') return;
+  _viewPoleMem = v;
+  try { localStorage.setItem(POLE_VIEW_KEY, v); } catch(e){}
+  computeViewPole();
+  refreshPoleUI();
+  try { if(curTab) switchTab(curTab); } catch(e){}
+}
+// Bandeau « version test » quand l'app tourne depuis le dossier /beta/
+(function(){
+  try {
+    if(/\/beta(\/|$)/.test(location.pathname)){
+      var b = document.createElement('div');
+      b.textContent = '🧪 VERSION TEST — pôle numérique (tes données sont réelles)';
+      b.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:#7c3aed;color:#fff;text-align:center;font:700 .72rem Open Sans,sans-serif;padding:3px 6px;pointer-events:none';
+      document.addEventListener('DOMContentLoaded', function(){ document.body.appendChild(b); });
+    }
+  } catch(e){}
+})();
 
 function renderAfterPermsKnown(){
   applyTabPerms();
+  applyPoleMenus();
   var prodRedirected = redirectIfProductionHidden();
   updateRpNotif();
   renderCurrentStock();
@@ -2388,7 +2464,7 @@ auth.onAuthStateChanged(function(u) {
     // sur cet appareil — pas d'attente réseau pour afficher l'app.
     var cached = getCachedPerms(u.uid);
     if(cached){
-      applyPermsValues(cached.role, cached.perms, cached.machineType);
+      applyPermsValues(cached.role, cached.perms, cached.machineType, cached.pole);
       permsLoaded = true;
       renderAfterPermsKnown();
     }
@@ -2408,7 +2484,7 @@ auth.onAuthStateChanged(function(u) {
       if(isPermDenied(err)) forceSignOutDisabled(u.uid, 'Accès refusé : compte désactivé ou introuvable. Contacte un administrateur.');
     });
     fbg('users/'+u.uid).then(function(snap){
-      var freshRole, freshPerms, freshMachineType;
+      var freshRole, freshPerms, freshMachineType, freshPole;
       if(snap.exists()){
         var ud = snap.val();
         // Compte désactivé par un admin (voir askDisableUser) : accès
@@ -2421,6 +2497,7 @@ auth.onAuthStateChanged(function(u) {
         freshRole = ud.role || 'employee';
         freshPerms = ud.perms || {};
         freshMachineType = ud.machineType || 'semi';
+        freshPole = ud.pole || 'badges';
         // Garde la fiche /users à jour : e-mail changé (Mon compte) et titre du compte admin
         try {
           var upd = {};
@@ -2434,6 +2511,7 @@ auth.onAuthStateChanged(function(u) {
         freshRole = 'admin';
         freshPerms = {};
         freshMachineType = 'semi';
+        freshPole = 'badges';
       } else {
         // Aucune fiche /users pour ce compte : un employé normal en a
         // forcément une (créée à la création du compte). Son absence
@@ -2443,13 +2521,14 @@ auth.onAuthStateChanged(function(u) {
         forceSignOutDisabled(u.uid, 'Compte introuvable. Contacte un administrateur.');
         return;
       }
-      saveCachedPerms(u.uid, {role:freshRole, perms:freshPerms, machineType:freshMachineType});
+      saveCachedPerms(u.uid, {role:freshRole, perms:freshPerms, machineType:freshMachineType, pole:freshPole});
 
       var changed = !cached || cached.role !== freshRole ||
         JSON.stringify(cached.perms||{}) !== JSON.stringify(freshPerms) ||
-        cached.machineType !== freshMachineType;
+        cached.machineType !== freshMachineType ||
+        (cached.pole || 'badges') !== freshPole;
 
-      applyPermsValues(freshRole, freshPerms, freshMachineType);
+      applyPermsValues(freshRole, freshPerms, freshMachineType, freshPole);
       permsLoaded = true;
 
       if(!cached || changed){
@@ -2465,7 +2544,7 @@ auth.onAuthStateChanged(function(u) {
     // Réinitialiser TOUTES les variables utilisateur pour éviter les conflits de cache
     try { if(_selfWatchRef){ _selfWatchRef.off(); _selfWatchRef = null; } } catch(e){}
     me = null; iAm = false; isDir = false; _newsAuto = false; hideTopBanner('sav-banner');
-    me_role = 'employee'; me_perms = {}; me_machineType = 'semi'; permsLoaded = false;
+    me_role = 'employee'; me_perms = {}; me_machineType = 'semi'; me_pole = 'badges'; viewPole = 'badges'; permsLoaded = false;
     // Réinitialiser les variables du rapport
     rptUid = null; rptStoreUid = null;
     // Réinitialiser les autres états
@@ -7744,6 +7823,12 @@ function openPermsPanel(uid){
         '<option value="employee"'+(u.role==='employee'||!u.role?' selected':'')+'>👷 Collaborateur</option>'+
         '<option value="direction"'+(u.role==='direction'?' selected':'')+'>👔 Direction (accès complet sauf rapport prod.)</option>'+
       '</select>'+
+      '<label style="font-size:.78rem;color:var(--mut);display:block;margin-bottom:4px">Pôle</label>'+
+      '<select id="perm-pole" style="width:100%;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.88rem;padding:9px 12px;outline:none;margin-bottom:8px">'+
+        '<option value="badges"'+((u.pole!=='numerique'&&u.pole!=='tous')?' selected':'')+'>🏷️ Badges (par défaut)</option>'+
+        '<option value="numerique"'+(u.pole==='numerique'?' selected':'')+'>🖨️ Numérique</option>'+
+        '<option value="tous"'+(u.pole==='tous'?' selected':'')+'>🔀 Tous (peut changer de pôle)</option>'+
+      '</select>'+
       '<label style="display:flex;align-items:center;gap:8px;margin-top:10px;cursor:pointer;font-size:.85rem">'+
         '<input type="checkbox" id="perm-is-producer" '+(u.isProducer!==false?'checked':'')+' style="width:16px;height:16px;accent-color:var(--acc)">'+
         'Apparaît dans les statistiques de production'+
@@ -7783,7 +7868,9 @@ function openPermsPanel(uid){
       TABS_PERMS.forEach(function(t){var el=document.getElementById('tab-perm-'+t.key);if(el)nT['tabs_'+t.key]=el.checked;});
       var isProducerEl = document.getElementById('perm-is-producer');
       var isProducerVal = isProducerEl ? isProducerEl.checked : (roleVal==='employee');
-      fbu('users/'+permsUserId,{perms:Object.assign({},newPerms,nT),jobTitle:jobTitle||null,role:roleVal,isProducer:isProducerVal});
+      var poleEl = document.getElementById('perm-pole');
+      var poleVal = poleEl ? poleEl.value : 'badges';
+      fbu('users/'+permsUserId,{perms:Object.assign({},newPerms,nT),jobTitle:jobTitle||null,role:roleVal,isProducer:isProducerVal,pole:(poleVal==='numerique'||poleVal==='tous')?poleVal:null});
       // Reset confirm button
       document.querySelector('#m-confirm .btn.bdan').textContent = 'Oui, confirmer';
       document.querySelector('#m-confirm .btn.bdan').style.background = 'var(--red)';
@@ -16433,10 +16520,12 @@ function renderDepCmdList(){
     var list = Object.keys(data).map(function(id){ return Object.assign({id:id},data[id]); });
     // Masquer les commandes terminées (visibles en Recherche et CQ)
     list = list.filter(function(c){ return c.status !== 'done'; });
-    // Masquer les commandes entièrement pôle numérique (rien à produire pour nous)
+    // Ne garder que les commandes qui ont au moins un produit du pôle affiché
+    // (pôle badges par défaut = comportement historique : les commandes 100 %
+    // numériques sont masquées). Une commande mixte apparaît dans les deux pôles.
     list = list.filter(function(c){
-      var hasBadgeFmt = (c.formats||[]).some(function(f){ return !f.pole || f.pole==='badges'; });
-      return !c.formats || !c.formats.length || hasBadgeFmt;
+      var hasFmt = (c.formats||[]).some(fmtInViewPole);
+      return !c.formats || !c.formats.length || hasFmt;
     });
     // Urgentes en haut (date de départ la plus proche d'abord), puis le reste
     // par date de création décroissante comme avant.
@@ -16462,7 +16551,7 @@ function renderDepCmdList(){
       var status = statusLabels[c.status]||statusLabels['waiting'];
       // Même filtre que partout ailleurs dans l'app (rapport, réimpression, CQ) :
       // seuls les formats pôle badges nous concernent pour la production.
-      var badgeFormats = (c.formats||[]).filter(function(f){ return !f.pole || f.pole==='badges'; });
+      var badgeFormats = (c.formats||[]).filter(fmtInViewPole);
       var formatsHtml = badgeFormats.map(function(f){
         return '<div style="display:flex;justify-content:space-between;padding:5px 0;border-top:1px solid var(--brd);font-size:.82rem">'+
           '<strong>'+f.format+'</strong><span style="color:var(--acc)">'+f.qty+' pcs</span></div>';
