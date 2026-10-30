@@ -1946,7 +1946,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.10.30-1458';
+var APP_VERSION = '2026.10.30-1503';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -2323,7 +2323,7 @@ function stockApplyPole(){
 }
 // Unité de conditionnement d'après la famille : Porte-clés et Pins = sachet ; Badges & Magnets = carton (comportement historique).
 // Purement un libellé : les données stockées (qty, ppc, lots) ne changent pas.
-function famUnit(fam){ return (fam==='porte_cle' || fam==='pins') ? 'sachet' : (fam==='divers' ? 'piece' : 'carton'); }
+function famUnit(fam){ return (fam==='porte_cle' || fam==='pins') ? 'sachet' : ((fam==='divers' || famPole(fam)==='numerique') ? 'piece' : 'carton'); }
 function catUnit(cat){ return famUnit(catFamille(cat)); }
 function catUnitOf(cid){
   var c = (typeof S !== 'undefined' && ((S.allCats && S.allCats.length) ? S.allCats : S.cats) || []).find(function(x){ return x.id === cid; });
