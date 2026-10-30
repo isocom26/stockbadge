@@ -1946,7 +1946,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.10.30-1445';
+var APP_VERSION = '2026.10.30-1458';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -2276,7 +2276,7 @@ function showNotif(title, body, tag, navTab, navSubTab){
 }
 
 // ── STATE ──
-var S = { cats: [], orders: [] };
+var S = { cats: [], orders: [], allCats: [], allOrders: [] };
 var me = null, iAm = false, isDir = false, me_role = 'employee', me_perms = {}, me_machineType = 'semi', permsLoaded = false;
 var catId = null, fromZone = 'atelier', editCatId = null, editItemId = null, editRecId = null;
 var recOrdId = null, recZone = 'atelier';
@@ -2287,12 +2287,46 @@ var lt = 0, cfCb = null, curTab = 'atelier', inited = false;
 // de session, pas besoin de le persister en base.
 var zoneFamille = {atelier:'badge_magnet', reserve:'badge_magnet', alertes:'badge_magnet'};
 function catFamille(cat){ return (cat && cat.famille) || 'badge_magnet'; }
+// Familles de stock : badges (historique) et pôle numérique (Mugs, Gourdes, Totebags). Champ additif « famille » sur la catégorie.
+var STOCK_FAMS = [
+  ['badge_magnet','🏷️ Badges & Magnets','badges'], ['porte_cle','🔑 Porte-clés','badges'], ['pins','📌 Pins','badges'], ['divers','📦 Divers','badges'],
+  ['mugs','☕ Mugs','numerique'], ['gourdes','🥤 Gourdes','numerique'], ['totebag','👜 Totebags','numerique']
+];
+function famPole(f){ for(var i=0;i<STOCK_FAMS.length;i++){ if(STOCK_FAMS[i][0]===f) return STOCK_FAMS[i][2]; } return 'badges'; }
+function famLabel(f){ for(var i=0;i<STOCK_FAMS.length;i++){ if(STOCK_FAMS[i][0]===f) return STOCK_FAMS[i][1]; } return '🏷️ Badges & Magnets'; }
+function catPole(cat){ return famPole(catFamille(cat)); }
+// Familles proposées selon la vue (badges / numérique / tout)
+function famsInView(){
+  return STOCK_FAMS.filter(function(f){ return typeof viewPole === 'undefined' || viewPole === 'tout' || f[2] === viewPole; });
+}
+function famOptionsHtml(sel){
+  return famsInView().map(function(f){ return '<option value="'+f[0]+'"'+(f[0]===sel?' selected':'')+'>'+f[1]+'</option>'; }).join('');
+}
+// Les écrans d'inventaire / EBP ne concernent que les badges (jamais le stock numérique)
+function invCats(){ return ((S.allCats && S.allCats.length) ? S.allCats : (S.cats || [])).filter(function(c){ return catPole(c) === 'badges'; }); }
+// Catégories / commandes / mouvements visibles selon la vue
+function catInView(cat){ return typeof viewPole === 'undefined' || viewPole === 'tout' || catPole(cat) === viewPole; }
+function orderInView(o){
+  if(typeof viewPole === 'undefined' || viewPole === 'tout') return true;
+  var its = (o && o.items) || [], pole = 'badges';
+  for(var i=0;i<its.length;i++){
+    var c = its[i] && its[i].catId ? (S.allCats||[]).find(function(x){ return x.id === its[i].catId; }) : null;
+    if(c){ pole = catPole(c); break; }
+  }
+  return pole === viewPole;
+}
+function stockApplyPole(){
+  S.cats = (S.allCats || []).filter(catInView);
+  S.orders = (S.allOrders || []).filter(orderInView);
+  var fams = famsInView().map(function(f){ return f[0]; });
+  ['atelier','reserve','alertes'].forEach(function(z){ if(fams.indexOf(zoneFamille[z]) < 0) zoneFamille[z] = fams[0] || 'badge_magnet'; });
+}
 // Unité de conditionnement d'après la famille : Porte-clés et Pins = sachet ; Badges & Magnets = carton (comportement historique).
 // Purement un libellé : les données stockées (qty, ppc, lots) ne changent pas.
 function famUnit(fam){ return (fam==='porte_cle' || fam==='pins') ? 'sachet' : (fam==='divers' ? 'piece' : 'carton'); }
 function catUnit(cat){ return famUnit(catFamille(cat)); }
 function catUnitOf(cid){
-  var c = (typeof S !== 'undefined' && S.cats || []).find(function(x){ return x.id === cid; });
+  var c = (typeof S !== 'undefined' && ((S.allCats && S.allCats.length) ? S.allCats : S.cats) || []).find(function(x){ return x.id === cid; });
   return c ? catUnit(c) : 'carton';
 }
 function uQty(u, n){ return u==='piece' ? n+' pce' : (u==='sachet' ? n+' sachet'+(n>1?'s':'') : n+' ctn'); }   // « 3 sachets » / « 3 ctn »
@@ -2470,17 +2504,20 @@ function polesSync(cmdId){
 }
 function applyPoleMenus(){
   var num = (viewPole === 'numerique');
-  // Pôle numérique : pas de maintenance, réunion, réimpression. Stock, stats
-  // et tableau de bord sont masqués en attendant leurs versions « numérique ».
+  // Pôle numérique : pas de maintenance, réunion, réimpression. Stats et tableau de bord
+  // sont masqués en attendant leurs versions « numérique ».
   ['grp-maintenance','grp-meeting','grp-stats','grp-dashboard'].forEach(function(id){
     var el = document.getElementById(id);
     if(el && num) el.style.display = 'none';   // (re)montrés par applyTabPerms selon les droits
   });
-  var gs = document.getElementById('grp-stock');   // pas de classe « ao » : on le rétablit nous-mêmes
-  if(gs) gs.style.display = num ? 'none' : '';
+  var gs = document.getElementById('grp-stock');   // pas de classe « ao » : visible pour tous les pôles (stock numérique séparé par familles)
+  if(gs) gs.style.display = '';
+  // L'inventaire (comptage, EBP) ne concerne que les badges
+  var si = document.getElementById('sub-inventaire');
+  if(si && num) si.style.display = 'none';
   var rp = document.getElementById('sub-reprint');
   if(rp) rp.style.display = num ? 'none' : '';
-  if(num && (['maintenance','meeting','stock','stats','dashboard'].indexOf(activeGroup) >= 0 || activeSubTab === 'reprint')){
+  if(num && (['maintenance','meeting','stats','dashboard'].indexOf(activeGroup) >= 0 || activeSubTab === 'reprint' || activeSubTab === 'inventaire')){
     switchGroup('production');
   }
   var sel = document.getElementById('pole-sel');
@@ -2490,6 +2527,7 @@ function applyPoleMenus(){
   }
 }
 function refreshPoleUI(){
+  try { stockApplyPole(); } catch(e){}
   try { applyTabPerms(); } catch(e){}
   applyPoleMenus();
 }
@@ -3184,7 +3222,8 @@ function startDB() {
         recipes: c.recipes ? Object.keys(c.recipes).map(function(k){ return Object.assign({},c.recipes[k],{id:k}); }) : []
       });
     }) : [];
-    S.cats = unsorted.sort(function(a,b){ return (a.order||99)-(b.order||99); });
+    S.allCats = unsorted.sort(function(a,b){ return (a.order||99)-(b.order||99); });
+    stockApplyPole();
     renderZone(curTab === 'atelier' ? 'atelier' : curTab === 'reserve' ? 'reserve' : null);
     if (curTab==='alertes') renderAlertes();
     if (curTab==='inventaire') renderInventaire();
@@ -3202,7 +3241,8 @@ function startDB() {
 
   db.ref('orders').on('value', function(snap) {
     var raw = snap.val();
-    S.orders = raw ? Object.keys(raw).map(function(id){ return Object.assign({},raw[id],{id:id}); }) : [];
+    S.allOrders = raw ? Object.keys(raw).map(function(id){ return Object.assign({},raw[id],{id:id}); }) : [];
+    stockApplyPole();
     if (curTab==='commandes') renderComs();
     if (curTab==='reception') renderRec();
     try{ if(typeof ecranScheduleRender==='function') ecranScheduleRender(); }catch(e){}
@@ -3226,7 +3266,7 @@ function seedDemo() {
 
 // ── HELPERS ──
 function gid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
-function gc(id){ return S.cats.find(function(c){return c.id===id;}); }
+function gc(id){ return ((S.allCats && S.allCats.length) ? S.allCats : S.cats).find(function(c){return c.id===id;}); }
 
 // Total de pièces réel d'un article — utilise les lots (batches) si l'article
 // a déjà mélangé plusieurs tailles de carton, sinon le calcul classique
@@ -3442,7 +3482,7 @@ function zoneFamilleTabsHtml(zone){
     var active = fam===val;
     return '<button onclick="switchZoneFamille(\''+zone+'\',\''+val+'\')" style="flex:1;padding:8px;border-radius:9px;border:1.5px solid '+(active?'var(--acc)':'var(--brd)')+';background:'+(active?'var(--acc)':'none')+';color:'+(active?'#000':'var(--mut)')+';font-family:Open Sans,sans-serif;font-weight:700;font-size:0.82rem;cursor:pointer">'+label+'</button>';
   }
-  return '<div style="display:flex;gap:6px;margin-bottom:10px">'+pill('badge_magnet','🏷️ Badges & Magnets')+pill('porte_cle','🔑 Porte-clés')+pill('pins','📌 Pins')+pill('divers','📦 Divers')+'</div>';
+  return '<div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap">'+famsInView().map(function(f){ return pill(f[0], f[1]); }).join('')+'</div>';
 }
 
 function switchZoneFamille(zone, fam){
@@ -3460,7 +3500,7 @@ function renderZone(zone) {
   var ico = isRes?'🏢':'🏭';
   var lbl = isRes?'Réserve':'Atelier';
   var fam = zoneFamille[zone] || 'badge_magnet';
-  var famLbl = fam==='porte_cle' ? '🔑 Porte-clés' : (fam==='pins' ? '📌 Pins' : (fam==='divers' ? '📦 Divers' : '🏷️ Badges & Magnets'));
+  var famLbl = famLabel(fam);
 
   var famCats = S.cats.filter(function(cat){ return catFamille(cat)===fam; });
 
@@ -4808,6 +4848,7 @@ function openAddCatModal(){
   document.getElementById('cat-n').value='';
   document.getElementById('cat-d').value='';
   document.getElementById('cat-o').value='';
+  document.getElementById('cat-fam').innerHTML=famOptionsHtml(zoneFamille[curTab]);
   document.getElementById('cat-fam').value=zoneFamille[curTab] || 'badge_magnet';
   document.getElementById('cat-ph-prev').innerHTML='📷 Ajouter une photo';
   document.getElementById('m-cat-title').textContent='➕ Nouvelle référence';
@@ -5220,6 +5261,8 @@ function openEditCat(cid){
   document.getElementById('ecat-n').value=cat.name;
   document.getElementById('ecat-d').value=cat.desc||'';
   document.getElementById('ecat-o').value=cat.order||'';
+  document.getElementById('ecat-fam').innerHTML=famOptionsHtml(catFamille(cat));
+  if(!famsInView().some(function(f){ return f[0]===catFamille(cat); })) document.getElementById('ecat-fam').insertAdjacentHTML('afterbegin','<option value="'+catFamille(cat)+'" selected>'+famLabel(catFamille(cat))+'</option>');
   document.getElementById('ecat-fam').value=catFamille(cat);
   document.getElementById('ecat-ph-prev').innerHTML=cat.photo?'<img src="'+cat.photo+'" style="max-height:80px;border-radius:8px">':'📷 Changer la photo';
   om('m-ecat');
@@ -6065,7 +6108,7 @@ function buildInventaireExportData(zone){
   var dbp = zone==='atelier' ? 'items' : 'reserve_items';
   var zoneLabel = zone==='atelier' ? 'Atelier' : 'Réserve';
   var fam = zoneFamille[zone] || 'badge_magnet';
-  var famLbl = fam==='porte_cle' ? 'Porte-clés' : (fam==='pins' ? 'Pins' : (fam==='divers' ? 'Divers' : 'Badges & Magnets'));
+  var famLbl = famLabel(fam).replace(/^\S+\s/, '').replace('&amp;','&');
   zoneLabel = zoneLabel + ' · ' + famLbl;
   var dateLabel = new Date().toLocaleDateString('fr-FR');
 
@@ -6357,7 +6400,7 @@ function invComputeEcart(item, lines){
 
 function invFindRow(iid){
   var found = null;
-  S.cats.some(function(cat){
+  invCats().some(function(cat){
     return ['items','reserve_items'].some(function(dbp){
       var item = (cat[dbp]||[]).find(function(i){ return i.id===iid; });
       if(item){ found = {cat:cat, item:item, dbp:dbp, zone: dbp==='items'?'atelier':'reserve', zoneLabel: dbp==='items'?'🏭 Atelier':'🏢 Réserve'}; return true; }
@@ -6503,7 +6546,7 @@ function validateInventoryItem(cid, iid, dbp, zone){
 function invCleanStaleFlags(){
   if(!iAm) return;
   window._invStaleDone = window._invStaleDone || {};
-  S.cats.forEach(function(cat){
+  invCats().forEach(function(cat){
     ['items','reserve_items'].forEach(function(dbp){
       (cat[dbp]||[]).forEach(function(item){
         if(item.linked || !item.needsInventoryCheck || window._invStaleDone[item.id]) return;
@@ -6520,7 +6563,7 @@ function renderInventaire(){
   invcRender();
   invCleanStaleFlags();
   var rows = [];
-  S.cats.forEach(function(cat){
+  invCats().forEach(function(cat){
     ['items','reserve_items'].forEach(function(dbp){
       (cat[dbp]||[]).forEach(function(item){
         if(item.linked || !item.needsInventoryCheck) return;
@@ -6544,7 +6587,7 @@ function renderInventaire(){
 
 function updateInventaireBadge(){
   var n = 0;
-  S.cats.forEach(function(cat){
+  invCats().forEach(function(cat){
     ['items','reserve_items'].forEach(function(dbp){
       (cat[dbp]||[]).forEach(function(item){ if(!item.linked && item.needsInventoryCheck) n++; });
     });
@@ -6586,8 +6629,8 @@ function startInvcListener(){
   });
 }
 // Ordre d'affichage des formats : Badges & Magnets (ronds du plus petit au plus grand : 25 mm → 100 mm, puis les autres formats), puis Porte-clés, Pins, Divers.
-var INVC_FAM_ORDER = ['badge_magnet','porte_cle','pins','divers'];
-var INVC_FAM_LABEL = {badge_magnet:'🏷️ Badges & Magnets', porte_cle:'🔑 Porte-clés', pins:'📌 Pins', divers:'📦 Divers'};
+var INVC_FAM_ORDER = ['badge_magnet','porte_cle','pins','divers','mugs','gourdes','totebag'];
+var INVC_FAM_LABEL = {badge_magnet:'🏷️ Badges & Magnets', porte_cle:'🔑 Porte-clés', pins:'📌 Pins', divers:'📦 Divers', mugs:'☕ Mugs', gourdes:'🥤 Gourdes', totebag:'👜 Totebags'};
 function invcCatCmp(a, b){
   var fa = INVC_FAM_ORDER.indexOf(catFamille(a)), fb = INVC_FAM_ORDER.indexOf(catFamille(b));
   if(fa < 0) fa = 99; if(fb < 0) fb = 99;
@@ -6599,11 +6642,11 @@ function invcCatCmp(a, b){
   }
   return String(a.name||'').localeCompare(String(b.name||''), 'fr', {numeric:true});
 }
-function invcSortedCats(){ return S.cats.slice().sort(invcCatCmp); }
+function invcSortedCats(){ return invCats().slice().sort(invcCatCmp); }
 function invcCatIdx(cat){ var l = invcSortedCats(); for(var i = 0; i < l.length; i++){ if(l[i].id === cat.id) return i; } return 999; }
 function invcItems(){
   var out = [];
-  S.cats.forEach(function(cat){
+  invCats().forEach(function(cat){
     (cat.items||[]).forEach(function(item){ if(!item.linked) out.push({cat:cat, item:item}); });
   });
   return out;
@@ -7250,7 +7293,7 @@ function compSuggestFull(code){
   // Proposition : le composant du même nom + les loupes / papillons rangés dans la même catégorie de l'app (s'ils ont une réf. ISOCOM).
   if(COMP_BOTH.test(c)){
     var refs = [];
-    S.cats.forEach(function(cat){
+    invCats().forEach(function(cat){
       var its = (cat.items||[]).filter(function(x){ return !x.linked; });
       if(!its.some(function(x){ return invcNormCode(x.refIso) === c; })) return;
       refs.push(c);
@@ -7338,9 +7381,9 @@ function divCreate(){
   if(!iAm || _divBusy) return;
   var todo = divPlan(); if(!todo.length) return;
   _divBusy = true; setTimeout(function(){ _divBusy = false; }, 5000);
-  var cat = S.cats.filter(function(c){ return catFamille(c) === 'divers' && /^divers$/i.test(c.name||''); })[0], cid = cat ? cat.id : gid(), upd = {};
+  var cat = invCats().filter(function(c){ return catFamille(c) === 'divers' && /^divers$/i.test(c.name||''); })[0], cid = cat ? cat.id : gid(), upd = {};
   if(!cat){
-    var ord = S.cats.reduce(function(m,c){ return Math.max(m, c.order||0); }, 0) + 1;
+    var ord = invCats().reduce(function(m,c){ return Math.max(m, c.order||0); }, 0) + 1;
     upd['categories/'+cid+'/name'] = 'Divers'; upd['categories/'+cid+'/desc'] = ''; upd['categories/'+cid+'/photo'] = null;
     upd['categories/'+cid+'/order'] = ord; upd['categories/'+cid+'/famille'] = 'divers';
   }
@@ -7359,7 +7402,7 @@ var compRefsMode = null;
 function compRefsCandidates(){
   var used = {}, out = [];
   Object.keys(compAppRefs()).forEach(function(k){ used[k] = 1; });
-  S.cats.forEach(function(cat){
+  invCats().forEach(function(cat){
     var its = (cat.items||[]).filter(function(x){ return !x.linked; });
     var base = null;
     its.forEach(function(x){ var rf = invcNormCode(x.refIso); if(rf && !base && !/LOUPE|PAPILLON/i.test(x.name||'')) base = rf; });
@@ -10735,6 +10778,7 @@ function renderStockLog(){
   var periodMs = {today:86400000, week:7*86400000, month:30*86400000}[jrnPeriodFilter];
 
   var filtered = S_stockLog.filter(function(e){
+    if(e && e.cid){ var lc = gc(e.cid); if(lc && !catInView(lc)) return false; }
     if(jrnTypeFilter!=='all' && jrnKind(e)!==jrnTypeFilter) return false;
     if(periodMs && (now - (e.at||0)) > periodMs) return false;
     if(q){
@@ -11158,10 +11202,10 @@ function mtgRecalcChargeParPoste(){
 // ── Alertes "non commandées" auto (État des stocks) : réutilise exactement
 // la même logique que l'onglet Alertes (stock bas + aucune commande en
 // cours), regroupée par famille pour la lisibilité dans la réunion.
-var MTG_FAM_ORDER = [['badge_magnet','🏷️ Badges & Magnets'],['porte_cle','🔑 Porte-clés'],['pins','📌 Pins'],['divers','📦 Divers']];
+var MTG_FAM_ORDER = [['badge_magnet','🏷️ Badges & Magnets'],['porte_cle','🔑 Porte-clés'],['pins','📌 Pins'],['divers','📦 Divers'],['mugs','☕ Mugs'],['gourdes','🥤 Gourdes'],['totebag','👜 Totebags']];
 
 function mtgScanNotOrderedAlerts(){
-  var byFam = {badge_magnet:[], porte_cle:[], pins:[], divers:[]};
+  var byFam = {badge_magnet:[], porte_cle:[], pins:[], divers:[], mugs:[], gourdes:[], totebag:[]};
   (S.cats||[]).forEach(function(cat){
     var fam = catFamille(cat);
     if(!byFam[fam]) byFam[fam] = [];
@@ -11197,7 +11241,7 @@ function mtgNotOrderedAlertsHtml(){
 
 // Libellés sans emoji pour le PDF : la police standard de jsPDF ne sait
 // pas afficher les emoji (ils ressortent en caractères illisibles).
-var MTG_FAM_PLAIN = {badge_magnet:'Badges & Magnets', porte_cle:'Porte-clés', pins:'Pins', divers:'Divers'};
+var MTG_FAM_PLAIN = {badge_magnet:'Badges & Magnets', porte_cle:'Porte-clés', pins:'Pins', divers:'Divers', mugs:'Mugs', gourdes:'Gourdes', totebag:'Totebags'};
 
 // toLocaleString('fr-FR') insère une espace fine insécable comme séparateur
 // de milliers ; cette espace-là n'existe pas non plus dans la police du
