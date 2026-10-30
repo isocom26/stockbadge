@@ -994,7 +994,7 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
   </div>
 
   <!-- Filtre producteur -->
-  <div style="margin-bottom:10px">
+  <div id="stats-producer-wrap" style="margin-bottom:10px">
     <select id="stats-producer-filter" onchange="loadStats()" style="width:100%;background:var(--card);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.85rem;padding:8px 12px;outline:none">
       <option value="">👥 Tous les producteurs</option>
     </select>
@@ -1027,13 +1027,13 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
     <button onclick="loadStats()" style="width:100%;padding:9px;border-radius:8px;border:none;background:var(--acc);color:#000;font-family:Open Sans,sans-serif;font-weight:700;font-size:0.89rem;cursor:pointer">Afficher</button>
   </div>
 
-  <div style="display:flex;gap:8px;margin-top:8px;margin-bottom:14px">
+  <div id="stats-export-row" style="display:flex;gap:8px;margin-top:8px;margin-bottom:14px">
   <button onclick="exportStatsCSV()" style="flex:1;padding:8px;border-radius:8px;border:1.5px solid var(--brd);background:none;color:var(--txt);font-family:Open Sans,sans-serif;font-weight:700;font-size:0.84rem;cursor:pointer">📥 Exporter en CSV</button>
   <button onclick="exportStatsPDF()" style="flex:1;padding:8px;border-radius:8px;border:1.5px solid var(--acc);background:none;color:var(--acc);font-family:Open Sans,sans-serif;font-weight:700;font-size:0.84rem;cursor:pointer">📄 Exporter PDF</button>
 </div>
 
   <!-- Recherche par format -->
-  <div style="background:var(--card);border:1.5px solid var(--brd);border-radius:12px;padding:12px;margin-bottom:14px">
+  <div id="stats-fmt-card" style="background:var(--card);border:1.5px solid var(--brd);border-radius:12px;padding:12px;margin-bottom:14px">
     <div style="font-family:Open Sans,sans-serif;font-weight:700;font-size:0.89rem;margin-bottom:8px">🔍 Recherche par format</div>
     <div style="position:relative;display:flex;gap:8px">
       <div style="flex:1;position:relative">
@@ -1047,6 +1047,7 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
   </div>
 
   <div id="stats-content"><div style="color:var(--mut);font-size:.85rem;text-align:center;padding:30px">Sélectionnez une période et cliquez sur Afficher</div></div>
+  <div id="stats-num-block"></div>
 </div>
 
 <div id="view-dashboard" class="view">
@@ -1946,7 +1947,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.10.30-1505';
+var APP_VERSION = '2026.10.30-1512';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -2295,6 +2296,9 @@ var STOCK_FAMS = [
 function famPole(f){ for(var i=0;i<STOCK_FAMS.length;i++){ if(STOCK_FAMS[i][0]===f) return STOCK_FAMS[i][2]; } return 'badges'; }
 function famLabel(f){ for(var i=0;i<STOCK_FAMS.length;i++){ if(STOCK_FAMS[i][0]===f) return STOCK_FAMS[i][1]; } return '🏷️ Badges & Magnets'; }
 function catPole(cat){ return famPole(catFamille(cat)); }
+// Gestion du stock (créer/modifier/supprimer références et articles, réserve) : admin partout ; le pôle numérique gère SES familles.
+function stockAdmin(cat){ return !!iAm || (typeof me_pole !== 'undefined' && me_pole === 'numerique' && !!cat && catPole(cat) === 'numerique'); }
+function stockAdminFam(fam){ return !!iAm || (typeof me_pole !== 'undefined' && me_pole === 'numerique' && famPole(fam) === 'numerique'); }
 // Familles proposées selon la vue (badges / numérique / tout)
 function famsInView(){
   return STOCK_FAMS.filter(function(f){ return typeof viewPole === 'undefined' || viewPole === 'tout' || f[2] === viewPole; });
@@ -2504,9 +2508,9 @@ function polesSync(cmdId){
 }
 function applyPoleMenus(){
   var num = (viewPole === 'numerique');
-  // Pôle numérique : pas de maintenance, réunion, réimpression. Stats et tableau de bord
-  // sont masqués en attendant leurs versions « numérique ».
-  ['grp-maintenance','grp-meeting','grp-stats','grp-dashboard'].forEach(function(id){
+  // Pôle numérique : pas de maintenance, réunion, réimpression. Le tableau de bord
+  // est masqué en attendant sa version « numérique ».
+  ['grp-maintenance','grp-meeting','grp-dashboard'].forEach(function(id){
     var el = document.getElementById(id);
     if(el && num) el.style.display = 'none';   // (re)montrés par applyTabPerms selon les droits
   });
@@ -2520,7 +2524,7 @@ function applyPoleMenus(){
   try { updateInventaireBadge(); } catch(e){}
   var rp = document.getElementById('sub-reprint');
   if(rp) rp.style.display = num ? 'none' : '';
-  if(num && (['maintenance','meeting','stats','dashboard'].indexOf(activeGroup) >= 0 || activeSubTab === 'reprint' || activeSubTab === 'inventaire')){
+  if(num && (['maintenance','meeting','dashboard'].indexOf(activeGroup) >= 0 || activeSubTab === 'reprint' || activeSubTab === 'inventaire')){
     switchGroup('production');
   }
   var sel = document.getElementById('pole-sel');
@@ -3552,7 +3556,7 @@ function catCard(cat, zone, q) {
   var bc    = lows>0?'low':isRes?'res':'';
   var badge = lows>0?'<div class="cbadge low">⚠️ '+lows+'</div>':'<div class="cbadge '+bc+'">'+uQty(catUnit(cat),total)+'</div>';
   var dbp   = isRes?'reserve_items':'items';
-  var canE  = !isRes || iAm;
+  var canE  = !isRes || stockAdmin(cat);
   // En recherche : afficher tous les formats correspondants (jamais tronqué à 3).
   // Si seule la référence matche par son nom (aucun format ne matche), on
   // garde l'affichage habituel des 3 premiers formats.
@@ -3602,7 +3606,7 @@ function openDet(cid, zone) {
   document.getElementById('view-detail').classList.add('active');
   document.getElementById('back-btn').textContent = '← '+(zone==='atelier'?'🏭 Atelier':'🏢 Réserve');
   renderDet(cat); renderDetItems(cat); renderRecipes(cat);
-  document.getElementById('det-del').innerHTML = iAm?'<button class="btn bdano" style="width:100%;margin-top:6px" onclick="askDelCat()">🗑 Supprimer cette référence</button>':'';
+  document.getElementById('det-del').innerHTML = stockAdmin(cat)?'<button class="btn bdano" style="width:100%;margin-top:6px" onclick="askDelCat()">🗑 Supprimer cette référence</button>':'';
 }
 
 function renderDet(cat) {
@@ -3611,7 +3615,7 @@ function renderDet(cat) {
   // vérifier visuellement le format) ; la modification passe par un bouton
   // dédié à côté, plutôt que par un clic sur l'image elle-même.
   var ec = cat.photo ? ' onclick="openLightboxStatic(\''+cat.photo+'\')" style="cursor:pointer"' : '';
-  var editBtn = iAm ? '<button onclick="openEditCat(\''+cat.id+'\')" style="margin-top:8px;padding:7px 14px;border-radius:8px;border:1px solid var(--brd);background:var(--sur);color:var(--mut);font-family:Open Sans,sans-serif;font-weight:700;font-size:.8rem;cursor:pointer">✏️ Modifier</button>' : '';
+  var editBtn = stockAdmin(cat) ? '<button onclick="openEditCat(\''+cat.id+'\')" style="margin-top:8px;padding:7px 14px;border-radius:8px;border:1px solid var(--brd);background:var(--sur);color:var(--mut);font-family:Open Sans,sans-serif;font-weight:700;font-size:.8rem;cursor:pointer">✏️ Modifier</button>' : '';
   document.getElementById('det-content').innerHTML='<div class="dhdr"><div class="dthumb"'+ec+'>'+th+'</div>'+
     '<div class="dmeta"><h2>'+esc(cat.name)+'</h2><p>'+(cat.desc||'')+'</p>'+
     '<p style="color:var(--grn);font-size:.74rem;margin-top:4px">🟢 Synchronisé en temps réel</p>'+editBtn+'</div></div>';
@@ -3623,7 +3627,7 @@ function renderDetItems(cat) {
   var items = isRes?(cat.reserve_items||[]):(cat.items||[]);
   var dbp   = isRes?'reserve_items':'items';
   var col   = isRes?'var(--pur)':'var(--acc)';
-  var canE  = !isRes || iAm;
+  var canE  = !isRes || stockAdmin(cat);
   if (!items.length) { el.innerHTML='<div style="padding:18px;text-align:center;color:var(--mut);font-size:.85rem">Aucun composant</div>'; return; }
   el.innerHTML=items.map(function(entry){
     // Ligne "liée" (composant partagé) : aucune donnée propre, on affiche et
@@ -3685,11 +3689,11 @@ function renderDetRow(item, cat, dbp, col, canE, extraTag, extraBtn){
     // au-dessus de la fonction) : extraBtn (le bouton "retirer le lien")
     // prend sa place.
     var eb = extraBtn;
-    if(!extraBtn && iAm){
+    if(!extraBtn && stockAdmin(cat)){
       eb = '<button class="bedit" onclick="openEditItem(\'' + cat.id + '\',\'' + item.id + '\',\'' + dbp + '\')">✏️</button>';
     }
     var tb = '';
-    if(canE && (iAm||canAddStock())){
+    if(canE && (stockAdmin(cat)||canAddStock())){
       tb = '<button class="bedit" style="color:#1d4ed8;border-color:#1d4ed8;margin-left:4px" onclick="openTransferModal(\'' + cat.id + '\',\'' + item.id + '\',\'' + dbp + '\')">🔄</button>';
     }
     var ctrl=canE
@@ -3740,7 +3744,7 @@ function renderRecipes(cat) {
 function chg(e,cid,iid,d,dbp){
   if(e){e.preventDefault();e.stopPropagation();}
   var now=Date.now(); if(now-lt<300) return; lt=now;
-  if(dbp==='reserve_items'&&!iAm){toast('🔒 Stock réserve : admin uniquement',1);return;}
+  if(dbp==='reserve_items'&&!stockAdmin(gc(cid))){toast('🔒 Stock réserve : admin uniquement',1);return;}
   // Show qty selector before removing stock
   if(d<0){
     var cat=gc(cid); if(!cat) return;
@@ -4846,7 +4850,7 @@ function om(id){ document.getElementById(id).classList.add('open'); }
 function cm(id){ document.getElementById(id).classList.remove('open'); }
 
 function openAddCatModal(){
-  if(!iAm){toast('Seul l\'admin peut créer des références',1);return;}
+  if(!iAm && !(me_pole==='numerique')){toast('Seul l\'admin peut créer des références',1);return;}
   PT.cat=null;
   document.getElementById('cat-n').value='';
   document.getElementById('cat-d').value='';
@@ -5259,7 +5263,7 @@ function openEditItem(cid,iid,dbp){
 }
 
 function openEditCat(cid){
-  if(!iAm) return; editCatId=cid;
+  if(!stockAdmin(gc(cid))) return; editCatId=cid;
   var cat=gc(cid); PT.ecat=cat.photo||null;
   document.getElementById('ecat-n').value=cat.name;
   document.getElementById('ecat-d').value=cat.desc||'';
@@ -5316,7 +5320,7 @@ function buildIPick(sel){
 function getSel(){ return Array.from(document.querySelectorAll('#ipick input:checked')).map(function(c){return c.value;}); }
 
 function saveCat(){
-  if(!iAm) return;
+  if(!stockAdminFam(document.getElementById('cat-fam').value)) return;
   if(PT.busy.cat){ toast('Patiente, la photo est en cours d\'envoi…',1); return; }
   var n=document.getElementById('cat-n').value.trim(); if(!n){toast('Nom obligatoire',1);return;}
   var ord = parseInt(document.getElementById('cat-o').value)||99;
@@ -5362,7 +5366,7 @@ function updItem(dbp){
 }
 
 function updateCat(){
-  if(!iAm) return;
+  if(!stockAdmin(gc(editCatId)) || !stockAdminFam(document.getElementById('ecat-fam').value)) return;
   if(PT.busy.ecat){ toast('Patiente, la photo est en cours d\'envoi…',1); return; }
   var n=document.getElementById('ecat-n').value.trim(); if(!n){toast('Nom obligatoire',1);return;}
   var u={name:n,desc:document.getElementById('ecat-d').value.trim(),order:parseInt(document.getElementById('ecat-o').value)||99,famille:document.getElementById('ecat-fam').value||'badge_magnet'};
@@ -5383,7 +5387,7 @@ function updRecipe(){
 }
 
 function askDelCat(){
-  if(!iAm) return;
+  if(!stockAdmin(gc(catId))) return;
   var cat=gc(catId);
   document.getElementById('cf-title').textContent='Supprimer "'+(cat?cat.name:'cette référence')+'" ?';
   document.getElementById('cf-msg').textContent='Tous les composants seront supprimés définitivement.';
@@ -5399,7 +5403,7 @@ function askDelRec(rid,name){
 }
 
 function askDelItem(cid, iid, name, dbp){
-  if(!iAm){toast('Seul l\'admin peut supprimer',1);return;}
+  if(!stockAdmin(gc(cid))){toast('Seul l\'admin peut supprimer',1);return;}
   cm('m-item'); // ne jamais empiler deux fenêtres modales ouvertes
   document.getElementById('cf-title').textContent='Supprimer "'+name+'" ?';
   document.getElementById('cf-msg').textContent='Ce composant sera supprimé définitivement de ce format.';
@@ -17465,7 +17469,133 @@ function openStatsTab(){
   loadStats();
 }
 
+// ── Statistiques du pôle numérique (Sublimation) ──
+// Pure : agrège les lignes de rapport 'sub' terminées de [fromKey, toKey] (jours YYYY-MM-DD).
+// reports = [{name, data}] (data = {semaine: {dN:{hN:{lines}}}}).
+function statsNumAggregate(reports, fromKey, toKey){
+  var A = {total:0, lines:0, orders:{}, byDay:{}, byFmt:{}, byWho:{}, cq:{pending:0, checked:0, archived:0}};
+  (reports||[]).forEach(function(r){
+    Object.keys(r.data||{}).forEach(function(wk){
+      if(!statsWeekTouches(wk, fromKey, toKey)) return;
+      var w = r.data[wk] || {};
+      for(var di=0; di<5; di++) for(var hi=0; hi<2; hi++){
+        var dk = statsWkDayKey(wk, di);
+        if(!dk || dk < fromKey || dk > toKey) continue;
+        var ls = ((w['d'+di]||{})['h'+hi]||{}).lines || [];
+        if(!Array.isArray(ls)) ls = Object.keys(ls).map(function(k){ return ls[k]; });
+        ls.forEach(function(l){
+          if(!l || l.sec !== 'sub' || l.status !== 'done') return;
+          var q = parseInt(l.qty) || 0;
+          A.total += q; A.lines++;
+          A.byDay[dk] = (A.byDay[dk]||0) + q;
+          var f = String(l.format||'—').trim().toUpperCase();
+          A.byFmt[f] = (A.byFmt[f]||0) + q;
+          var who = r.name || '?';
+          A.byWho[who] = (A.byWho[who]||0) + q;
+          if(l.cmd) A.orders[(l.site||'?')+'__'+l.cmd] = true;
+          var c = l.cq || 'pending'; if(A.cq[c] !== undefined) A.cq[c]++;
+        });
+      }
+    });
+  });
+  A.nOrders = Object.keys(A.orders).length;
+  return A;
+}
+function statsNumHtml(A, P, label){
+  function fmt(n){ return (n||0).toLocaleString('fr-FR'); }
+  function delta(cur, prev){
+    var d = statsPct(cur, prev);
+    if(d === null) return '';
+    return '<div style="font-size:.7rem;font-weight:700;color:'+(d>=0?'var(--grn)':'var(--red)')+'">'+(d>=0?'▲ +':'▼ ')+d+'% vs mois précédent</div>';
+  }
+  function card(title, val, extra){
+    return '<div style="flex:1;min-width:30%;background:var(--card);border:1.5px solid var(--brd);border-radius:12px;padding:10px;text-align:center">'+
+      '<div style="font-size:.7rem;color:var(--mut);font-weight:700">'+title+'</div>'+
+      '<div style="font-family:Open Sans,sans-serif;font-weight:800;font-size:1.3rem;color:var(--acc)">'+val+'</div>'+(extra||'')+'</div>';
+  }
+  var h = '<div style="font-family:Open Sans,sans-serif;font-weight:800;font-size:.95rem;margin:6px 0 8px">🖨️ Pôle numérique · Sublimation — '+esc(label)+'</div>';
+  h += '<div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">'+
+    card('Pièces produites', fmt(A.total), P ? delta(A.total, P.total) : '')+
+    card('Commandes', fmt(A.nOrders), P ? delta(A.nOrders, P.nOrders) : '')+
+    card('Lignes terminées', fmt(A.lines), P ? delta(A.lines, P.lines) : '')+'</div>';
+  if(!A.total && !A.lines){
+    return h + '<div style="color:var(--mut);font-size:.85rem;text-align:center;padding:20px;background:var(--card);border:1.5px dashed var(--brd);border-radius:12px">Aucune production Sublimation terminée sur cette période.</div>';
+  }
+  // Production par jour
+  var days = Object.keys(A.byDay).sort(), max = days.reduce(function(m,d){ return Math.max(m, A.byDay[d]); }, 0) || 1;
+  h += '<div style="background:var(--card);border:1.5px solid var(--brd);border-radius:12px;padding:12px;margin-bottom:12px">'+
+    '<div style="font-weight:800;font-size:.85rem;margin-bottom:8px">📅 Production par jour</div>'+
+    days.map(function(d){
+      var dd = d.slice(8,10)+'/'+d.slice(5,7);
+      return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;font-size:.78rem"><span style="width:42px;color:var(--mut)">'+dd+'</span>'+
+        '<div style="flex:1;background:var(--sur);border-radius:6px;height:16px;overflow:hidden"><div style="width:'+Math.max(2, Math.round(A.byDay[d]/max*100))+'%;height:100%;background:var(--acc)"></div></div>'+
+        '<strong style="width:64px;text-align:right">'+fmt(A.byDay[d])+'</strong></div>';
+    }).join('')+'</div>';
+  function table(title, obj){
+    var keys = Object.keys(obj).sort(function(a,b){ return obj[b]-obj[a]; });
+    return '<div style="background:var(--card);border:1.5px solid var(--brd);border-radius:12px;padding:12px;margin-bottom:12px">'+
+      '<div style="font-weight:800;font-size:.85rem;margin-bottom:6px">'+title+'</div>'+
+      keys.map(function(k){
+        return '<div style="display:flex;justify-content:space-between;padding:5px 0;border-top:1px solid var(--brd);font-size:.82rem"><span>'+esc(k)+'</span><strong>'+fmt(obj[k])+' pcs</strong></div>';
+      }).join('')+'</div>';
+  }
+  h += table('🏷️ Par produit', A.byFmt);
+  h += table('👥 Par collaborateur', A.byWho);
+  h += '<div style="background:var(--card);border:1.5px solid var(--brd);border-radius:12px;padding:12px;margin-bottom:12px;font-size:.82rem">'+
+    '<div style="font-weight:800;margin-bottom:6px">🔍 Contrôle qualité (lignes)</div>'+
+    '⏳ À contrôler : <strong>'+A.cq.pending+'</strong> · ✅ Contrôlées : <strong>'+A.cq.checked+'</strong> · 📦 Archivées : <strong>'+A.cq.archived+'</strong></div>';
+  return h;
+}
+function statsNumRange(){
+  var monthEl = document.getElementById('stats-month'), yearEl = document.getElementById('stats-year');
+  var month = parseInt(monthEl ? monthEl.value : new Date().getMonth()), year = parseInt(yearEl ? yearEl.value : new Date().getFullYear());
+  var firstDay, lastDay, label, prev = null;
+  if(statsModeActive === 'period'){
+    var f = document.getElementById('stats-date-from'), t = document.getElementById('stats-date-to');
+    if(!f || !f.value || !t || !t.value) return null;
+    firstDay = new Date(f.value+'T00:00:00'); lastDay = new Date(t.value+'T23:59:59'); label = f.value+' → '+t.value;
+  } else {
+    firstDay = new Date(year, month, 1); lastDay = new Date(year, month+1, 0);
+    label = firstDay.toLocaleDateString('fr-FR',{month:'long',year:'numeric'});
+    prev = {from: statsDateKey(new Date(year, month-1, 1)), to: statsDateKey(new Date(year, month, 0))};
+  }
+  return {from: statsDateKey(firstDay), to: statsDateKey(lastDay), label: label, prev: prev, month: month, year: year};
+}
+function loadStatsNum(){
+  var el = document.getElementById('stats-num-block'); if(!el) return;
+  var R = statsNumRange();
+  if(!R){ toast('Sélectionnez une période', 1); return; }
+  el.innerHTML = '<div style="text-align:center;color:var(--mut);padding:20px">🔍 Chargement…</div>';
+  var startKey = R.prev ? R.prev.from : R.from;
+  var qFrom = rptWeekKey(new Date(new Date(startKey+'T00:00:00').getTime() - 6*86400000));
+  fbg('users').then(function(us){
+    var users = us.val() || {}, ps = [];
+    Object.keys(users).forEach(function(uid){
+      var u = users[uid] || {}, nm = u.name || u.email || '?';
+      ps.push(fbgRange('reports/'+uid, qFrom, '9999-99-99').then(function(s){ return {name:nm, data:s.val()||{}}; }));
+      if(u.role === 'admin' || isAdminEmail(u.email)) ps.push(fbgRange('reports_admin/'+uid, qFrom, '9999-99-99').then(function(s){ return {name:nm, data:s.val()||{}}; }));
+    });
+    return Promise.all(ps);
+  }).then(function(reports){
+    var A = statsNumAggregate(reports, R.from, R.to);
+    var P = R.prev ? statsNumAggregate(reports, R.prev.from, R.prev.to) : null;
+    el.innerHTML = statsNumHtml(A, P, R.label);
+  }).catch(function(e){ el.innerHTML = '<div style="color:var(--red);padding:16px">Erreur de chargement des statistiques.</div>'; });
+}
+// Écran Statistiques selon le pôle : numérique = ses propres chiffres ; badges = écran habituel ; tout = les deux
+function statsApplyPoleUi(){
+  var num = (viewPole === 'numerique');
+  ['stats-producer-wrap','stats-fmt-card','stats-export-row','stats-content'].forEach(function(id){
+    var e = document.getElementById(id); if(e) e.style.display = num ? 'none' : '';
+  });
+  var nb = document.getElementById('stats-num-block');
+  if(nb && viewPole === 'badges') nb.innerHTML = '';
+}
+
 function loadStats(){
+  statsApplyPoleUi();
+  if(viewPole === 'numerique'){ loadStatsNum(); return; }
+  if(viewPole === 'tout') loadStatsNum();
   var monthEl = document.getElementById('stats-month');
   var yearEl  = document.getElementById('stats-year');
   var el = document.getElementById('stats-content');
