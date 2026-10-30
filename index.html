@@ -1356,6 +1356,13 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
     <div id="admin-qty-state"></div>
   </div>
 
+  <!-- Pôle numérique : commandes mixtes -->
+  <div id="admin-pole-block" style="display:none;background:var(--card);border:1.5px solid var(--brd);border-radius:14px;padding:14px;margin-bottom:16px">
+    <div style="font-family:Open Sans,sans-serif;font-weight:800;font-size:0.95rem;margin-bottom:6px">🖨️ Pôle numérique — commandes mixtes</div>
+    <div style="font-size:.78rem;color:var(--mut);margin-bottom:10px">Désactivé : une commande qui contient des badges et du numérique se termine comme avant, sans attendre le numérique. Activé : elle n'est terminée que quand les deux pôles ont produit, chaque pôle fait son propre contrôle qualité, et le départ est signalé « bloqué » tant que les deux contrôles ne sont pas faits.</div>
+    <div id="admin-pole-state"></div>
+  </div>
+
   <!-- Étapes supplémentaires (cartonnette, sachet…) -->
   <div id="admin-esup-block" style="background:var(--card);border:1.5px solid var(--brd);border-radius:14px;padding:14px;margin-bottom:16px">
     <div style="font-family:Open Sans,sans-serif;font-weight:800;font-size:0.95rem;margin-bottom:6px">📦 Étapes supplémentaires</div>
@@ -1939,7 +1946,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.10.30-1137';
+var APP_VERSION = '2026.10.30-1138';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -2361,6 +2368,104 @@ function rptLineInView(l){
   if(viewPole === 'tout') return true;
   return viewPole === 'numerique' ? sub : !sub;
 }
+// ── COMMANDES MIXTES (badges + numérique) ──────────────────────────────────
+// Réglage admin settings/poleNumerique/enabled (désactivé par défaut = comportement
+// d'avant, à l'identique). Activé : une commande mixte n'est « terminée » que
+// lorsque les deux pôles ont produit ; chaque pôle fait son propre contrôle qualité ;
+// le départ est signalé bloqué tant que les contrôles ne sont pas tous faits.
+var S_poleCfg = {on:false};
+function poleCfgOn(){ return S_poleCfg.on === true; }
+function startPoleCfgListener(){
+  db.ref('settings/poleNumerique').on('value', function(snap){
+    var v = snap.val(), was = S_poleCfg.on;
+    S_poleCfg = {on: !!(v && v.enabled === true)};
+    if(typeof renderPoleCfgAdmin === 'function') renderPoleCfgAdmin();
+    if(was !== S_poleCfg.on){
+      try { if(curTab === 'depiautage') renderDepCmdList(); else if(curTab === 'qualite') renderQualite(); } catch(e){}
+    }
+  });
+}
+function polesSetCfg(on){
+  if(!iAm) return;
+  fbu('settings/poleNumerique', {enabled: !!on, at: Date.now(), by: getMyName()});
+  toast(on ? '✅ Gestion du pôle numérique activée' : '⏸️ Gestion du pôle numérique désactivée');
+}
+function renderPoleCfgAdmin(){
+  var b = document.getElementById('admin-pole-block'); if(!b) return;
+  b.style.display = iAm ? '' : 'none';
+  var st = document.getElementById('admin-pole-state'); if(!st) return;
+  var on = poleCfgOn();
+  st.innerHTML = '<span style="font-weight:800;color:'+(on?'var(--grn)':'var(--mut)')+'">'+(on?'● ACTIVÉE':'○ Désactivée (fonctionnement d\'avant)')+'</span> '+
+    '<button class="btn '+(on?'bdano':'bpri')+'" style="flex:none;padding:7px 14px;margin-left:8px" onclick="polesSetCfg('+(on?'false':'true')+')">'+(on?'Désactiver':'Activer')+'</button>';
+}
+var POLE_ST_LABEL = {todo:'à produire', ongoing:'en production', produced:'à contrôler', checked:'contrôlé'};
+var POLE_LABEL = {badges:'🏷️ Badges', numerique:'🖨️ Numérique'};
+function cmdPolesPresent(c){
+  var has = {badges:false, numerique:false};
+  (c && c.formats || []).forEach(function(f){
+    var p = (f && f.pole) || 'badges';
+    if(p === 'badges') has.badges = true; else if(p === 'numerique') has.numerique = true;
+  });
+  return has;
+}
+function cmdIsMixed(c){ var h = cmdPolesPresent(c); return h.badges && h.numerique; }
+// État de chaque pôle présent dans la commande, d'après les lignes de rapport :
+// todo (rien) → ongoing (en production) → produced (tout produit, à contrôler) → checked (contrôlé).
+function polesStateFrom(c, allLines){
+  var has = cmdPolesPresent(c), out = {badges:null, numerique:null};
+  var sK = looseMatchKey(c.site), cK = looseMatchKey(c.cmd);
+  var rel = (allLines || []).filter(function(l){
+    if(!l) return false;
+    if(c.id && l.cmdId === c.id) return true;
+    return !!(sK || cK) && looseMatchKey(l.site) === sK && looseMatchKey(l.cmd) === cK;
+  });
+  ['badges','numerique'].forEach(function(p){
+    if(!has[p]) return;
+    var ls = rel.filter(function(l){ return (l.sec === 'sub') === (p === 'numerique'); });
+    var fm = (c.formats || []).filter(function(f){ return f && ((f.pole || 'badges') === p); })
+      .map(function(f){ return String(f.format || '').trim().toLowerCase(); });
+    var done = {};
+    ls.forEach(function(l){ if(l.status === 'done') done[String(l.format || '').trim().toLowerCase()] = true; });
+    var produced = ls.length > 0 && ls.every(function(l){ return l.status === 'done'; }) && fm.every(function(f){ return done[f]; });
+    var checked = produced && ls.every(function(l){ return l.cq === 'checked' || l.cq === 'archived'; });
+    out[p] = checked ? 'checked' : produced ? 'produced' : ls.length ? 'ongoing' : 'todo';
+  });
+  return out;
+}
+// Bandeau « départ bloqué / prête à partir » + état de chaque pôle (commandes mixtes seulement)
+function polesBannerHtml(st){
+  var present = ['badges','numerique'].filter(function(p){ return st && st[p]; });
+  if(present.length < 2) return '';
+  var wait = present.filter(function(p){ return st[p] !== 'checked'; });
+  var chips = present.map(function(p){
+    var ok = st[p] === 'checked';
+    return '<span style="display:inline-block;margin:3px 6px 0 0;padding:2px 8px;border-radius:99px;font-size:.72rem;font-weight:700;border:1px solid '+(ok?'var(--grn)':'var(--brd)')+';color:'+(ok?'var(--grn)':'var(--txt)')+'">'+POLE_LABEL[p]+' : '+POLE_ST_LABEL[st[p]]+'</span>';
+  }).join('');
+  var head = wait.length
+    ? '<div style="font-weight:800;font-size:.8rem;color:var(--red)">⛔ Départ bloqué — en attente : '+wait.map(function(p){ return POLE_LABEL[p]; }).join(', ')+'</div>'
+    : '<div style="font-weight:800;font-size:.8rem;color:var(--grn)">✅ Commande complète : prête à partir</div>';
+  return '<div style="margin:8px 0;padding:8px 10px;border-radius:10px;border:1.5px solid '+(wait.length?'var(--red)':'var(--grn)')+';background:'+(wait.length?'rgba(220,38,38,.07)':'rgba(16,185,129,.08)')+'">'+head+'<div>'+chips+'</div></div>';
+}
+// Recalcule et enregistre l'état des pôles (commande.pStat) — seulement si le réglage est activé
+function polesSyncMany(cmds){
+  if(!poleCfgOn()) return;
+  cmds = (cmds || []).filter(function(c){ return c && c.id && cmdIsMixed(c); });
+  if(!cmds.length) return;
+  qtyLoadLines(cmds).then(function(all){
+    cmds.forEach(function(c){
+      var st = polesStateFrom(c, all), cur = c.pStat || {};
+      if(cur.badges === st.badges && cur.numerique === st.numerique) return;
+      fbu('commandes/'+c.id, {pStat:{badges:st.badges, numerique:st.numerique, at:Date.now()}});
+    });
+  }).catch(function(){});
+}
+function polesSync(cmdId){
+  if(!cmdId || !poleCfgOn()) return;
+  fbg('commandes/'+cmdId).then(function(sn){
+    var c = sn.val(); if(!c) return;
+    c.id = cmdId; polesSyncMany([c]);
+  }).catch(function(){});
+}
 function applyPoleMenus(){
   var num = (viewPole === 'numerique');
   // Pôle numérique : pas de maintenance, réunion, réimpression. Stock, stats
@@ -2465,7 +2570,7 @@ auth.onAuthStateChanged(function(u) {
     document.getElementById('abadge').style.display = (iAm||isDir) ? 'inline' : 'none';
     document.getElementById('abadge').textContent = iAm ? 'Admin' : 'Direction';
     saveQuickProfile(u.email, u.displayName);
-    if (!inited) { inited = true; startDB(); startMachListener(); startRpListener(); startCmdIndexListener(); startCustomFormatsListener(); startInvcListener(); startCompListener(); startGammesListener(); startEtapesSupListener(); startQtyRulesListener(); startAlertSeenListener(); }
+    if (!inited) { inited = true; startDB(); startMachListener(); startRpListener(); startCmdIndexListener(); startCustomFormatsListener(); startInvcListener(); startCompListener(); startGammesListener(); startEtapesSupListener(); startQtyRulesListener(); startPoleCfgListener(); startAlertSeenListener(); }
     if (location.hash === '#ecran') setTimeout(function(){ ecranAutoOpen(0); }, 400);
 
     // Rendu immédiat depuis le cache local, si on a déjà vu cet utilisateur
@@ -3273,7 +3378,7 @@ function switchTab(name) {
   if (name==='stats') openStatsTab();
   if (name==='dashboard' && permsLoaded){ openDashboardTab(); dashSwitchSection('recherche'); } // ouverture directe sur « Commandes »
   if (name!=='dashboard') document.body.classList.remove('dash-commandes-wide');
-  if (name.indexOf('admin_')===0) { renderPrestataires(); renderSuppliers(); renderCustomFormatsList(); renderGammesList(); renderEtapesSupAdmin(); renderQtyRulesAdmin(); renderDashboardSettings(); if(name==='admin_interventions') admForgottenRefresh(); }
+  if (name.indexOf('admin_')===0) { renderPrestataires(); renderSuppliers(); renderCustomFormatsList(); renderGammesList(); renderEtapesSupAdmin(); renderQtyRulesAdmin(); renderPoleCfgAdmin(); renderDashboardSettings(); if(name==='admin_interventions') admForgottenRefresh(); }
   if (name==='qualite') openQualiteTab();
 }
 
@@ -10367,6 +10472,7 @@ function rptDelLine(wk, di, hi, sec, btn){
         // elle reste bloquée en "Terminée" pour toujours, invisible en
         // Dépiautage, même après suppression de toute sa production.
         if(deletedLine) recalcCmdStatusAfterLineDelete(deletedLine.cmdId, deletedLine.site, deletedLine.cmd);
+        if(deletedLine && deletedLine.cmdId) polesSync(deletedLine.cmdId);
       });
     });
   };
@@ -13085,7 +13191,7 @@ function renderQualite(){
       var items = [];
       var cqAllLines = [];   // toutes les lignes (même en cours) pour le calcul des quantités
       var DAY_LABELS = ['Lundi','Mardi','Mercredi','Jeudi','Vendredi'];
-      var SEC_LABELS = {semi:'Semi-auto', auto:'Automatique', table:'Table'};
+      var SEC_LABELS = {semi:'Semi-auto', auto:'Automatique', table:'Table', sub:'Sublimation'};
 
       results.forEach(function(r){
         Object.keys(r.data).forEach(function(wk){
@@ -13106,7 +13212,8 @@ function renderQualite(){
                   secLabel:SEC_LABELS[l.sec||'semi']||'Semi-auto',
                   producer:r.name,
                   uid:r.uid,
-                  cqStatus:cqStatus
+                  cqStatus:cqStatus,
+                  pole:(l.sec==='sub') ? 'numerique' : 'badges'
                 });
               });
             }
@@ -13125,6 +13232,8 @@ function renderQualite(){
         var key = it.l.cmdId
           ? ('id:'+it.l.cmdId)
           : ('txt:'+(it.l.cmd||'—')+'__'+(it.l.site||''));
+        // Un contrôle par pôle : les lignes de sublimation forment leur propre groupe
+        if(it.pole === 'numerique') key += '|num';
         if(!allGroups[key]) allGroups[key] = [];
         allGroups[key].push(it);
       });
@@ -13136,6 +13245,10 @@ function renderQualite(){
       var groups = {};
       Object.keys(allGroups).forEach(function(key){
         var groupItems = allGroups[key];
+        var gPole = groupItems[0].pole || 'badges';
+        // Chacun ne voit que le contrôle de son pôle (« Tout » : les deux)
+        if(viewPole === 'badges' && gPole === 'numerique') return;
+        if(viewPole === 'numerique' && gPole === 'badges') return;
         var hasPending  = groupItems.some(function(it){ return (it.l.cq||'pending') === 'pending'; });
         var hasChecked  = groupItems.some(function(it){ return it.l.cq === 'checked'; });
         // Utiliser l.cq directement (source de vérité Firebase) plutôt que cqStatus calculé
@@ -13153,7 +13266,7 @@ function renderQualite(){
         if(cmdDep && cmdDep.formats){
           // Formats badges de la commande dans Dépiautage
           var badgeFmtsRef = cmdDep.formats
-            .filter(function(rf){ return !rf.pole || rf.pole === 'badges'; })
+            .filter(function(rf){ return (rf.pole || 'badges') === gPole; })
             .map(function(rf){ return (rf.format||'').trim().toLowerCase(); });
           // Formats produits (au moins 1 ligne done) dans les rapports
           var fmtsDone = {};
@@ -13167,14 +13280,14 @@ function renderQualite(){
 
         // Étape supplémentaire (cartonnette, conditionnement…) pas terminée : la commande n'est pas prête pour le contrôle
         // (même règle que le statut « Terminée »)
-        if(groupStatus === 'pending' && cmdDep && typeof esupIncompleteKeys === 'function' && esupIncompleteKeys(cmdDep).length) return;
+        if(gPole === 'badges' && groupStatus === 'pending' && cmdDep && typeof esupIncompleteKeys === 'function' && esupIncompleteKeys(cmdDep).length) return;
 
         // Commande dont la quantité a été corrigée à la hausse et pas encore terminée : pas au contrôle
-        if(groupStatus === 'pending' && cmdDep && cmdDep.qtyCorrections && cmdDep.status !== 'done') return;
+        if(gPole === 'badges' && groupStatus === 'pending' && cmdDep && cmdDep.qtyCorrections && cmdDep.status !== 'done') return;
 
         // ── Règles de quantité (interrupteur) ──
         var cqQtyState = null, cqStrict = false;
-        if(qtyRulesOn() && cmdDep){
+        if(qtyRulesOn() && cmdDep && gPole === 'badges'){
           var cmdWithId = Object.assign({}, cmdDep);
           if(firstItem.l.cmdId) cmdWithId.id = firstItem.l.cmdId;
           else { var fid = Object.keys(commandesRefCq).find(function(i){ return commandesRefCq[i]===cmdDep; }); if(fid) cmdWithId.id = fid; }
@@ -13202,6 +13315,14 @@ function renderQualite(){
           groupItems.cmdUrgent = !!(cmdDep && cmdDep.urgent);
           groupItems.cmdDepart = (cmdDep && cmdDep.dateDepart) || '';
           groupItems.cmdEsup = cmdDep || null;
+          groupItems.pole = gPole;
+          var cmdIdG = firstItem.l.cmdId || '';
+          if(!cmdIdG && cmdDep){ cmdIdG = Object.keys(commandesRefCq).find(function(i){ return commandesRefCq[i]===cmdDep; }) || ''; }
+          groupItems.cmdObjId = cmdIdG;
+          groupItems.polesInfo = null;
+          if(poleCfgOn() && cmdDep && cmdIsMixed(cmdDep)){
+            groupItems.polesInfo = polesStateFrom(Object.assign({}, cmdDep, {id: cmdIdG}), cqAllLines);
+          }
           groups[key] = groupItems;
         }
       });
@@ -13292,6 +13413,11 @@ function cqGroupCard(items, cmdNom, cmdFormats, qtyState){
   var presentoirInCmd = (typeof PRESENTOIR_FORMATS !== 'undefined')
     ? allFormats.filter(function(f){ return PRESENTOIR_FORMATS.some(function(p){ return p.toUpperCase()===f; }); })
     : [];
+  var gPoleC = items.pole || 'badges';
+  // Gestion du pôle numérique activée : la présence du numérique est vérifiée par son propre contrôle
+  // (bandeau ci-dessous) ; le contrôle numérique n'a ni alerte « numérique » ni « présentoir ».
+  if(poleCfgOn() || gPoleC === 'numerique') digitalInCmd = [];
+  if(gPoleC === 'numerique') presentoirInCmd = [];
 
   // ── Agréger par format (règle semi+table = max, même produit) ──
   var formatGroups = {};
@@ -13315,9 +13441,9 @@ function cqGroupCard(items, cmdNom, cmdFormats, qtyState){
     var hasTable = fg.qtyBySec['table'] > 0;
     fg.totalQty = (hasSemi && hasTable)
       ? Math.max(fg.qtyBySec['semi'], fg.qtyBySec['table'])
-      : (fg.qtyBySec['semi']||0) + (fg.qtyBySec['auto']||0) + (fg.qtyBySec['table']||0);
+      : (fg.qtyBySec['semi']||0) + (fg.qtyBySec['auto']||0) + (fg.qtyBySec['table']||0) + (fg.qtyBySec['sub']||0);
     if(it.producer && fg.producers.indexOf(it.producer)<0) fg.producers.push(it.producer);
-    var secLabel = {semi:'Semi-auto', auto:'Auto', table:'Table'}[lineSec]||lineSec;
+    var secLabel = {semi:'Semi-auto', auto:'Auto', table:'Table', sub:'Sublimation'}[lineSec]||lineSec;
     if(fg.machines.indexOf(secLabel)<0) fg.machines.push(secLabel);
   });
 
@@ -13356,6 +13482,8 @@ function cqGroupCard(items, cmdNom, cmdFormats, qtyState){
   var cqKey = 'cq-' + l0.cmd + '-' + (l0.site||'') + '-' + Date.now();
   var lineRefs = items.map(function(it){ return {uid:it.uid, wk:it.wk, di:it.di, hi:it.hi, li:it.li}; });
   window._cqParams[cqKey] = lineRefs;
+  window._cqIds = window._cqIds || {};
+  window._cqIds[cqKey] = {id: items.cmdObjId || '', pole: gPoleC};
 
   // Boutons selon statut
   var acts = '';
@@ -13411,8 +13539,10 @@ function cqGroupCard(items, cmdNom, cmdFormats, qtyState){
       '</div>'+
       statusBadge+
     '</div>'+
+    ((viewPole === 'tout' || items.polesInfo) ? '<div style="font-size:.74rem;font-weight:800;color:var(--mut);margin-bottom:2px">Contrôle '+POLE_LABEL[gPoleC]+'</div>' : '')+
+    (items.polesInfo ? polesBannerHtml(items.polesInfo) : '')+
     linesHtml+
-    cqEsupHtml(items.cmdEsup)+
+    (gPoleC === 'badges' ? cqEsupHtml(items.cmdEsup) : '')+
     '<div style="font-size:.78rem;margin-top:8px;color:var(--mut)">'+
       'Terminée : <strong style="color:var(--grn)">'+doneTime+'</strong>'+
       (cqTime?' · Contrôlé le : <strong style="color:var(--grn)">'+cqTime+'</strong>'+(l0.cqBy?' par <strong>'+l0.cqBy+'</strong>':''):'')+'</div>'+
@@ -13454,7 +13584,7 @@ function cqHandleConfirm(btn){
     cm('m-confirm');
     var cfBtn2 = document.querySelector('#m-confirm .btn.bdan');
     if(cfBtn2){ cfBtn2.textContent = 'Oui, confirmer'; cfBtn2.style.background = 'var(--red)'; cfBtn2.style.color = '#fff'; }
-    cqRunBulk(lineRefs, 'checked', cqCmdObj && cqCmdObj.id);
+    cqRunBulk(lineRefs, 'checked', cqCmdObj && cqCmdObj.id, cqKey);
   };
   om('m-confirm');
 }
@@ -13465,12 +13595,17 @@ function cqHandleBulk(btn){
   var lineRefs = window._cqParams && window._cqParams[cqKey];
   if(!lineRefs){ toast('Erreur: paramètres introuvables', 1); return; }
   var bulkCmd = window._cqCmds && window._cqCmds[cqKey];
-  cqRunBulk(lineRefs, cq, bulkCmd && bulkCmd.id);
+  cqRunBulk(lineRefs, cq, bulkCmd && bulkCmd.id, cqKey);
 }
 
-function cqRunBulk(lineRefs, cq, cmdIdForCq){
+function cqRunBulk(lineRefs, cq, cmdIdForCq, cqKey){
   var now = Date.now();
   var cqBy = getMyName();
+  var cqMeta = (cqKey && window._cqIds && window._cqIds[cqKey]) || {};
+  // Contrôle du pôle numérique : trace sur la commande (champ à part, celui des badges n'est pas touché)
+  if(cqMeta.pole === 'numerique' && cqMeta.id && poleCfgOn()){
+    fbu('commandes/'+cqMeta.id, {cqNum: cq === 'pending' ? null : {at: now, by: cqBy, st: cq}});
+  }
   // Règles de quantité : trace du contrôle sur la commande (alimente « Produite » → « Terminée » au Tableau de bord)
   if(cmdIdForCq && qtyRulesOn()){
     fbu('commandes/'+cmdIdForCq, {cq: cq === 'pending' ? null : {at: now, by: cqBy, st: cq}});
@@ -13510,6 +13645,7 @@ function cqRunBulk(lineRefs, cq, cmdIdForCq){
   Promise.all(promises).then(function(){
     toast(cq==='checked'?'✅ Commande contrôlée !':cq==='archived'?'📦 Archivée !':'↩ Remise en attente');
     renderQualite();
+    polesSync(cmdIdForCq || cqMeta.id);
   });
 }
 
@@ -16563,6 +16699,8 @@ function renderDepCmdList(){
         '<div style="font-size:2rem;margin-bottom:8px">📭</div>Aucune commande en attente</div>';
       return;
     }
+    // Commandes mixtes dont l'état des pôles n'est pas encore enregistré : calcul en arrière-plan
+    if(poleCfgOn()) polesSyncMany(list.filter(function(c){ return cmdIsMixed(c) && !c.pStat; }).slice(0, 25));
 
     var statusLabels = {
       waiting: '<span style="font-size:0.76rem;font-family:Open Sans,sans-serif;font-weight:800;padding:3px 9px;border-radius:99px;background:rgba(217,119,6,.15);color:var(--acc);border:1px solid var(--acc)">⏳ En attente</span>',
@@ -16605,6 +16743,7 @@ function renderDepCmdList(){
           status+
         '</div>'+
         formatsHtml+
+        ((poleCfgOn() && c.pStat && cmdIsMixed(c)) ? polesBannerHtml(c.pStat) : '')+
         esupCardHtml(c)+
         '<div style="display:flex;gap:6px;margin-top:10px">'+
           ((c.status==='waiting' || (c.status==='in_progress' && (iAm||isDir)))
@@ -16973,6 +17112,7 @@ function pickConfirmFormat(cmdId, c, fmt){
     fbs(path, otherLines.concat(secLines)).then(function(){
       // Mettre à jour le statut de la commande → in_progress
       fbu('commandes/'+cmdId, {status:'in_progress'});
+      polesSync(cmdId);
       rptRender();
       toast('✅ Commande ajoutée !');
     });
@@ -17062,6 +17202,7 @@ function syncCmdStatus(cmdId, site, cmd){
   if(cmdId){
     updateCmdStatusInProgress(cmdId);
     updateCmdStatusIfDone(cmdId);
+    polesSync(cmdId);
     return;
   }
   if(!site || !cmd) return;
@@ -17074,6 +17215,7 @@ function syncCmdStatus(cmdId, site, cmd){
     if(found){
       updateCmdStatusInProgress(found);
       updateCmdStatusIfDone(found);
+      polesSync(found);
     }
   });
 }
@@ -17170,6 +17312,13 @@ function checkAllLinesDone(cmdId, site, cmd, cb){
           return;
         }
         var allFmtsDone = badgeFmts.every(function(f){ return doneFormats[f]; });
+        // Commande mixte + gestion du pôle numérique activée : les produits numériques doivent aussi être produits
+        if(allFmtsDone && poleCfgOn()){
+          var numFmtsM = cData.formats
+            .filter(function(f){ return f && f.pole === 'numerique'; })
+            .map(function(f){ return (f.format||'').trim().toLowerCase(); });
+          if(numFmtsM.length && !numFmtsM.every(function(f){ return doneFormats[f]; })) allFmtsDone = false;
+        }
         cb(allFmtsDone);
       }).catch(function(){ cb(false); });
     });
