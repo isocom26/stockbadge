@@ -1946,7 +1946,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.10.30-1355';
+var APP_VERSION = '2026.10.30-1422';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -5550,7 +5550,7 @@ function buildCommandeCardHtml(g, cmdRef, extraFooterHtml){
   var refQtyByFmt = {};
   if(cmdRef && cmdRef.formats){
     cmdRef.formats.forEach(function(rf){
-      if(rf.pole === 'badges' || !rf.pole){
+      if(rf.pole !== 'presentoir'){
         refQtyByFmt[(rf.format||'').trim().toLowerCase()] = parseInt(rf.qty)||0;
       }
     });
@@ -5558,19 +5558,27 @@ function buildCommandeCardHtml(g, cmdRef, extraFooterHtml){
   // Ajouter les formats présents dans /commandes mais pas encore dans les rapports
   if(cmdRef && cmdRef.formats){
     cmdRef.formats.forEach(function(rf){
-      if(rf.pole && rf.pole !== 'badges') return;
+      if(rf.pole === 'presentoir') return;
+      if(!fmtInViewPole(rf)) return;   // chacun voit les produits de son pôle (Tout : les deux)
       var rfKey = (rf.format||'').trim().toLowerCase();
       if(!g.formats[rfKey]){
         g.formats[rfKey] = {
           label: rf.format||'—',
-          qtyBySec:{semi:0,auto:0,table:0},
+          qtyBySec:{semi:0,auto:0,table:0,sub:0},
           totalQty: 0,
           producers:[], machines:[], cqStatus:null, doneAt:null
         };
       }
     });
   }
-  var formatsHtml = Object.values(g.formats).map(function(f){
+  var numRefKeys = {};
+  ((cmdRef && cmdRef.formats) || []).forEach(function(rf){ if(rf && rf.pole === 'numerique') numRefKeys[(rf.format||'').trim().toLowerCase()] = true; });
+  var formatsHtml = Object.values(g.formats).filter(function(f){
+    var isNum = !!numRefKeys[String(f.label||'').trim().toLowerCase()] || (f.qtyBySec && f.qtyBySec.sub > 0);
+    if(viewPole === 'badges') return !isNum;
+    if(viewPole === 'numerique') return isNum;
+    return true;
+  }).map(function(f){
     var fCqBadge = f.cqStatus==='archived'
       ? ' <span class="cq-badge-archived" style="font-size:.65rem">📦 Archivé</span>'
       : f.cqStatus==='checked'
@@ -5690,13 +5698,13 @@ function cmdLinesCollect(reports, cmdId, cmd, site){
   rows.forEach(function(x){
     if(x.kind==='autre') return;
     var k = String(x.format).trim().toLowerCase();
-    if(!fm[k]) fm[k] = {label:x.format, semi:0, auto:0, table:0, doneSemi:0, doneAuto:0, doneTable:0};
+    if(!fm[k]) fm[k] = {label:x.format, semi:0, auto:0, table:0, sub:0, doneSemi:0, doneAuto:0, doneTable:0, doneSub:0};
     fm[k][x.sec] = (fm[k][x.sec]||0) + x.qty;
     if(x.status==='done') fm[k]['done'+x.sec.charAt(0).toUpperCase()+x.sec.slice(1)] += x.qty;
   });
   Object.keys(fm).forEach(function(k){
     var f = fm[k];
-    f.total = (f.semi>0 && f.table>0) ? Math.max(f.semi, f.table) : f.semi + f.auto + f.table;
+    f.total = (f.semi>0 && f.table>0) ? Math.max(f.semi, f.table) : f.semi + f.auto + f.table + (f.sub||0);
   });
   return {rows:rows, formats:fm};
 }
@@ -5712,7 +5720,7 @@ function cmdLinesOpen(cmdId, cmdEnc, siteEnc){
   var src = fresh ? Promise.resolve(window._srReports) : dashEnsureAllReports();
   src.then(function(reports){
     var out = cmdLinesCollect(reports, cmdId, cmd, site);
-    var SEC = {semi:'Semi-auto', auto:'Auto', table:'Table'}, STAT = {done:'✅ produit', ongoing:'⏳ en cours'};
+    var SEC = {semi:'Semi-auto', auto:'Auto', table:'Table', sub:'Sublimation'}, STAT = {done:'✅ produit', ongoing:'⏳ en cours'};
     function dstr(x){ var p = x.wk.split('-'); var d = new Date(Date.UTC(+p[0], +p[1]-1, +p[2]+x.di)); return ('0'+d.getUTCDate()).slice(-2)+'/'+('0'+(d.getUTCMonth()+1)).slice(-2); }
     if(!out.rows.length){ body.innerHTML = '<div style="color:var(--mut);padding:10px 0">Aucune ligne de rapport trouvée pour cette commande.</div>'; return; }
     var h = '';
@@ -5721,7 +5729,7 @@ function cmdLinesOpen(cmdId, cmdEnc, siteEnc){
     Object.keys(out.formats).forEach(function(k){
       var f = out.formats[k];
       var parts = [];
-      if(f.semi) parts.push('semi-auto '+f.semi); if(f.auto) parts.push('auto '+f.auto); if(f.table) parts.push('table '+f.table);
+      if(f.semi) parts.push('semi-auto '+f.semi); if(f.auto) parts.push('auto '+f.auto); if(f.table) parts.push('table '+f.table); if(f.sub) parts.push('Sublimation '+f.sub);
       var rule = (f.semi>0 && f.table>0) ? ' → on retient le plus grand (semi-auto et table = mêmes pièces)' : (parts.length>1 ? ' → somme' : '');
       h += '<div style="padding:6px 8px;background:var(--sur);border:1px solid var(--brd);border-radius:8px;margin-bottom:5px"><strong>'+esc(f.label)+'</strong> : '+f.total+' pcs<div style="color:var(--mut);font-size:.74rem">'+parts.join(' · ')+rule+'</div></div>';
     });
@@ -5780,7 +5788,7 @@ function doSearchCommands(q, el){
       window._srReportsAt = Date.now();
       window._srReports = results;   // réutilisé par « Détail des lignes » (aucun nouveau téléchargement)
       var DAY_LABELS = ['Lundi','Mardi','Mercredi','Jeudi','Vendredi'];
-      var SEC_LABELS = {semi:'Semi-auto',auto:'Automatique',table:'Table'};
+      var SEC_LABELS = {semi:'Semi-auto',auto:'Automatique',table:'Table',sub:'Sublimation'};
 
       // Clé de groupe : cmd + site (une fiche par commande)
       var groups = {};
@@ -5826,7 +5834,7 @@ function doSearchCommands(q, el){
                 if(!g.formats[fKey]){
                   g.formats[fKey] = {
                     label: l.format||'—',
-                    qtyBySec: {semi:0, auto:0, table:0},
+                    qtyBySec: {semi:0, auto:0, table:0, sub:0},
                     totalQty: 0,
                     producers: [], machines: [],
                     cqStatus: null, doneAt: null
@@ -5843,7 +5851,7 @@ function doSearchCommands(q, el){
                 var hasTable = f.qtyBySec['table'] > 0;
                 f.totalQty = (hasSemi && hasTable)
                   ? Math.max(f.qtyBySec['semi'], f.qtyBySec['table'])
-                  : (f.qtyBySec['semi']||0) + (f.qtyBySec['auto']||0) + (f.qtyBySec['table']||0);
+                  : (f.qtyBySec['semi']||0) + (f.qtyBySec['auto']||0) + (f.qtyBySec['table']||0) + (f.qtyBySec['sub']||0);
 
                 // Producteurs et machines uniques pour ce format
                 if(r.name && f.producers.indexOf(r.name)<0) f.producers.push(r.name);
@@ -10041,7 +10049,7 @@ function rptLineHTML(l, di, hi, sec, canEdit, wk){
 
   var isReadyForTable = !isDone && l.readyForTable;
   // Règles de quantité actives + ligne liée à une commande : identité verrouillée, quantité saisie au « Terminer »
-  var qlinked = qtyRulesOn() && !!l.cmdId && sec !== 'sub';   // sublimation : pas de règles de quantité badges
+  var qlinked = qtyRulesOn() && !!l.cmdId;
   var statusCtrl;
   if(isDone){
     statusCtrl = '<span class="rpt-done-tag">✅ '+(doneTime||'OK')+'</span>';
@@ -10120,7 +10128,7 @@ function findActiveReprint(site, cmd, cmdId){
 
 // ★ MARQUER UNE LIGNE COMME TERMINÉE
 function rptMarkLineDone(wk, di, hi, sec, btn, fullLi){
-  if(typeof fullLi !== 'number' && sec !== 'sub' && qtyInterceptTerminer('done', wk, di, hi, sec, btn)) return;
+  if(typeof fullLi !== 'number' && qtyInterceptTerminer('done', wk, di, hi, sec, btn)) return;
   var p = window._rptBtnParams && btn.dataset.key ? window._rptBtnParams[btn.dataset.key] : null;
   var rpId = p ? p.rpId : null;
   var rpStatus = p ? p.rpStatus : null;
@@ -13290,19 +13298,19 @@ function renderQualite(){
 
         // ── Règles de quantité (interrupteur) ──
         var cqQtyState = null, cqStrict = false;
-        if(qtyRulesOn() && cmdDep && gPole === 'badges'){
+        if(qtyRulesOn() && cmdDep && (gPole === 'badges' || gPole === 'numerique')){
           var cmdWithId = Object.assign({}, cmdDep);
           if(firstItem.l.cmdId) cmdWithId.id = firstItem.l.cmdId;
           else { var fid = Object.keys(commandesRefCq).find(function(i){ return commandesRefCq[i]===cmdDep; }); if(fid) cmdWithId.id = fid; }
           if(cmdWithId.id){
-            try{ cqQtyState = qtyCommandeState(cmdWithId, cqAllLines, {reprints:S_rp}); }catch(e){ cqQtyState = null; }
-            if(groupStatus !== 'pending' && !cmdWithId.cq){
+            try{ cqQtyState = qtyCommandeState(cmdWithId, cqAllLines, {reprints:S_rp, pole: gPole}); }catch(e){ cqQtyState = null; }
+            if(gPole === 'badges' && groupStatus !== 'pending' && !cmdWithId.cq){
               var cqL = groupItems.filter(function(it){ return it.l.cqAt; })[0];
               fbu('commandes/'+cmdWithId.id, {cq:{at:(cqL&&cqL.l.cqAt)||Date.now(), by:(cqL&&cqL.l.cqBy)||'', st:groupStatus}});
             }
             if(cqQtyState){
               cqQtyState.cmdObj = cmdWithId;
-              cqQtyState.reprintOpen = qtyReprintOpen(cmdWithId, S_rp);
+              cqQtyState.reprintOpen = gPole === 'badges' && qtyReprintOpen(cmdWithId, S_rp);
               cqStrict = !!(cmdWithId.createdAt && S_qtyRules.firstOnAt && cmdWithId.createdAt >= S_qtyRules.firstOnAt);
               cqQtyState.strict = cqStrict;
               // Commande récente : au contrôle seulement si tout est produit et plus rien en cours
@@ -13323,8 +13331,11 @@ function renderQualite(){
           if(!cmdIdG && cmdDep){ cmdIdG = Object.keys(commandesRefCq).find(function(i){ return commandesRefCq[i]===cmdDep; }) || ''; }
           groupItems.cmdObjId = cmdIdG;
           groupItems.polesInfo = null;
+          groupItems.numWait = null;
           if(poleCfgOn() && cmdDep && cmdIsMixed(cmdDep)){
             groupItems.polesInfo = polesStateFrom(Object.assign({}, cmdDep, {id: cmdIdG}), cqAllLines);
+            // Commande partagée : le contrôle badges est le DERNIER, il attend le contrôle du pôle numérique
+            if(gPole === 'badges' && !(cmdDep.cqNum && cmdDep.cqNum.at)) groupItems.numWait = true;
           }
           groups[key] = groupItems;
         }
@@ -13419,7 +13430,7 @@ function cqGroupCard(items, cmdNom, cmdFormats, qtyState){
   var gPoleC = items.pole || 'badges';
   // Gestion du pôle numérique activée : la présence du numérique est vérifiée par son propre contrôle
   // (bandeau ci-dessous) ; le contrôle numérique n'a ni alerte « numérique » ni « présentoir ».
-  if(poleCfgOn() || gPoleC === 'numerique') digitalInCmd = [];
+  if(gPoleC === 'numerique') digitalInCmd = [];
   if(gPoleC === 'numerique') presentoirInCmd = [];
 
   // ── Agréger par format (règle semi+table = max, même produit) ──
@@ -13430,7 +13441,7 @@ function cqGroupCard(items, cmdNom, cmdFormats, qtyState){
     if(!formatGroups[fKey]){
       formatGroups[fKey] = {
         label: l.format||'—',
-        qtyBySec: {semi:0, auto:0, table:0},
+        qtyBySec: {semi:0, auto:0, table:0, sub:0},
         totalQty: 0,
         producers: [], machines: []
       };
@@ -13516,11 +13527,16 @@ function cqGroupCard(items, cmdNom, cmdFormats, qtyState){
       '<div style="font-size:.78rem;color:var(--red)">S\'assurer de la présence du présentoir avant expédition : <strong>'+presentoirInCmd.join(', ')+'</strong></div>'+
     '</div>';
   }
+  var numBlocked = !!items.numWait;
+  window._cqIds[cqKey].blocked = numBlocked;
+  if(numBlocked){
+    alertesHtml += '<div style="background:rgba(245,158,11,.14);border:1.5px solid var(--org,#f59e0b);border-radius:10px;padding:8px 12px;margin-bottom:8px;font-size:.8rem;font-weight:800;color:var(--org,#f59e0b)">⏳ En attente du contrôle qualité du pôle numérique<div style="font-weight:600;font-size:.76rem;margin-top:2px">Le contrôle badges est le dernier avant l\'expédition.</div></div>';
+  }
   if(cqStatus === 'pending'){
-    acts = qtyBadgeHtml + alertesHtml + '<button class="btn bsuc" style="width:100%;padding:11px;font-size:0.92rem;font-family:Open Sans,sans-serif;font-weight:700" '+
+    acts = qtyBadgeHtml + alertesHtml + '<button class="btn bsuc" style="width:100%;padding:11px;font-size:0.92rem;font-family:Open Sans,sans-serif;font-weight:700'+(numBlocked?';opacity:.45':'')+'" '+
       'data-cqkey="'+cqKey+'" data-cmd="'+l0.cmd+'" '+
       'data-digital="'+digitalInCmd.join(', ')+'" data-presentoir="'+presentoirInCmd.join(', ')+'" '+
-      'onclick="cqHandleConfirm(this)">✅ Valider le contrôle</button>';
+      'onclick="cqHandleConfirm(this)">'+(numBlocked?'🔒 En attente du pôle numérique':'✅ Valider le contrôle')+'</button>';
   } else if(cqStatus === 'checked'){
     acts =
       '<button class="btn" style="flex:1;padding:10px;font-size:.82rem;background:var(--pur);color:#fff" '+
@@ -13564,6 +13580,9 @@ function cqHandleConfirm(btn){
   var presentoir = btn.getAttribute('data-presentoir')||'';
   var lineRefs = window._cqParams && window._cqParams[cqKey];
   if(!lineRefs){ toast('Erreur: paramètres introuvables', 1); return; }
+  if(window._cqIds && window._cqIds[cqKey] && window._cqIds[cqKey].blocked){
+    toast('⏳ Le contrôle du pôle numérique doit être validé avant', 1); return;
+  }
   // Règles de quantité : une réimpression non terminée bloque la validation (état frais)
   var cqCmdObj = window._cqCmds && window._cqCmds[cqKey];
   if(qtyRulesOn() && cqCmdObj && qtyReprintOpen(cqCmdObj, S_rp)){
@@ -13606,11 +13625,12 @@ function cqRunBulk(lineRefs, cq, cmdIdForCq, cqKey){
   var cqBy = getMyName();
   var cqMeta = (cqKey && window._cqIds && window._cqIds[cqKey]) || {};
   // Contrôle du pôle numérique : trace sur la commande (champ à part, celui des badges n'est pas touché)
-  if(cqMeta.pole === 'numerique' && cqMeta.id && poleCfgOn()){
-    fbu('commandes/'+cqMeta.id, {cqNum: cq === 'pending' ? null : {at: now, by: cqBy, st: cq}});
+  var preW = [];
+  if(cqMeta.pole === 'numerique' && cqMeta.id && (poleCfgOn() || qtyRulesOn())){
+    preW.push(fbu('commandes/'+cqMeta.id, {cqNum: cq === 'pending' ? null : {at: now, by: cqBy, st: cq}}));
   }
   // Règles de quantité : trace du contrôle sur la commande (alimente « Produite » → « Terminée » au Tableau de bord)
-  if(cmdIdForCq && qtyRulesOn()){
+  if(cmdIdForCq && qtyRulesOn() && cqMeta.pole !== 'numerique'){
     fbu('commandes/'+cmdIdForCq, {cq: cq === 'pending' ? null : {at: now, by: cqBy, st: cq}});
   }
 
@@ -13645,7 +13665,7 @@ function cqRunBulk(lineRefs, cq, cmdIdForCq, cqKey){
     });
   });
 
-  Promise.all(promises).then(function(){
+  Promise.all(preW.concat(promises)).then(function(){
     toast(cq==='checked'?'✅ Commande contrôlée !':cq==='archived'?'📦 Archivée !':'↩ Remise en attente');
     renderQualite();
     polesSync(cmdIdForCq || cqMeta.id);
@@ -15345,7 +15365,7 @@ function statsTableIsDirect(fmt){
   return e.length === 1 && e[0] === 'table';
 }
 // Une ligne compte-t-elle dans « Total produit » / formats / sites / jours / semaines ?
-function statsLineCounts(sec, fmt){ return sec !== 'table' || statsTableIsDirect(fmt); }
+function statsLineCounts(sec, fmt){ return sec !== 'sub' && (sec !== 'table' || statsTableIsDirect(fmt)); }
 // Totaux par mois ('YYYY-MM' → pièces) des lignes terminées (table seule comprise, repassages table exclus : même règle que « Total produit »).
 function statsMonthsFromReports(data, fromKey, toKey, acc){
   acc = acc || {};
@@ -16289,6 +16309,18 @@ function qtyIsBadgeFmt(f){
            (typeof PRESENTOIR_FORMATS!=='undefined' && PRESENTOIR_FORMATS.some(function(d){ return String(d).toUpperCase()===u; })))) return false;
   return true;
 }
+// Format « numérique » (Sublimation) : pôle numérique enregistré, ou format de la liste numérique non classé ailleurs.
+function qtyIsNumFmt(f){
+  if(!f) return false;
+  if(f.pole === 'numerique') return true;
+  if(f.pole && f.pole !== 'badges') return false;
+  var u = String(f.format||'').trim().toUpperCase();
+  return !!u && typeof DIGITAL_FORMATS!=='undefined' && DIGITAL_FORMATS.some(function(d){ return String(d).toUpperCase()===u; });
+}
+function qtyHasNumFmt(c){
+  var fm = (c && c.formats) || []; if(!Array.isArray(fm)) fm = Object.keys(fm).map(function(i){ return fm[i]; });
+  return fm.some(function(f){ return qtyIsNumFmt(f); });
+}
 // Une ligne appartient-elle à cette commande ? (même règle que le Tableau de bord)
 function qtyLineMatches(c, l){
   if(!c || !l) return false;
@@ -16302,8 +16334,12 @@ function qtyAwaitingControl(c){
   if(!qtyRulesOn() || !c || c.status !== 'done') return false;
   if(!(c.createdAt && S_qtyRules.firstOnAt && c.createdAt >= S_qtyRules.firstOnAt)) return false;
   var fm = c.formats || []; if(!Array.isArray(fm)) fm = Object.keys(fm).map(function(i){ return fm[i]; });
-  if(!fm.some(function(f){ return f && qtyIsBadgeFmt(f); })) return false;
-  return !(c.cq && c.cq.at);
+  var hasBadge = fm.some(function(f){ return f && qtyIsBadgeFmt(f); });
+  var hasNum = qtyHasNumFmt(c);
+  if(hasBadge && !(c.cq && c.cq.at)) return true;
+  // Pôle numérique : son propre contrôle est requis (commande 100 % numérique, ou partagée une fois le mode pôles activé)
+  if(hasNum && (!hasBadge || poleCfgOn()) && !(c.cqNum && c.cqNum.at)) return true;
+  return false;
 }
 // Une réimpression est demandée sur une commande déjà « Terminée » : elle repasse « En cours »
 // (elle redeviendra Terminée toute seule quand la réimpression sera terminée).
@@ -16333,13 +16369,15 @@ function qtyCommandeState(c, lines, opts){
   opts = opts || {};
   var gammeFn = opts.gammeFn || gammeGet;
   var etapesFn = opts.etapesFn || function(cc){ return (typeof esupIncompleteKeys==='function') ? esupIncompleteKeys(cc) : []; };
-  var mine = (lines||[]).filter(function(l){ return qtyLineMatches(c, l); });
+  var numPole = opts.pole === 'numerique';
+  var isFmt = numPole ? qtyIsNumFmt : qtyIsBadgeFmt;
+  var mine = (lines||[]).filter(function(l){ return qtyLineMatches(c, l) && ((l.sec||'semi') === 'sub') === numPole; });
   var cloture = (c && c.cloture && c.cloture.at) ? c.cloture : null;
 
   // 1) Commandé par format (formats en double additionnés, hors numérique/présentoir)
   var order = [], byKey = {};
   (c.formats||[]).forEach(function(f){
-    if(!f || !qtyIsBadgeFmt(f)) return;
+    if(!f || !isFmt(f)) return;
     var k = qtyFmtKey(f.format); if(!k) return;
     if(!byKey[k]){ byKey[k] = {key:k, label:String(f.format||'').trim(), ordered:0, lines:[]}; order.push(byKey[k]); }
     byKey[k].ordered += qtyParse(f.qty);
@@ -16353,7 +16391,7 @@ function qtyCommandeState(c, lines, opts){
   var ongoing = 0, excess = false;
 
   var fmts = order.map(function(F){
-    var g = gammeFn(F.label) || {etapes:[], optionnelles:[]};
+    var g = numPole ? {etapes:['sub'], optionnelles:[]} : (gammeFn(F.label) || {etapes:[], optionnelles:[]});
     var et = g.etapes || [], opt = g.optionnelles || [];
     var twoStep = et.length >= 2 && et[0]==='semi' && et[1]==='table';
     var single = et.length > 0 && !twoStep;                 // gamme à une seule étape (ou autre)
@@ -16402,7 +16440,7 @@ function qtyCommandeState(c, lines, opts){
       res.auto  = Math.max(0, ordered - finished);
     } else {
       var r = Math.max(0, ordered - finished);
-      res.semi = res.table = res.auto = r;
+      res.semi = res.table = res.auto = res.sub = r;
     }
     return {key:F.key, label:F.label, ordered:ordered, finished:finished, reste:Math.max(0, ordered - finished),
       complete:complete, excess:(ordered>0 && finished>ordered), ongoing:ongoingHere,
@@ -16410,8 +16448,8 @@ function qtyCommandeState(c, lines, opts){
       waiting:waiting, semi:S, tableDone:T.done, resteBySec:res};
   });
 
-  var reprint = qtyReprintOpen(c, opts.reprints);
-  var etapes = etapesFn(c) || [];
+  var reprint = numPole ? false : qtyReprintOpen(c, opts.reprints);
+  var etapes = numPole ? [] : (etapesFn(c) || []);
   var complete = fmts.length > 0 && fmts.every(function(f){ return f.complete; });
   var blockers = {ongoing: ongoing, reprint: reprint, etapes: etapes.length};
   return {
@@ -16442,7 +16480,7 @@ function qtyDeleteSemiImpact(c, lines, delLine, delRef, opts){
 function qtyMaxFor(c, lines, format, sec, opts){
   opts = opts || {};
   var rest = (lines||[]).filter(function(l){ return l !== opts.excludeLine && !(opts.excludeRef && l._ref === opts.excludeRef); });
-  var st = qtyCommandeState(c, rest, opts);
+  var st = qtyCommandeState(c, rest, Object.assign({}, opts, {pole: sec==='sub' ? 'numerique' : 'badges'}));
   var k = qtyFmtKey(format);
   var f = st.formats.filter(function(x){ return x.key === k; })[0];
   if(!f) return 0;                                   // format absent de la commande
@@ -16521,9 +16559,9 @@ function qtyLoadLines(arg){
 
 // Formats d'une commande qu'on peut encore produire sur ce poste (avec le reste à produire).
 function qtyEligibleFormats(c, sec, allLines){
-  var st = qtyCommandeState(c, allLines, {reprints: S_rp});
+  var st = qtyCommandeState(c, allLines, {reprints: S_rp, pole: sec==='sub' ? 'numerique' : 'badges'});
   return st.formats.filter(function(f){
-    return (f.resteBySec[sec]||0) > 0 && (gammeSecDirect(f.label, sec) || (sec==='table' && f.twoStep));
+    return (f.resteBySec[sec]||0) > 0 && (sec==='sub' || gammeSecDirect(f.label, sec) || (sec==='table' && f.twoStep));
   }).map(function(f){ var r = f.resteBySec[sec]; return {format:f.label, qty:r, ordered:f.ordered, reste:r}; });
 }
 
@@ -16561,7 +16599,7 @@ function qtyInterceptTerminer(kind, wk, di, hi, sec, btn, autoFlow){
       c = Object.assign({id:L.cmdId}, c);
       qtyLoadLines(c).then(function(all){
         var ref = [rptBasePath(), wk, di, hi, ri].join('|');
-        var st = qtyCommandeState(c, all, {reprints:S_rp});
+        var st = qtyCommandeState(c, all, {reprints:S_rp, pole: sec==='sub' ? 'numerique' : 'badges'});
         var k = qtyFmtKey(L.format), f = st.formats.filter(function(x){ return x.key===k; })[0];
         if(!f){ legacy(); return; }                                // format absent de la commande : pas de plafond possible
         var max = qtyMaxFor(c, all, L.format, sec, {excludeRef:ref, reprints:S_rp});
@@ -16918,8 +16956,8 @@ function pendingTableHasFormat(pendingTable, c, format){
 // les formats semi→table déjà marqués prêts (voir pendingTableHasFormat).
 // Un format sans gamme reste toujours proposé (point A, rien ne change).
 function pickEligibleFormats(c, sec, pendingTable){
-  // Sublimation (pôle numérique) : produits numériques de la commande, sans gamme ni règles de quantité badges
-  if(sec === 'sub'){
+  // Sublimation (pôle numérique), règles de quantité inactives : produits numériques de la commande
+  if(sec === 'sub' && !(qtyRulesOn() && window._qtyAllLines)){
     var nf = (c.formats||[]).filter(function(f){ return f && f.pole === 'numerique' && f.qty>0; });
     if(!nf.length) nf = (c.formats||[]).filter(function(f){ return f && f.pole === 'numerique'; });
     return nf;
@@ -17113,7 +17151,7 @@ function pickConfirmFormat(cmdId, c, fmt){
       site:    c.site||'',
       cmd:     c.cmd||'',
       format:  fmt.format||'',
-      qty:     (qtyRulesOn() && ctx.sec !== 'sub') ? '' : String(fmt.qty||''),   // règles de quantité : saisie au « Terminer »
+      qty:     qtyRulesOn() ? '' : String(fmt.qty||''),   // règles de quantité : saisie au « Terminer »
       sec:     ctx.sec,
       status:  'ongoing',
       startedAt: Date.now(),
@@ -17243,8 +17281,15 @@ function updateCmdStatusIfDone(cmdId){
         if(!qtyRulesOn()){ fbu('commandes/'+cmdId, {status:'done'}); return; }
         // Règles de quantité : tous les formats à 100 %, aucune ligne en cours, aucune réimpression ouverte
         qtyLoadLines(Object.assign({id:cmdId}, c)).then(function(all){
-          var st = qtyCommandeState(Object.assign({id:cmdId}, c), all, {reprints:S_rp});
-          if(!st.formats.length || st.canBeDone) fbu('commandes/'+cmdId, {status:'done'});
+          var cc = Object.assign({id:cmdId}, c);
+          var st = qtyCommandeState(cc, all, {reprints:S_rp});
+          var okBadge = !st.formats.length || st.canBeDone;
+          var okNum = true;
+          if(qtyHasNumFmt(cc) && (!st.formats.length || poleCfgOn())){
+            var sn = qtyCommandeState(cc, all, {reprints:S_rp, pole:'numerique'});
+            okNum = !sn.formats.length || sn.canBeDone;
+          }
+          if(okBadge && okNum) fbu('commandes/'+cmdId, {status:'done'});
         });
       }
     });
@@ -17524,7 +17569,7 @@ function loadStats(){
             for(var hi=0;hi<2;hi++){
               var lines = ((weekData['d'+di]||{})['h'+hi]||{}).lines||[];
               lines.forEach(function(l){
-                if(l.status !== 'done') return;
+                if(l.status !== 'done' || l.sec === 'sub') return;   // Sublimation : statistiques du pôle numérique à part
                 var qty = parseInt(l.qty)||0;
                 var sec = l.sec||'semi';
                 var fmt = (l.format||'').trim().toUpperCase();
@@ -17645,7 +17690,7 @@ function loadStats(){
             if(dkS2 < statFromKey || dkS2 > statToKey) continue;
             var lines = ((weekData['d'+di]||{})['h'+hi]||{}).lines||[];
             lines.forEach(function(l){
-              if(l.status!=='done') return;
+              if(l.status!=='done' || l.sec === 'sub') return;
               var fmt = (l.format||'').trim().toUpperCase();
               var sec = l.sec||'semi';
               var qty = parseInt(l.qty)||0;
@@ -19858,7 +19903,7 @@ function dashEnsureAllReports(){
 // Pure : ne lit que ses paramètres, testable indépendamment du DOM/Firebase.
 function dashAggregateCommandeDetail(c, allReports){
   var DAY_LABELS = ['Lundi','Mardi','Mercredi','Jeudi','Vendredi'];
-  var SEC_LABELS = {semi:'Semi-auto',auto:'Automatique',table:'Table'};
+  var SEC_LABELS = {semi:'Semi-auto',auto:'Automatique',table:'Table',sub:'Sublimation'};
   var targetCmd = (c.cmd||'').trim().toLowerCase();
   var targetSite = (c.site||'').trim().toLowerCase();
 
@@ -19889,13 +19934,13 @@ function dashAggregateCommandeDetail(c, allReports){
             if(!g.formats[fKey]){
               g.formats[fKey] = {
                 label: l.format||'—',
-                qtyBySec: {semi:0, auto:0, table:0},
+                qtyBySec: {semi:0, auto:0, table:0, sub:0},
                 totalQty: 0,
                 producers: [], machines: [],
                 cqStatus: null, doneAt: null,
                 // Additifs pour l'indicateur de gamme (étape 4) — ne changent
                 // rien pour le reste, qui ignore ces champs.
-                doneBySec: {semi:false, auto:false, table:false},
+                doneBySec: {semi:false, auto:false, table:false, sub:false},
                 readyForTable: false
               };
             }
@@ -19910,7 +19955,7 @@ function dashAggregateCommandeDetail(c, allReports){
             var hasTable = f.qtyBySec['table'] > 0;
             f.totalQty = (hasSemi && hasTable)
               ? Math.max(f.qtyBySec['semi'], f.qtyBySec['table'])
-              : (f.qtyBySec['semi']||0) + (f.qtyBySec['auto']||0) + (f.qtyBySec['table']||0);
+              : (f.qtyBySec['semi']||0) + (f.qtyBySec['auto']||0) + (f.qtyBySec['table']||0) + (f.qtyBySec['sub']||0);
 
             if(r.name && f.producers.indexOf(r.name)<0) f.producers.push(r.name);
             var secLabel = SEC_LABELS[lineSec]||lineSec;
