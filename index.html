@@ -1947,7 +1947,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.10.30-1512';
+var APP_VERSION = '2026.10.30-1514';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -2508,9 +2508,8 @@ function polesSync(cmdId){
 }
 function applyPoleMenus(){
   var num = (viewPole === 'numerique');
-  // Pôle numérique : pas de maintenance, réunion, réimpression. Le tableau de bord
-  // est masqué en attendant sa version « numérique ».
-  ['grp-maintenance','grp-meeting','grp-dashboard'].forEach(function(id){
+  // Pôle numérique : pas de maintenance, réunion, réimpression.
+  ['grp-maintenance','grp-meeting'].forEach(function(id){
     var el = document.getElementById(id);
     if(el && num) el.style.display = 'none';   // (re)montrés par applyTabPerms selon les droits
   });
@@ -2524,7 +2523,7 @@ function applyPoleMenus(){
   try { updateInventaireBadge(); } catch(e){}
   var rp = document.getElementById('sub-reprint');
   if(rp) rp.style.display = num ? 'none' : '';
-  if(num && (['maintenance','meeting','dashboard'].indexOf(activeGroup) >= 0 || activeSubTab === 'reprint' || activeSubTab === 'inventaire')){
+  if(num && (['maintenance','meeting'].indexOf(activeGroup) >= 0 || activeSubTab === 'reprint' || activeSubTab === 'inventaire')){
     switchGroup('production');
   }
   var sel = document.getElementById('pole-sel');
@@ -19768,7 +19767,18 @@ function dashActiveProducers(users){
 // ── Commandes (à partir de l'index déjà maintenu en direct par l'app) ──
 function dashCommandesArray(){
   var byId = (typeof S_cmdIndex !== 'undefined' && S_cmdIndex.byId) || {};
-  return Object.keys(byId).map(function(id){ return Object.assign({id:id}, byId[id]); });
+  var all = Object.keys(byId).map(function(id){ return Object.assign({id:id}, byId[id]); });
+  if(typeof viewPole === 'undefined' || viewPole === 'tout') return all;
+  // Vue d'un pôle : seulement les commandes qui ont des produits de ce pôle, avec uniquement ces produits
+  // (copies : la base n'est jamais modifiée). Une commande sans produit renseigné reste côté badges.
+  return all.filter(function(c){
+    var fm = c.formats || []; if(!Array.isArray(fm)) fm = Object.keys(fm).map(function(i){ return fm[i]; });
+    if(!fm.length) return viewPole === 'badges';
+    return fm.some(function(f){ return f && fmtInViewPole(f); });
+  }).map(function(c){
+    var fm = c.formats || []; if(!Array.isArray(fm)) fm = Object.keys(fm).map(function(i){ return fm[i]; });
+    return fm.length ? Object.assign({}, c, {formats: fm.filter(function(f){ return f && fmtInViewPole(f); })}) : c;
+  });
 }
 function dashCommandeQty(c){
   return (c.formats||[]).reduce(function(s,f){ return s + (parseInt(f.qty)||0); }, 0);
@@ -19851,11 +19861,12 @@ function dashResteAProduire(commandes){
 // ailleurs dans l'app, on ne déduit pas ce qui est déjà partiellement
 // produit sur une commande en cours — approximation assumée, déjà en place
 // pour le simulateur de capacité. Pure, testable indépendamment du DOM/Firebase.
-function dashCalcChargeParPoste(commandes, gammes){
-  var res = {semi:0, auto:0, table:0, nonReparti:0};
+function dashCalcChargeParPoste(commandes, gammes, includeNum){
+  var res = {semi:0, auto:0, table:0, nonReparti:0, sub:0};
   (commandes||[]).forEach(function(c){
     if(c.status === 'done') return;
     (c.formats||[]).forEach(function(f){
+      if(f.pole === 'numerique'){ if(includeNum) res.sub += (parseInt(f.qty)||0); return; }
       if(f.pole && f.pole !== 'badges') return;
       var qty = parseInt(f.qty)||0;
       if(qty <= 0) return;
@@ -20313,7 +20324,7 @@ function openDashboardTab(){
         var lines = [];
         ['h0','h1'].forEach(function(hk){
           var hData = dayData[hk]||{};
-          (hData.lines||[]).forEach(function(l){ lines.push(l); });
+          (hData.lines||[]).forEach(function(l){ if(l && l.sec !== 'sub') lines.push(l); });
         });
         return {uid:p.uid, name:p.name, lines:lines};
       });
@@ -20361,6 +20372,10 @@ function openDashboardTab(){
 }
 
 function dashSwitchSection(name){
+  // Pôle numérique : pas de « Aujourd'hui » ni « Capacité » (postes et capacité badges)
+  var numV = (viewPole === 'numerique');
+  ['aujourdhui','capacite'].forEach(function(k){ var tb = document.getElementById('dash-tab-'+k); if(tb) tb.style.display = numV ? 'none' : ''; });
+  if(numV && (name === 'aujourdhui' || name === 'capacite')) name = 'synthese';
   ['synthese','aujourdhui','capacite','recherche','sav'].forEach(function(k){
     var panel = document.getElementById('dash-panel-'+k);
     var btn = document.getElementById('dash-tab-'+k);
@@ -20396,13 +20411,13 @@ function dashRenderSynthese(){
   html += card('En cours', s.inProgress);
   html += card('En attente', s.waiting);
   html += card('Ouvertes ≥ 5j', s.openOld5d, '', s.openOld5d>0?'var(--red)':'var(--txt)');
-  html += card('Réimpr. /100 cmd', s.reprintRate.toFixed(1)+'%', s.reprintCount+' réimpr.');
+  if(viewPole !== 'numerique') html += card('Réimpr. /100 cmd', s.reprintRate.toFixed(1)+'%', s.reprintCount+' réimpr.');
   html += card('Réf. sous seuil', s.lowStock, s.outOfStock>0?(s.outOfStock+' rupture'):'', s.lowStock>0?'var(--red)':'var(--txt)');
   html += '</div>';
 
-  var charge = dashCalcChargeParPoste(S_dash.commandes, S_gammes);
+  var charge = dashCalcChargeParPoste(S_dash.commandes, S_gammes, viewPole !== 'badges');
   html += dashRenderChargeParPosteHtml(charge);
-  html += dashRenderEtapesSupHtml(dashCalcEtapesSup(S_dash.commandes, Date.now(), 30));
+  if(viewPole !== 'numerique') html += dashRenderEtapesSupHtml(dashCalcEtapesSup(S_dash.commandes, Date.now(), 30));
 
   var agg = dashCalcCommandesParJour(S_dash.commandes, {numDays:7});
   html += dashRenderCommandesParJourHtml(agg);
@@ -20451,11 +20466,12 @@ function dashRenderEtapesSupHtml(list){
 // Affichage du bloc "Charge par poste" — partagé avec l'onglet Réunion, qui
 // utilise directement dashCalcChargeParPoste (mtgFetchAutoChargeParPoste).
 function dashRenderChargeParPosteHtml(charge){
-  var rows = [
+  var rows = (viewPole === 'numerique') ? [['sub','🖨️','Sublimation']] : [
     ['semi','🔧','Semi-auto'],
     ['table','🪑','Table'],
     ['auto','⚙️','Auto']
   ];
+  if(viewPole === 'tout') rows.push(['sub','🖨️','Sublimation']);
   var html = '<div style="background:var(--card);border:1.5px solid var(--brd);border-radius:12px;padding:14px;margin-bottom:16px">'+
     '<div style="font-family:Open Sans,sans-serif;font-weight:800;font-size:0.95rem;margin-bottom:2px">📦 Charge par poste</div>'+
     '<div style="font-size:.7rem;color:var(--mut);margin-bottom:10px">Quantité commandée non terminée, répartie selon la gamme de chaque format — photo à l\'instant présent, sans déduire ce qui est déjà partiellement produit.</div>';
@@ -20520,6 +20536,7 @@ function dashCalcChargeActuelle(commandes, allReports, opts){
             var fKey = (l.format||'—').trim().toLowerCase();
             var lineQty = parseInt(l.qty||0)||0;
             var lineSec = l.sec||'semi';
+            if(lineSec === 'sub') return;   // Sublimation : comptée dans le pôle numérique, jamais dans le reste badges
             if(!b.producedByFormat[fKey]) b.producedByFormat[fKey] = {semi:0,auto:0,table:0};
             b.producedByFormat[fKey][lineSec] = (b.producedByFormat[fKey][lineSec]||0) + lineQty;
             if(l.status==='ongoing') b.hasOngoing = true;
@@ -20962,7 +20979,7 @@ function dashCmdLabel(c){
 // Terminée > Attente réimpression (si une réimpression active y est liée) > En cours > Attente fabrication.
 // Testable indépendamment du DOM (ne lit que c et S_dash.reprints).
 function dashComputeSituation(c, listOpt){
-  var rp = dashFindActiveReprint(c, listOpt);
+  var rp = (typeof viewPole !== 'undefined' && viewPole === 'numerique') ? null : dashFindActiveReprint(c, listOpt);
   if(c.status === 'done'){
     // Règles de quantité : une réimpression ouverte passe avant « Terminée », et « Terminée » n'arrive qu'après le contrôle qualité
     if(qtyRulesOn() && rp){
