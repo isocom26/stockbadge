@@ -1990,7 +1990,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.11.03-1516';
+var APP_VERSION = '2026.11.03-1559';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -8283,14 +8283,17 @@ function suiviColisRowsHtml(cmdId, list, withDelete){
   }).join('');
 }
 function suiviRowLinksHtml(c){
-  var list = colisList(c); if(!list.length) return '';
+  var list = colisList(c); if(!list.length) return '<span style="color:var(--mut)">—</span>';
   var out = list.slice(0,3).map(function(k){
-    var u = suiviTrackUrl(k.transp, k.num), t = esc((k.transp||'')+' '+(k.num||''));
-    return u ? '<a href="'+esc(u)+'" target="_blank" rel="noopener noreferrer" title="Ouvrir le suivi chez le transporteur" style="color:var(--blu);text-decoration:underline;font-size:.7rem;font-family:monospace;word-break:break-all">'+t+' ↗</a>'
-             : '<span style="color:var(--mut);font-size:.7rem;font-family:monospace;word-break:break-all">'+t+'</span>';
+    var u = suiviTrackUrl(k.transp, k.num);
+    return '<div style="line-height:1.25">'+
+      '<div style="font-size:.66rem;font-weight:700;color:var(--mut)">'+esc(k.transp||'—')+'</div>'+
+      (u ? '<a href="'+esc(u)+'" target="_blank" rel="noopener noreferrer" title="Ouvrir le suivi chez le transporteur" style="font-size:.72rem;font-family:monospace;color:var(--blu);text-decoration:underline;word-break:break-all">'+esc(k.num||'')+'</a>'
+         : '<span style="font-size:.72rem;font-family:monospace;color:var(--txt);word-break:break-all">'+esc(k.num||'')+'</span>')+
+    '</div>';
   });
-  if(list.length > 3) out.push('<span style="color:var(--mut);font-size:.7rem">+'+(list.length-3)+' autre(s)</span>');
-  return '<div style="margin-top:4px;display:flex;flex-direction:column;gap:1px">'+out.join('')+'</div>';
+  if(list.length > 3) out.push('<div style="font-size:.66rem;color:var(--mut)">+'+(list.length-3)+' autre(s)</div>');
+  return '<div style="display:flex;flex-direction:column;gap:4px">'+out.join('')+'</div>';
 }
 function suiviFindColis(cmdId, kid){
   var c = ((S_cmdIndex && S_cmdIndex.byId) || {})[cmdId];
@@ -21636,9 +21639,9 @@ function dashRenderRecherche(){
   html += '<div id="dash-search-count" style="font-size:.72rem;color:var(--mut);margin-bottom:8px"></div>';
   html += '<div style="font-size:.7rem;color:var(--acc);margin-bottom:6px">↔ Sur mobile, faites défiler le tableau horizontalement pour voir toutes les colonnes</div>';
   html += '<div class="dash-tbl-wrap">';
-  html += '<table style="width:100%;min-width:980px;border-collapse:collapse;font-size:.8rem">';
+  html += '<table style="width:100%;min-width:1060px;border-collapse:collapse;font-size:.8rem">';
   html += '<thead><tr style="text-align:left;border-bottom:1.5px solid var(--brd)">'+
-    ['CMD','SITE','SITUATION','FORMATS','QTÉ','CRÉÉ LE','DÉPART PRÉVU','DEPUIS','PAR'].map(function(h){
+    ['CMD','SITE','SITUATION','SUIVI','FORMATS','QTÉ','CRÉÉ LE','DÉPART PRÉVU','DEPUIS','PAR'].map(function(h){
       return '<th style="padding:7px 9px;color:var(--mut);font-family:Open Sans,sans-serif;font-size:0.71rem;font-weight:800;letter-spacing:.03em;white-space:nowrap">'+h+'</th>';
     }).join('')+
     '</tr></thead><tbody id="dash-search-tbody"></tbody></table></div>';
@@ -21687,7 +21690,7 @@ function dashRunSearch(){
   var tbody = document.getElementById('dash-search-tbody');
   if(!tbody) return;
   if(!list.length){
-    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--mut);padding:24px;font-size:.85rem">Aucune commande ne correspond.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;color:var(--mut);padding:24px;font-size:.85rem">Aucune commande ne correspond.</td></tr>';
     return;
   }
   var rows = list.slice(0,300).map(function(c){
@@ -21701,13 +21704,13 @@ function dashRunSearch(){
       '<span style="display:inline-block;font-size:0.78rem;font-family:Open Sans,sans-serif;font-weight:800;padding:3px 9px;border-radius:99px;background:'+situation.bg+';color:'+situation.color+';border:1px solid '+situation.color+';white-space:nowrap">'+situation.label+'</span>'+
       (situation.sub ? '<div style="margin-top:3px"><span style="display:inline-block;font-size:0.69rem;font-family:Open Sans,sans-serif;font-weight:700;padding:2px 7px;border-radius:99px;background:none;color:'+situation.color+';border:1px solid '+situation.color+';white-space:nowrap">'+situation.sub+'</span></div>' : '');
     if(suiviPending(c).length) situationHtml += '<div style="margin-top:3px"><span style="display:inline-block;font-size:0.69rem;font-weight:800;padding:2px 7px;border-radius:99px;background:rgba(217,119,6,.15);color:var(--acc)">📮 À confirmer</span></div>';
-    situationHtml += suiviRowLinksHtml(c);
     var formatsTxt = (c.formats||[]).map(function(f){return f.format;}).join(', ')||'—';
     var producersTxt = S_dash.producersLoaded ? (dashProducersFor(c).join(', ')||'—') : '…';
     return '<tr style="border-bottom:1px solid var(--brd)'+(c.urgent && c.status!=='done'?';background:rgba(220,38,38,.08)':'')+'">'+
       '<td style="padding:7px 9px;font-weight:700;white-space:nowrap;max-width:170px;overflow:hidden;text-overflow:ellipsis;cursor:pointer;text-decoration:underline;text-decoration-color:var(--brd);text-underline-offset:3px" title="'+esc(dashCmdLabel(c))+' — cliquer pour le détail" onclick="dashOpenCommandeDetail(\''+c.id+'\')">'+dashSavBadgeHtml(c)+esupBadgeHtml(c)+dashCmdLabel(c)+'</td>'+
       '<td style="padding:7px 9px;color:var(--mut);white-space:nowrap">'+(c.site||'—')+'</td>'+
       '<td style="padding:7px 9px">'+situationHtml+'</td>'+
+      '<td style="padding:7px 9px;vertical-align:top">'+suiviRowLinksHtml(c)+'</td>'+
       '<td style="padding:7px 9px;color:var(--mut)">'+formatsTxt+'</td>'+
       '<td style="padding:7px 9px;text-align:right;font-family:Open Sans,sans-serif;font-weight:700;white-space:nowrap">'+qty.toLocaleString('fr-FR')+'</td>'+
       '<td style="padding:7px 9px;color:var(--mut);white-space:nowrap">'+created+'</td>'+
@@ -21716,7 +21719,7 @@ function dashRunSearch(){
       '<td style="padding:7px 9px;color:var(--mut)">'+producersTxt+'</td>'+
     '</tr>';
   }).join('');
-  tbody.innerHTML = rows + (list.length>300 ? '<tr><td colspan="9" style="text-align:center;color:var(--mut);font-size:.72rem;padding:10px">Affichage limité aux 300 premiers résultats — affinez la recherche.</td></tr>' : '');
+  tbody.innerHTML = rows + (list.length>300 ? '<tr><td colspan="10" style="text-align:center;color:var(--mut);font-size:.72rem;padding:10px">Affichage limité aux 300 premiers résultats — affinez la recherche.</td></tr>' : '');
 }
 
 // ── SAV (service après-vente) sur les commandes ──
