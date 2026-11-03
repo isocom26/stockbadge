@@ -1990,7 +1990,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.11.03-1433';
+var APP_VERSION = '2026.11.03-1501';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -8087,7 +8087,11 @@ function changeMyEmail(){
 function canSuiviSaisie(){ return !!(iAm || isDir || (permsLoaded && me_perms && me_perms.suiviSaisie === true)); }
 function canSuiviConf(){ return !!(iAm || isDir || (permsLoaded && me_perms && me_perms.suiviConf === true)); }
 var TRANSP_DEFAUT = [['colissimo','Colissimo'],['chrono','Chronopost'],['dsv','DSV'],['jouve','Jouve'],['safal','Safal']];
-var S_transp = {};   // settings/transporteurs/{clé} = {label, actif, ord}
+var TRANSP_URL_DEFAUT = {
+  colissimo:'https://www.laposte.fr/outils/suivre-vos-envois?code={num}',
+  chrono:'https://www.chronopost.fr/tracking-no-cms/suivi-page?listeNumerosLT={num}'
+};
+var S_transp = {};   // settings/transporteurs/{clé} = {label, actif, ord, url}
 function startTranspListener(){
   db.ref('settings/transporteurs').on('value', function(snap){
     S_transp = snap.val() || {};
@@ -8096,7 +8100,7 @@ function startTranspListener(){
 }
 function transpCatalogue(includeInactive){
   var out = {};
-  TRANSP_DEFAUT.forEach(function(d, i){ out[d[0]] = {key:d[0], label:d[1], actif:true, ord:i+1}; });
+  TRANSP_DEFAUT.forEach(function(d, i){ out[d[0]] = {key:d[0], label:d[1], actif:true, ord:i+1, url:TRANSP_URL_DEFAUT[d[0]]||''}; });
   var cfg = S_transp || {};
   Object.keys(cfg).forEach(function(k){
     var o = cfg[k];
@@ -8104,12 +8108,21 @@ function transpCatalogue(includeInactive){
     var b = out[k] || {key:k, label:k, actif:true, ord:1000+(parseInt(o.ord)||0)/1e13};
     if(o.label) b.label = String(o.label);
     if(o.actif === false) b.actif = false;
+    if(typeof o.url === 'string' && o.url) b.url = o.url;
     out[k] = b;
   });
   var arr = Object.keys(out).map(function(k){ return out[k]; });
   if(!includeInactive) arr = arr.filter(function(x){ return x.actif; });
   arr.sort(function(a,b){ return (a.ord-b.ord) || a.label.localeCompare(b.label); });
   return arr;
+}
+function transpUrlOk(u){ return /^https:\/\/[^\s]+$/i.test(u) && u.indexOf('{num}') >= 0; }
+function suiviTrackUrl(transpLabel, num){
+  var lab = String(transpLabel||'').trim().toLowerCase(), n = String(num||'').replace(/\s+/g,'');
+  if(!lab || !n) return '';
+  var t = transpCatalogue(true).filter(function(x){ return x.label.toLowerCase() === lab; })[0];
+  if(!t || !t.url || !transpUrlOk(t.url)) return '';
+  return t.url.split('{num}').join(encodeURIComponent(n));
 }
 function renderTranspAdmin(){
   var block = document.getElementById('admin-transp-block'); if(!block) return;
@@ -8120,13 +8133,20 @@ function renderTranspAdmin(){
   el.innerHTML = transpCatalogue(true).map(function(x){
     return '<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-top:1px solid var(--brd);'+(x.actif?'':'opacity:.55')+'">'+
       '<input type="text" value="'+esc(x.label)+'" maxlength="30" onchange="transpAdminSaveLabel(\''+x.key+'\',this.value)" style="flex:1;min-width:0;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.85rem;padding:7px 10px;outline:none">'+
-      '<button class="esup-btn '+(x.actif?'':'ok')+'" onclick="transpAdminToggle(\''+x.key+'\','+(x.actif?'false':'true')+')">'+(x.actif?'Désactiver':'Réactiver')+'</button></div>';
+      '<button class="esup-btn '+(x.actif?'':'ok')+'" onclick="transpAdminToggle(\''+x.key+'\','+(x.actif?'false':'true')+')">'+(x.actif?'Désactiver':'Réactiver')+'</button></div>'+
+      '<input type="text" value="'+esc(x.url||'')+'" placeholder="Adresse de suivi (https://… avec {num} à la place du numéro) — vide = pas de lien" onchange="transpAdminSaveUrl(\''+x.key+'\',this.value)" style="width:100%;box-sizing:border-box;margin:0 0 6px;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--mut);font-size:.72rem;padding:6px 10px;outline:none">';
   }).join('');
 }
 function transpAdminSaveLabel(key, val){
   val = String(val||'').trim();
   if(!/^[a-z0-9_]{1,30}$/.test(key) || !val){ renderTranspAdmin(); return; }
   fbu('settings/transporteurs/'+key, {label:val}).then(function(){ toast('✅ Transporteur renommé'); });
+}
+function transpAdminSaveUrl(key, val){
+  val = String(val||'').trim();
+  if(!/^[a-z0-9_]{1,30}$/.test(key)) return;
+  if(val && !transpUrlOk(val)){ toast('Adresse invalide : https:// et {num} obligatoires', 1); renderTranspAdmin(); return; }
+  fbu('settings/transporteurs/'+key, {label: transpCatalogue(true).filter(function(x){ return x.key===key; })[0].label, url: val || null}).then(function(){ toast(val ? '✅ Adresse de suivi enregistrée' : '✅ Adresse de suivi retirée'); });
 }
 function transpAdminToggle(key, actif){
   if(!/^[a-z0-9_]{1,30}$/.test(key)) return;
@@ -8252,7 +8272,7 @@ function suiviColisRowsHtml(cmdId, list, withDelete){
     var can = withDelete && (iAm || (canSuiviSaisie() && !ok));
     return '<div style="border-top:1px solid var(--brd);padding:7px 0;font-size:.82rem">'+
       '<div style="display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap">'+
-        '<span><strong>'+esc(k.transp||'—')+'</strong> · <span style="font-family:monospace;font-size:.86rem;word-break:break-all">'+esc(k.num||'')+'</span></span>'+
+        '<span><strong>'+esc(k.transp||'—')+'</strong> · '+(suiviTrackUrl(k.transp,k.num) ? '<a href="'+esc(suiviTrackUrl(k.transp,k.num))+'" target="_blank" rel="noopener noreferrer" title="Ouvrir le suivi chez le transporteur" style="font-family:monospace;font-size:.86rem;word-break:break-all;color:var(--acc);text-decoration:underline">'+esc(k.num||'')+' ↗</a>' : '<span style="font-family:monospace;font-size:.86rem;word-break:break-all">'+esc(k.num||'')+'</span>')+'</span>'+
         '<span style="font-size:.7rem;font-weight:800;padding:2px 8px;border-radius:99px;border:1px solid '+col+';color:'+col+'">'+(ok?'✅ Confirmé':'🟠 À confirmer')+'</span>'+
       '</div>'+
       '<div style="font-size:.72rem;color:var(--mut)">Ajouté le '+d+' par '+esc(k.byName||'—')+(ok ? ' · confirmé le '+new Date(k.conf.at).toLocaleDateString('fr-FR')+' par '+esc(k.conf.byName||'—') : '')+'</div>'+
