@@ -105,7 +105,8 @@ main{padding:14px;max-width:960px;margin:0 auto}
 .chdr{display:flex;align-items:center;gap:12px;padding:14px;border-bottom:1px solid var(--brd);cursor:pointer}
 .cthumb{width:52px;height:52px;border-radius:10px;background:var(--sur);display:flex;align-items:center;justify-content:center;font-size:1.5rem;flex-shrink:0;overflow:hidden}
 .cthumb img{width:100%;height:100%;object-fit:cover}
-.cinfo h3{font-family:Open Sans,sans-serif;font-weight:700;font-size:1.03rem;line-height:1.2}
+.cinfo{flex:1 1 auto;min-width:0}
+.cinfo h3{font-family:Open Sans,sans-serif;font-weight:700;font-size:1.03rem;line-height:1.2;overflow-wrap:anywhere}
 .cinfo small{color:var(--mut);font-size:.76rem}
 .cbadge{margin-left:auto;flex-shrink:0;background:var(--acc);color:#000;font-family:Open Sans,sans-serif;font-weight:800;font-size:0.76rem;padding:3px 10px;border-radius:99px}
 .cbadge.low{background:var(--red);color:#fff}
@@ -114,7 +115,7 @@ main{padding:14px;max-width:960px;margin:0 auto}
 .ilist{display:flex;flex-direction:column}
 .irow{display:flex;align-items:center;gap:10px;padding:11px 14px;border-top:1px solid var(--brd)}
 .irow:first-child{border-top:none}
-.iname{flex:1;font-size:.88rem;font-weight:500;line-height:1.4}
+.iname{flex:1;min-width:0;overflow-wrap:anywhere;font-size:.88rem;font-weight:500;line-height:1.4}
 .iqty{font-family:Open Sans,sans-serif;font-weight:700;font-size:1.08rem;min-width:28px;text-align:center;color:var(--acc)}
 .iqty.low{color:var(--red)}.iqty.res{color:var(--pur)}
 .qctrl{display:flex;align-items:center;gap:5px}
@@ -1962,7 +1963,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.11.03-1356';
+var APP_VERSION = '2026.11.03-1406';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
