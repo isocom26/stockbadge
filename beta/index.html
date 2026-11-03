@@ -667,10 +667,10 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
       <button class="back" id="back-btn" onclick="goBack()">← Retour</button>
       <div id="det-content"></div>
       <div id="det-recipes"></div>
-      <div class="stitle">Composants</div>
+      <div class="stitle" id="det-items-title">Composants</div>
       <div class="icard"><div class="ilist" id="det-items"></div></div>
-      <button class="btn bsec" style="width:100%;margin-bottom:10px" onclick="openAddItemModal()">+ Ajouter un composant</button>
-      <button class="btn bsec" style="width:100%;margin-bottom:10px" onclick="openLinkItemModal()">🔗 Lier un composant existant</button>
+      <button class="btn bsec" id="det-add-item" style="width:100%;margin-bottom:10px" onclick="openAddItemModal()">+ Ajouter un composant</button>
+      <button class="btn bsec" id="det-link-item" style="width:100%;margin-bottom:10px" onclick="openLinkItemModal()">🔗 Lier un composant existant</button>
       <div id="det-del"></div>
     </div>
     <div id="view-depiautage" class="view">
@@ -1532,6 +1532,21 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
   </div>
 </div>
 
+<div class="mover" id="m-impnum" onclick="cm('m-impnum')">
+  <div class="modal" onclick="event.stopPropagation()" style="max-height:88vh;overflow-y:auto">
+    <div class="dh"></div>
+    <h3>📥 Importer les produits numériques</h3>
+    <div style="font-size:.78rem;color:var(--mut);margin-bottom:10px">Un produit est créé (à 0 pièce) pour chaque format choisi. Laisse « Ne pas créer » pour ceux qui ne sont pas du stock ou qui ne servent plus. Les produits déjà créés ne sont pas recréés.</div>
+    <div style="display:flex;gap:6px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
+      <span style="font-size:.78rem;font-weight:700">Tous les non classés :</span>
+      <select id="impnum-bulk" style="background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);padding:6px 8px"></select>
+      <button class="btn bsec" style="flex:none;padding:6px 12px" onclick="numImportBulk()">Appliquer</button>
+    </div>
+    <div id="impnum-list"></div>
+    <div class="macts"><button class="btn bsec" onclick="cm('m-impnum')">Annuler</button><button class="btn bpri" onclick="numImportRun()">Créer les produits</button></div>
+  </div>
+</div>
+
 <div class="mover" id="m-link" onclick="cm('m-link')">
   <div class="modal" onclick="event.stopPropagation()">
     <div class="dh"></div>
@@ -1947,7 +1962,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.11.03-1111';
+var APP_VERSION = '2026.11.03-1356';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -2287,11 +2302,12 @@ var lt = 0, cfCb = null, curTab = 'atelier', inited = false;
 // vs porte-clés) — état local, remis à 'badge_magnet' à chaque ouverture
 // de session, pas besoin de le persister en base.
 var zoneFamille = {atelier:'badge_magnet', reserve:'badge_magnet', alertes:'badge_magnet'};
-function catFamille(cat){ return (cat && cat.famille) || 'badge_magnet'; }
+// « gourdes » (ancienne famille de test) est regroupée avec « mugs » dans Sublimation : les données ne sont pas modifiées
+function catFamille(cat){ var f = (cat && cat.famille) || 'badge_magnet'; return f === 'gourdes' ? 'mugs' : f; }
 // Familles de stock : badges (historique) et pôle numérique (Mugs, Gourdes, Totebags). Champ additif « famille » sur la catégorie.
 var STOCK_FAMS = [
   ['badge_magnet','🏷️ Badges & Magnets','badges'], ['porte_cle','🔑 Porte-clés','badges'], ['pins','📌 Pins','badges'], ['divers','📦 Divers','badges'],
-  ['mugs','☕ Mugs','numerique'], ['gourdes','🥤 Gourdes','numerique'], ['totebag','👜 Totebags','numerique']
+  ['mugs','🖨️ Sublimation','numerique'], ['rollup','🧻 Roll up','numerique'], ['totebag','👜 Tote bags','numerique']
 ];
 function famPole(f){ for(var i=0;i<STOCK_FAMS.length;i++){ if(STOCK_FAMS[i][0]===f) return STOCK_FAMS[i][2]; } return 'badges'; }
 function famLabel(f){ for(var i=0;i<STOCK_FAMS.length;i++){ if(STOCK_FAMS[i][0]===f) return STOCK_FAMS[i][1]; } return '🏷️ Badges & Magnets'; }
@@ -2413,12 +2429,18 @@ function rptLineInView(l){
 // d'avant, à l'identique). Activé : une commande mixte n'est « terminée » que
 // lorsque les deux pôles ont produit ; chaque pôle fait son propre contrôle qualité ;
 // le départ est signalé bloqué tant que les contrôles ne sont pas tous faits.
-var S_poleCfg = {on:false};
+var S_poleCfg = {on:false, cqFrom:null};
 function poleCfgOn(){ return S_poleCfg.on === true; }
+// Contrôle qualité numérique : exigé seulement pour les commandes créées à partir de cette date
+// (réglage settings/poleNumerique/cqFrom ; repli = 30/10/2026, début des tests du pôle).
+// Les commandes plus anciennes se comportent comme avant (terminées dès le contrôle badges).
+var POLE_CQ_FROM_DEFAULT = new Date(2026, 9, 30).getTime();
+function poleCqFrom(){ return (S_poleCfg && S_poleCfg.cqFrom) || POLE_CQ_FROM_DEFAULT; }
+function poleCqRequired(c){ return !!(c && c.createdAt && c.createdAt >= poleCqFrom()); }
 function startPoleCfgListener(){
   db.ref('settings/poleNumerique').on('value', function(snap){
     var v = snap.val(), was = S_poleCfg.on;
-    S_poleCfg = {on: !!(v && v.enabled === true)};
+    S_poleCfg = {on: !!(v && v.enabled === true), cqFrom: (v && typeof v.cqFrom === 'number') ? v.cqFrom : null};
     if(typeof renderPoleCfgAdmin === 'function') renderPoleCfgAdmin();
     if(was !== S_poleCfg.on){
       try { if(curTab === 'depiautage') renderDepCmdList(); else if(curTab === 'qualite') renderQualite(); } catch(e){}
@@ -2430,13 +2452,21 @@ function polesSetCfg(on){
   fbu('settings/poleNumerique', {enabled: !!on, at: Date.now(), by: getMyName()});
   toast(on ? '✅ Gestion du pôle numérique activée' : '⏸️ Gestion du pôle numérique désactivée');
 }
+function polesSetCqFromNow(){
+  if(!iAm) return;
+  if(!confirm('Exiger le contrôle qualité numérique pour les commandes créées à partir de maintenant ? Les commandes plus anciennes seront « Terminées » dès le contrôle badges.')) return;
+  fbu('settings/poleNumerique', {cqFrom: Date.now(), cqFromBy: getMyName()});
+  toast('✅ Contrôle numérique exigé à partir de maintenant');
+}
 function renderPoleCfgAdmin(){
   var b = document.getElementById('admin-pole-block'); if(!b) return;
   b.style.display = iAm ? '' : 'none';
   var st = document.getElementById('admin-pole-state'); if(!st) return;
   var on = poleCfgOn();
   st.innerHTML = '<span style="font-weight:800;color:'+(on?'var(--grn)':'var(--mut)')+'">'+(on?'● ACTIVÉE':'○ Désactivée (fonctionnement d\'avant)')+'</span> '+
-    '<button class="btn '+(on?'bdano':'bpri')+'" style="flex:none;padding:7px 14px;margin-left:8px" onclick="polesSetCfg('+(on?'false':'true')+')">'+(on?'Désactiver':'Activer')+'</button>';
+    '<button class="btn '+(on?'bdano':'bpri')+'" style="flex:none;padding:7px 14px;margin-left:8px" onclick="polesSetCfg('+(on?'false':'true')+')">'+(on?'Désactiver':'Activer')+'</button>'+
+    '<div style="font-size:.76rem;color:var(--mut);margin-top:8px">Contrôle qualité numérique exigé pour les commandes créées depuis le <b>'+new Date(poleCqFrom()).toLocaleDateString('fr-FR')+'</b>. '+
+    '<button class="btn" style="flex:none;padding:4px 10px;margin-left:6px" onclick="polesSetCqFromNow()">Mettre à aujourd\'hui</button></div>';
 }
 var POLE_ST_LABEL = {todo:'à produire', ongoing:'en production', produced:'à contrôler', checked:'contrôlé'};
 var POLE_LABEL = {badges:'🏷️ Badges', numerique:'🖨️ Numérique'};
@@ -3528,6 +3558,9 @@ function renderZone(zone) {
   }
 
   var html = zoneFamilleTabsHtml(zone);
+  if(zone==='atelier' && famPole(fam)==='numerique' && stockAdminFam(fam)){
+    html += '<button class="btn bsec" style="width:100%;margin-bottom:10px" onclick="numImportOpen()">📥 Importer depuis les formats numériques</button>';
+  }
   html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;padding:10px 14px;background:var(--card);border-radius:12px;border:1.5px solid var(--brd)">'+
     '<span style="font-size:1.3rem">'+ico+'</span>'+
     '<span style="font-family:Open Sans,sans-serif;font-weight:700;color:'+col+'">Stock '+lbl+' · '+famLbl+'</span></div>';
@@ -3606,7 +3639,11 @@ function openDet(cid, zone) {
   document.getElementById('view-detail').classList.add('active');
   document.getElementById('back-btn').textContent = '← '+(zone==='atelier'?'🏭 Atelier':'🏢 Réserve');
   renderDet(cat); renderDetItems(cat); renderRecipes(cat);
-  document.getElementById('det-del').innerHTML = stockAdmin(cat)?'<button class="btn bdano" style="width:100%;margin-top:6px" onclick="askDelCat()">🗑 Supprimer cette référence</button>':'';
+  var numCat = catPole(cat) === 'numerique';
+  // Produit numérique : un seul composant (le produit lui-même) — pas d'ajout ni de lien de composant
+  ['det-add-item','det-link-item'].forEach(function(id){ var b = document.getElementById(id); if(b) b.style.display = numCat ? 'none' : ''; });
+  var dt = document.getElementById('det-items-title'); if(dt) dt.textContent = numCat ? 'Stock du produit' : 'Composants';
+  document.getElementById('det-del').innerHTML = stockAdmin(cat)?'<button class="btn bdano" style="width:100%;margin-top:6px" onclick="askDelCat()">🗑 Supprimer '+(numCat?'ce produit':'cette référence')+'</button>':'';
 }
 
 function renderDet(cat) {
@@ -4849,6 +4886,55 @@ function valRec(){
 function om(id){ document.getElementById(id).classList.add('open'); }
 function cm(id){ document.getElementById(id).classList.remove('open'); }
 
+// ── Import des produits du stock numérique depuis la liste des formats numériques ──
+// Rangement automatique d'après le code ; les formats non reconnus sont « Ne pas créer » par défaut (à choisir en un clic).
+function numImportGuess(code){
+  var c = String(code||'').toUpperCase();
+  if(/^(MUG|MINIMUG|GOURD)/.test(c)) return 'mugs';
+  if(/ROLLUP|ROLL-UP|ROLL UP/.test(c)) return 'rollup';
+  if(/^SAC\d/.test(c)) return 'totebag';
+  return '';
+}
+function numImportOptions(sel){
+  var o = '<option value=""'+(sel===''?' selected':'')+'>— Ne pas créer</option>';
+  STOCK_FAMS.filter(function(f){ return f[2]==='numerique'; }).forEach(function(f){ o += '<option value="'+f[0]+'"'+(f[0]===sel?' selected':'')+'>'+f[1]+'</option>'; });
+  return o;
+}
+function numImportOpen(){
+  if(!iAm && me_pole!=='numerique'){ toast('Réservé à l\'admin et au pôle numérique',1); return; }
+  var have = {};
+  ((S.allCats && S.allCats.length) ? S.allCats : S.cats).forEach(function(c){ if(catPole(c)==='numerique') have[String(c.name||'').trim().toUpperCase()] = true; });
+  var todo = DIGITAL_FORMATS.filter(function(code){ return !have[String(code).trim().toUpperCase()]; });
+  var nHave = DIGITAL_FORMATS.length - todo.length;
+  if(!todo.length){ toast('Tous les formats numériques ont déjà leur produit en stock'); return; }
+  document.getElementById('impnum-list').innerHTML =
+    (nHave ? '<div style="font-size:.74rem;color:var(--mut);margin-bottom:6px">'+nHave+' produit(s) déjà créé(s), non listés.</div>' : '')+
+    todo.map(function(code, i){
+      var g = numImportGuess(code);
+      return '<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--brd)" data-code="'+esc(code)+'">'+
+        '<div style="flex:1;font-size:.82rem;font-weight:700;word-break:break-all">'+esc(code)+'</div>'+
+        '<select class="impnum-sel" style="background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);padding:6px 8px;font-size:.8rem">'+numImportOptions(g)+'</select></div>';
+    }).join('');
+  document.getElementById('impnum-bulk').innerHTML = numImportOptions('');
+  om('m-impnum');
+}
+function numImportBulk(){
+  var v = document.getElementById('impnum-bulk').value;
+  if(!v){ toast('Choisis une famille pour les non classés',1); return; }
+  document.querySelectorAll('#impnum-list .impnum-sel').forEach(function(sel){ if(!sel.value) sel.value = v; });
+}
+function numImportRun(){
+  var rows = [].slice.call(document.querySelectorAll('#impnum-list [data-code]')), n = 0;
+  rows.forEach(function(r){
+    var fam = r.querySelector('.impnum-sel').value, code = r.getAttribute('data-code');
+    if(!fam || !stockAdminFam(fam)) return;
+    n++;
+    var items = {}; items[gid()] = {name:code, qty:0, alertPcs:0, ppc:null, photo:null, order:0};
+    fbs('categories/'+gid(), {name:code, desc:'', photo:null, order:n, famille:fam, items:items, reserve_items:{}});
+  });
+  cm('m-impnum');
+  toast(n ? '✅ '+n+' produit(s) créé(s)' : 'Aucun produit créé');
+}
 function openAddCatModal(){
   if(!iAm && !(me_pole==='numerique')){toast('Seul l\'admin peut créer des références',1);return;}
   PT.cat=null;
@@ -4858,7 +4944,7 @@ function openAddCatModal(){
   document.getElementById('cat-fam').innerHTML=famOptionsHtml(zoneFamille[curTab]);
   document.getElementById('cat-fam').value=zoneFamille[curTab] || 'badge_magnet';
   document.getElementById('cat-ph-prev').innerHTML='📷 Ajouter une photo';
-  document.getElementById('m-cat-title').textContent='➕ Nouvelle référence';
+  document.getElementById('m-cat-title').textContent = famPole(zoneFamille[curTab]) === 'numerique' ? '➕ Nouveau produit' : '➕ Nouvelle référence';
   om('m-cat');
 }
 
@@ -5325,8 +5411,11 @@ function saveCat(){
   var n=document.getElementById('cat-n').value.trim(); if(!n){toast('Nom obligatoire',1);return;}
   var ord = parseInt(document.getElementById('cat-o').value)||99;
   var fam = document.getElementById('cat-fam').value || 'badge_magnet';
-  fbs('categories/'+gid(),{name:n,desc:document.getElementById('cat-d').value.trim(),photo:PT.cat||null,order:ord,famille:fam,items:{},reserve_items:{}});
-  cm('m-cat'); toast('✅ Référence créée !');
+  var itemsInit = {};
+  // Pôle numérique : un produit = un seul composant, du même nom (ex. MUGS utilise « MUGS »)
+  if(famPole(fam) === 'numerique'){ itemsInit[gid()] = {name:n, qty:0, alertPcs:0, ppc:null, photo:null, order:0}; }
+  fbs('categories/'+gid(),{name:n,desc:document.getElementById('cat-d').value.trim(),photo:PT.cat||null,order:ord,famille:fam,items:itemsInit,reserve_items:{}});
+  cm('m-cat'); toast(famPole(fam) === 'numerique' ? '✅ Produit créé !' : '✅ Référence créée !');
 }
 
 // Le composant se crée toujours à 0 : la quantité et le conditionnement
@@ -6637,8 +6726,8 @@ function startInvcListener(){
   });
 }
 // Ordre d'affichage des formats : Badges & Magnets (ronds du plus petit au plus grand : 25 mm → 100 mm, puis les autres formats), puis Porte-clés, Pins, Divers.
-var INVC_FAM_ORDER = ['badge_magnet','porte_cle','pins','divers','mugs','gourdes','totebag'];
-var INVC_FAM_LABEL = {badge_magnet:'🏷️ Badges & Magnets', porte_cle:'🔑 Porte-clés', pins:'📌 Pins', divers:'📦 Divers', mugs:'☕ Mugs', gourdes:'🥤 Gourdes', totebag:'👜 Totebags'};
+var INVC_FAM_ORDER = ['badge_magnet','porte_cle','pins','divers','mugs','rollup','totebag'];
+var INVC_FAM_LABEL = {badge_magnet:'🏷️ Badges & Magnets', porte_cle:'🔑 Porte-clés', pins:'📌 Pins', divers:'📦 Divers', mugs:'🖨️ Sublimation', rollup:'🧻 Roll up', totebag:'👜 Tote bags'};
 function invcCatCmp(a, b){
   var fa = INVC_FAM_ORDER.indexOf(catFamille(a)), fb = INVC_FAM_ORDER.indexOf(catFamille(b));
   if(fa < 0) fa = 99; if(fb < 0) fb = 99;
@@ -11213,10 +11302,10 @@ function mtgRecalcChargeParPoste(){
 // ── Alertes "non commandées" auto (État des stocks) : réutilise exactement
 // la même logique que l'onglet Alertes (stock bas + aucune commande en
 // cours), regroupée par famille pour la lisibilité dans la réunion.
-var MTG_FAM_ORDER = [['badge_magnet','🏷️ Badges & Magnets'],['porte_cle','🔑 Porte-clés'],['pins','📌 Pins'],['divers','📦 Divers'],['mugs','☕ Mugs'],['gourdes','🥤 Gourdes'],['totebag','👜 Totebags']];
+var MTG_FAM_ORDER = [['badge_magnet','🏷️ Badges & Magnets'],['porte_cle','🔑 Porte-clés'],['pins','📌 Pins'],['divers','📦 Divers'],['mugs','🖨️ Sublimation'],['rollup','🧻 Roll up'],['totebag','👜 Tote bags']];
 
 function mtgScanNotOrderedAlerts(){
-  var byFam = {badge_magnet:[], porte_cle:[], pins:[], divers:[], mugs:[], gourdes:[], totebag:[]};
+  var byFam = {badge_magnet:[], porte_cle:[], pins:[], divers:[], mugs:[], rollup:[], totebag:[]};
   (S.cats||[]).forEach(function(cat){
     var fam = catFamille(cat);
     if(!byFam[fam]) byFam[fam] = [];
@@ -11252,7 +11341,7 @@ function mtgNotOrderedAlertsHtml(){
 
 // Libellés sans emoji pour le PDF : la police standard de jsPDF ne sait
 // pas afficher les emoji (ils ressortent en caractères illisibles).
-var MTG_FAM_PLAIN = {badge_magnet:'Badges & Magnets', porte_cle:'Porte-clés', pins:'Pins', divers:'Divers', mugs:'Mugs', gourdes:'Gourdes', totebag:'Totebags'};
+var MTG_FAM_PLAIN = {badge_magnet:'Badges & Magnets', porte_cle:'Porte-clés', pins:'Pins', divers:'Divers', mugs:'Sublimation', rollup:'Roll up', totebag:'Tote bags'};
 
 // toLocaleString('fr-FR') insère une espace fine insécable comme séparateur
 // de milliers ; cette espace-là n'existe pas non plus dans la police du
@@ -13329,6 +13418,8 @@ function renderQualite(){
         var cmdDep = (firstItem.l.cmdId && cmdRefIndexCqById[firstItem.l.cmdId])
           ? cmdRefIndexCqById[firstItem.l.cmdId]
           : cmdRefIndexCq[cqRefKey];
+        // Commande antérieure à la date d'exigence du contrôle numérique : pas de contrôle numérique
+        if(gPole === 'numerique' && cmdDep && !poleCqRequired(cmdDep)) return;
         if(cmdDep && cmdDep.formats){
           // Formats badges de la commande dans Dépiautage
           var badgeFmtsRef = cmdDep.formats
@@ -13387,7 +13478,7 @@ function renderQualite(){
           groupItems.cmdObjId = cmdIdG;
           groupItems.polesInfo = null;
           groupItems.numWait = null;
-          if(poleCfgOn() && cmdDep && cmdIsMixed(cmdDep)){
+          if(poleCfgOn() && cmdDep && cmdIsMixed(cmdDep) && poleCqRequired(cmdDep)){
             groupItems.polesInfo = polesStateFrom(Object.assign({}, cmdDep, {id: cmdIdG}), cqAllLines);
             // Commande partagée : le contrôle badges est le DERNIER, il attend le contrôle du pôle numérique
             if(gPole === 'badges' && !(cmdDep.cqNum && cmdDep.cqNum.at)) groupItems.numWait = true;
@@ -16394,7 +16485,7 @@ function qtyAwaitingControl(c){
   var hasNum = qtyHasNumFmt(c);
   if(hasBadge && !(c.cq && c.cq.at)) return true;
   // Pôle numérique : son propre contrôle est requis (commande 100 % numérique, ou partagée une fois le mode pôles activé)
-  if(hasNum && (!hasBadge || poleCfgOn()) && !(c.cqNum && c.cqNum.at)) return true;
+  if(hasNum && poleCqRequired(c) && (!hasBadge || poleCfgOn()) && !(c.cqNum && c.cqNum.at)) return true;
   return false;
 }
 // Une réimpression est demandée sur une commande déjà « Terminée » : elle repasse « En cours »
