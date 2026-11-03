@@ -667,10 +667,10 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
       <button class="back" id="back-btn" onclick="goBack()">← Retour</button>
       <div id="det-content"></div>
       <div id="det-recipes"></div>
-      <div class="stitle">Composants</div>
+      <div class="stitle" id="det-items-title">Composants</div>
       <div class="icard"><div class="ilist" id="det-items"></div></div>
-      <button class="btn bsec" style="width:100%;margin-bottom:10px" onclick="openAddItemModal()">+ Ajouter un composant</button>
-      <button class="btn bsec" style="width:100%;margin-bottom:10px" onclick="openLinkItemModal()">🔗 Lier un composant existant</button>
+      <button class="btn bsec" id="det-add-item" style="width:100%;margin-bottom:10px" onclick="openAddItemModal()">+ Ajouter un composant</button>
+      <button class="btn bsec" id="det-link-item" style="width:100%;margin-bottom:10px" onclick="openLinkItemModal()">🔗 Lier un composant existant</button>
       <div id="det-del"></div>
     </div>
     <div id="view-depiautage" class="view">
@@ -1947,7 +1947,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.11.03-1344';
+var APP_VERSION = '2026.11.03-1352';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -2287,11 +2287,12 @@ var lt = 0, cfCb = null, curTab = 'atelier', inited = false;
 // vs porte-clés) — état local, remis à 'badge_magnet' à chaque ouverture
 // de session, pas besoin de le persister en base.
 var zoneFamille = {atelier:'badge_magnet', reserve:'badge_magnet', alertes:'badge_magnet'};
-function catFamille(cat){ return (cat && cat.famille) || 'badge_magnet'; }
+// « gourdes » (ancienne famille de test) est regroupée avec « mugs » dans Sublimation : les données ne sont pas modifiées
+function catFamille(cat){ var f = (cat && cat.famille) || 'badge_magnet'; return f === 'gourdes' ? 'mugs' : f; }
 // Familles de stock : badges (historique) et pôle numérique (Mugs, Gourdes, Totebags). Champ additif « famille » sur la catégorie.
 var STOCK_FAMS = [
   ['badge_magnet','🏷️ Badges & Magnets','badges'], ['porte_cle','🔑 Porte-clés','badges'], ['pins','📌 Pins','badges'], ['divers','📦 Divers','badges'],
-  ['mugs','☕ Mugs','numerique'], ['gourdes','🥤 Gourdes','numerique'], ['totebag','👜 Totebags','numerique']
+  ['mugs','🖨️ Sublimation','numerique'], ['rollup','🧻 Roll up','numerique'], ['totebag','👜 Tote bags','numerique']
 ];
 function famPole(f){ for(var i=0;i<STOCK_FAMS.length;i++){ if(STOCK_FAMS[i][0]===f) return STOCK_FAMS[i][2]; } return 'badges'; }
 function famLabel(f){ for(var i=0;i<STOCK_FAMS.length;i++){ if(STOCK_FAMS[i][0]===f) return STOCK_FAMS[i][1]; } return '🏷️ Badges & Magnets'; }
@@ -3620,7 +3621,11 @@ function openDet(cid, zone) {
   document.getElementById('view-detail').classList.add('active');
   document.getElementById('back-btn').textContent = '← '+(zone==='atelier'?'🏭 Atelier':'🏢 Réserve');
   renderDet(cat); renderDetItems(cat); renderRecipes(cat);
-  document.getElementById('det-del').innerHTML = stockAdmin(cat)?'<button class="btn bdano" style="width:100%;margin-top:6px" onclick="askDelCat()">🗑 Supprimer cette référence</button>':'';
+  var numCat = catPole(cat) === 'numerique';
+  // Produit numérique : un seul composant (le produit lui-même) — pas d'ajout ni de lien de composant
+  ['det-add-item','det-link-item'].forEach(function(id){ var b = document.getElementById(id); if(b) b.style.display = numCat ? 'none' : ''; });
+  var dt = document.getElementById('det-items-title'); if(dt) dt.textContent = numCat ? 'Stock du produit' : 'Composants';
+  document.getElementById('det-del').innerHTML = stockAdmin(cat)?'<button class="btn bdano" style="width:100%;margin-top:6px" onclick="askDelCat()">🗑 Supprimer '+(numCat?'ce produit':'cette référence')+'</button>':'';
 }
 
 function renderDet(cat) {
@@ -4872,7 +4877,7 @@ function openAddCatModal(){
   document.getElementById('cat-fam').innerHTML=famOptionsHtml(zoneFamille[curTab]);
   document.getElementById('cat-fam').value=zoneFamille[curTab] || 'badge_magnet';
   document.getElementById('cat-ph-prev').innerHTML='📷 Ajouter une photo';
-  document.getElementById('m-cat-title').textContent='➕ Nouvelle référence';
+  document.getElementById('m-cat-title').textContent = famPole(zoneFamille[curTab]) === 'numerique' ? '➕ Nouveau produit' : '➕ Nouvelle référence';
   om('m-cat');
 }
 
@@ -5339,8 +5344,11 @@ function saveCat(){
   var n=document.getElementById('cat-n').value.trim(); if(!n){toast('Nom obligatoire',1);return;}
   var ord = parseInt(document.getElementById('cat-o').value)||99;
   var fam = document.getElementById('cat-fam').value || 'badge_magnet';
-  fbs('categories/'+gid(),{name:n,desc:document.getElementById('cat-d').value.trim(),photo:PT.cat||null,order:ord,famille:fam,items:{},reserve_items:{}});
-  cm('m-cat'); toast('✅ Référence créée !');
+  var itemsInit = {};
+  // Pôle numérique : un produit = un seul composant, du même nom (ex. MUGS utilise « MUGS »)
+  if(famPole(fam) === 'numerique'){ itemsInit[gid()] = {name:n, qty:0, alertPcs:0, ppc:null, photo:null, order:0}; }
+  fbs('categories/'+gid(),{name:n,desc:document.getElementById('cat-d').value.trim(),photo:PT.cat||null,order:ord,famille:fam,items:itemsInit,reserve_items:{}});
+  cm('m-cat'); toast(famPole(fam) === 'numerique' ? '✅ Produit créé !' : '✅ Référence créée !');
 }
 
 // Le composant se crée toujours à 0 : la quantité et le conditionnement
@@ -6651,8 +6659,8 @@ function startInvcListener(){
   });
 }
 // Ordre d'affichage des formats : Badges & Magnets (ronds du plus petit au plus grand : 25 mm → 100 mm, puis les autres formats), puis Porte-clés, Pins, Divers.
-var INVC_FAM_ORDER = ['badge_magnet','porte_cle','pins','divers','mugs','gourdes','totebag'];
-var INVC_FAM_LABEL = {badge_magnet:'🏷️ Badges & Magnets', porte_cle:'🔑 Porte-clés', pins:'📌 Pins', divers:'📦 Divers', mugs:'☕ Mugs', gourdes:'🥤 Gourdes', totebag:'👜 Totebags'};
+var INVC_FAM_ORDER = ['badge_magnet','porte_cle','pins','divers','mugs','rollup','totebag'];
+var INVC_FAM_LABEL = {badge_magnet:'🏷️ Badges & Magnets', porte_cle:'🔑 Porte-clés', pins:'📌 Pins', divers:'📦 Divers', mugs:'🖨️ Sublimation', rollup:'🧻 Roll up', totebag:'👜 Tote bags'};
 function invcCatCmp(a, b){
   var fa = INVC_FAM_ORDER.indexOf(catFamille(a)), fb = INVC_FAM_ORDER.indexOf(catFamille(b));
   if(fa < 0) fa = 99; if(fb < 0) fb = 99;
@@ -11227,10 +11235,10 @@ function mtgRecalcChargeParPoste(){
 // ── Alertes "non commandées" auto (État des stocks) : réutilise exactement
 // la même logique que l'onglet Alertes (stock bas + aucune commande en
 // cours), regroupée par famille pour la lisibilité dans la réunion.
-var MTG_FAM_ORDER = [['badge_magnet','🏷️ Badges & Magnets'],['porte_cle','🔑 Porte-clés'],['pins','📌 Pins'],['divers','📦 Divers'],['mugs','☕ Mugs'],['gourdes','🥤 Gourdes'],['totebag','👜 Totebags']];
+var MTG_FAM_ORDER = [['badge_magnet','🏷️ Badges & Magnets'],['porte_cle','🔑 Porte-clés'],['pins','📌 Pins'],['divers','📦 Divers'],['mugs','🖨️ Sublimation'],['rollup','🧻 Roll up'],['totebag','👜 Tote bags']];
 
 function mtgScanNotOrderedAlerts(){
-  var byFam = {badge_magnet:[], porte_cle:[], pins:[], divers:[], mugs:[], gourdes:[], totebag:[]};
+  var byFam = {badge_magnet:[], porte_cle:[], pins:[], divers:[], mugs:[], rollup:[], totebag:[]};
   (S.cats||[]).forEach(function(cat){
     var fam = catFamille(cat);
     if(!byFam[fam]) byFam[fam] = [];
@@ -11266,7 +11274,7 @@ function mtgNotOrderedAlertsHtml(){
 
 // Libellés sans emoji pour le PDF : la police standard de jsPDF ne sait
 // pas afficher les emoji (ils ressortent en caractères illisibles).
-var MTG_FAM_PLAIN = {badge_magnet:'Badges & Magnets', porte_cle:'Porte-clés', pins:'Pins', divers:'Divers', mugs:'Mugs', gourdes:'Gourdes', totebag:'Totebags'};
+var MTG_FAM_PLAIN = {badge_magnet:'Badges & Magnets', porte_cle:'Porte-clés', pins:'Pins', divers:'Divers', mugs:'Sublimation', rollup:'Roll up', totebag:'Tote bags'};
 
 // toLocaleString('fr-FR') insère une espace fine insécable comme séparateur
 // de milliers ; cette espace-là n'existe pas non plus dans la police du
