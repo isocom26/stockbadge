@@ -1947,7 +1947,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.10.30-1520';
+var APP_VERSION = '2026.11.03-1111';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -11149,7 +11149,10 @@ function mtgRenderVerso(){
 // actuellement en mémoire (déjà écoutées en direct par l'app — pas besoin
 // de refaire un appel réseau, donc instantané).
 function mtgFetchAutoChargeParPoste(){
-  return Promise.resolve(dashCalcChargeParPoste(dashCommandesArray(), S_gammes));
+  // Reste à produire (commandé moins produit) : demande les rapports de l'équipe, comme le tableau de bord
+  return fbg('users').then(function(us){ return dashFetchAllReports(us.val() || {}); }).then(function(all){
+    return dashCalcResteParPoste(dashCommandesArray(), S_gammes, all, false);
+  });
 }
 
 // ── Capacité hebdomadaire auto : réutilise le calcul jour par jour du
@@ -11330,7 +11333,7 @@ function mtgVersoHTML(d, machinesRaw){
     '<div class="mtg-num-row"><label>🔧 Semi-automatique</label><input class="mtg-input" id="mtg-inp-semiAVenir" style="max-width:140px" type="text" inputmode="numeric" value="'+semiAVenir+'" placeholder="0" onchange="mtgSaveField(\'semiAVenir\',this.value)"></div>'+
     '<div class="mtg-num-row"><label>⚙️ Automatique</label><input class="mtg-input" id="mtg-inp-autoAVenir" style="max-width:140px" type="text" inputmode="numeric" value="'+autoAVenir+'" placeholder="0" onchange="mtgSaveField(\'autoAVenir\',this.value)"></div>'+
     '<div class="mtg-num-row"><label>🪑 Manuelle / Table</label><input class="mtg-input" id="mtg-inp-tableAVenir" style="max-width:140px" type="text" inputmode="numeric" value="'+tableAVenir+'" placeholder="0" onchange="mtgSaveField(\'tableAVenir\',this.value)"></div>'+
-    '<div style="font-size:.66rem;color:var(--mut);margin-top:6px">ℹ️ Pré-remplie automatiquement (commandes en cours réparties par poste selon la gamme de chaque format) si le champ était vide — approximation à l\'instant présent, modifiable à tout moment, ou recalculable via le bouton.</div>'+
+    '<div style="font-size:.66rem;color:var(--mut);margin-top:6px">ℹ️ Pré-remplie automatiquement (reste à produire des commandes en cours — commandé moins produit — réparti par poste selon la gamme) si le champ était vide — modifiable à tout moment, ou recalculable via le bouton.</div>'+
     '</div>'+
 
     '<div class="mtg-block"><div class="mtg-block-title">État des stocks / urgences</div>'+
@@ -20355,6 +20358,7 @@ function openDashboardTab(){
         S_dash.allReports = all;
         S_dash.producersByCmd = dashBuildProducersIndex(all);
         S_dash.producersLoaded = true;
+        dashRenderSynthese();
         dashRenderRecherche();
         dashRenderSav();
         // La "Charge actuelle" de l'onglet Aujourd'hui a aussi besoin des
@@ -20416,7 +20420,9 @@ function dashRenderSynthese(){
   html += card('Réf. sous seuil', s.lowStock, s.outOfStock>0?(s.outOfStock+' rupture'):'', s.lowStock>0?'var(--red)':'var(--txt)');
   html += '</div>';
 
-  var charge = dashCalcChargeParPoste(S_dash.commandes, S_gammes, viewPole !== 'badges');
+  var charge = S_dash.allReports
+    ? dashCalcResteParPoste(S_dash.commandes, S_gammes, S_dash.allReports, viewPole !== 'badges')
+    : dashCalcChargeParPoste(S_dash.commandes, S_gammes, viewPole !== 'badges');   // provisoire jusqu'au chargement des rapports
   html += dashRenderChargeParPosteHtml(charge);
   if(viewPole !== 'numerique') html += dashRenderEtapesSupHtml(dashCalcEtapesSup(S_dash.commandes, Date.now(), 30));
 
@@ -20466,6 +20472,61 @@ function dashRenderEtapesSupHtml(list){
 
 // Affichage du bloc "Charge par poste" — partagé avec l'onglet Réunion, qui
 // utilise directement dashCalcChargeParPoste (mtgFetchAutoChargeParPoste).
+// Reste à produire PAR POSTE : même logique que le « reste à produire » du tableau de bord
+// (commandé moins produit, commandes non terminées ; semi-auto + table = mêmes pièces → on retient le plus grand),
+// réparti sur le premier poste de la gamme pas encore au complet. Renvoie le même format que dashCalcChargeParPoste.
+// Pure : ne lit que ses paramètres (testable sans DOM/Firebase).
+function dashCalcResteParPoste(commandes, gammes, allReports, includeNum){
+  var res = {semi:0, auto:0, table:0, nonReparti:0, sub:0};
+  function gKeyFor(cmdId, cmd, site){
+    return cmdId ? ('id:'+cmdId) : ('txt:'+(cmd||'').trim().toLowerCase()+'||'+(site||'').trim().toLowerCase());
+  }
+  // Produit par commande / format / poste (toutes lignes, quel que soit leur statut — comme la Charge actuelle)
+  var prod = {};
+  (allReports||[]).forEach(function(r){
+    Object.keys(r.data||{}).forEach(function(wk){
+      var w = r.data[wk] || {};
+      for(var di=0; di<5; di++) for(var hi=0; hi<2; hi++){
+        var ls = ((w['d'+di]||{})['h'+hi]||{}).lines || [];
+        if(!Array.isArray(ls)) ls = Object.keys(ls).map(function(k){ return ls[k]; });
+        ls.forEach(function(l){
+          if(!l) return;
+          var g = gKeyFor(l.cmdId, l.cmd, l.site);
+          var fk = (l.format||'—').trim().toLowerCase();
+          var sec = l.sec || 'semi';
+          var o = prod[g] || (prod[g] = {});
+          var f = o[fk] || (o[fk] = {semi:0, auto:0, table:0, sub:0});
+          f[sec] = (f[sec]||0) + (parseInt(l.qty)||0);
+        });
+      }
+    });
+  });
+  (commandes||[]).forEach(function(c){
+    if(c.status === 'done') return;
+    var po = prod[gKeyFor(c.id, c.cmd, c.site)] || {};
+    (c.formats||[]).forEach(function(f){
+      var ordered = parseInt(f.qty)||0;
+      if(ordered <= 0) return;
+      var fk = (f.format||'—').trim().toLowerCase();
+      var pf = po[fk] || {semi:0, auto:0, table:0, sub:0};
+      if(f.pole === 'numerique'){
+        if(includeNum) res.sub += Math.max(0, ordered - (pf.sub||0));
+        return;
+      }
+      if(f.pole && f.pole !== 'badges') return;
+      var done = (pf.semi > 0 && pf.table > 0) ? Math.max(pf.semi, pf.table) : (pf.semi||0) + (pf.auto||0) + (pf.table||0);
+      var reste = Math.max(0, ordered - done);
+      if(reste <= 0) return;
+      var etapes = gammeEtapesFrom(gammes, f.format);
+      if(!etapes.length){ res.nonReparti += reste; return; }
+      var poste = etapes[0];
+      for(var i=0; i<etapes.length; i++){ if((pf[etapes[i]]||0) < ordered){ poste = etapes[i]; break; } }
+      res[poste] = (res[poste]||0) + reste;
+    });
+  });
+  return res;
+}
+
 function dashRenderChargeParPosteHtml(charge){
   var rows = (viewPole === 'numerique') ? [['sub','🖨️','Sublimation']] : [
     ['semi','🔧','Semi-auto'],
@@ -20475,7 +20536,7 @@ function dashRenderChargeParPosteHtml(charge){
   if(viewPole === 'tout') rows.push(['sub','🖨️','Sublimation']);
   var html = '<div style="background:var(--card);border:1.5px solid var(--brd);border-radius:12px;padding:14px;margin-bottom:16px">'+
     '<div style="font-family:Open Sans,sans-serif;font-weight:800;font-size:0.95rem;margin-bottom:2px">📦 Charge par poste</div>'+
-    '<div style="font-size:.7rem;color:var(--mut);margin-bottom:10px">Quantité commandée non terminée, répartie selon la gamme de chaque format — photo à l\'instant présent, sans déduire ce qui est déjà partiellement produit.</div>';
+    '<div style="font-size:.7rem;color:var(--mut);margin-bottom:10px">Reste à produire (commandé moins déjà produit) des commandes non terminées, réparti sur le poste où chaque format doit encore passer — même calcul que le « reste à produire » de Capacité.</div>';
   html += rows.map(function(r){
     var key=r[0], icon=r[1], label=r[2];
     var v = charge[key]||0;
