@@ -527,6 +527,9 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
 #update-banner.show{display:flex}
 #sav-banner{display:none;position:fixed;top:0;left:0;right:0;z-index:9999;background:var(--red);color:#fff;font-family:'Open Sans',sans-serif;font-weight:700;font-size:.82rem;padding:10px 14px;align-items:center;justify-content:space-between;gap:10px;cursor:pointer}
 #sav-banner.show{display:flex}
+#suivi-banner{display:none;position:fixed;top:0;left:0;right:0;z-index:9999;background:var(--acc);color:#000;font-family:'Open Sans',sans-serif;font-weight:700;font-size:.82rem;padding:10px 14px;align-items:center;justify-content:space-between;gap:10px;cursor:pointer}
+#suivi-banner.show{display:flex}
+#suivi-banner button{background:rgba(0,0,0,.15);color:#000;border:none;border-radius:8px;padding:6px 10px;font-weight:800;font-size:.82rem;cursor:pointer}
 #sav-banner button{background:rgba(255,255,255,.22);color:#fff;border:none;border-radius:8px;padding:6px 10px;font-weight:800;font-size:.82rem;cursor:pointer}
 #update-banner button{background:#000;color:var(--acc);border:none;border-radius:8px;padding:6px 14px;font-family:'Open Sans',sans-serif;font-weight:800;font-size:.82rem;cursor:pointer}
 #pending-banner{display:none;position:fixed;top:0;left:0;right:0;z-index:9999;background:var(--red);color:#fff;font-family:'Open Sans',sans-serif;font-weight:700;font-size:.82rem;padding:10px 14px;align-items:center;justify-content:center;text-align:center;gap:12px;flex-wrap:wrap;box-shadow:0 2px 8px rgba(0,0,0,.25)}
@@ -547,6 +550,11 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
 <div id="sav-banner" onclick="savGoToList()">
   <span id="sav-banner-text"></span>
   <button onclick="event.stopPropagation();savDismissBanner()">✕</button>
+</div>
+
+<div id="suivi-banner" onclick="suiviGoToList()">
+  <span id="suivi-banner-text"></span>
+  <button onclick="event.stopPropagation();suiviDismissBanner()">✕</button>
 </div>
 
 <div id="update-banner">
@@ -1352,6 +1360,16 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
   </div>
 
   <!-- Étapes supplémentaires (cartonnette, sachet…) -->
+  <div id="admin-transp-block" style="background:var(--card);border:1.5px solid var(--brd);border-radius:14px;padding:14px;margin-bottom:16px">
+    <div style="font-family:Open Sans,sans-serif;font-weight:800;font-size:0.95rem;margin-bottom:6px">📮 Transporteurs</div>
+    <div style="font-size:.78rem;color:var(--mut);margin-bottom:10px">Liste proposée quand on ajoute un colis (suivi d'expédition) sur une commande. Un transporteur désactivé n'est plus proposé mais reste affiché sur les colis déjà saisis.</div>
+    <div id="admin-transp-list"></div>
+    <div style="display:flex;gap:8px;margin-top:10px">
+      <input type="text" id="admin-transp-inp" placeholder="Nouveau transporteur" maxlength="30" style="flex:1;min-width:0;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.85rem;padding:8px 10px;outline:none">
+      <button onclick="transpAdminAdd()" style="padding:8px 14px;border-radius:8px;border:none;background:var(--acc);color:#000;font-family:Open Sans,sans-serif;font-weight:700;font-size:0.89rem;cursor:pointer">+ Ajouter</button>
+    </div>
+  </div>
+
   <div id="admin-esup-block" style="background:var(--card);border:1.5px solid var(--brd);border-radius:14px;padding:14px;margin-bottom:16px">
     <div style="font-family:Open Sans,sans-serif;font-weight:800;font-size:0.95rem;margin-bottom:6px">📦 Étapes supplémentaires</div>
     <div style="font-size:.78rem;color:var(--mut);margin-bottom:10px">Actions faites en plus de la fabrication (mise sur cartonnette, sachet…). Elles se demandent par commande dans Dépiautage, se saisissent dans le Rapport, et ne sont jamais comptées dans la production. Une étape désactivée n'est plus proposée mais reste lisible sur les commandes qui l'utilisent déjà.</div>
@@ -1454,6 +1472,15 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
   <div style="text-align:center;color:var(--mut);font-size:.72rem;margin-bottom:16px" id="compte-version"></div>
 
     <button class="btn bsec" style="width:100%" onclick="cm('m-compte')">Fermer</button>
+  </div>
+</div>
+
+<div class="mover" id="m-suivi" onclick="cm('m-suivi')">
+  <div class="modal" onclick="event.stopPropagation()" style="max-height:85vh;overflow-y:auto">
+    <div class="dh"></div>
+    <h3 style="text-align:center">📮 Commandes à confirmer</h3>
+    <div id="suivi-list-body"></div>
+    <button class="btn bsec" style="width:100%;margin-top:12px" onclick="cm('m-suivi')">Fermer</button>
   </div>
 </div>
 
@@ -1934,7 +1961,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.10.30-1025';
+var APP_VERSION = '2026.11.03-1433';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -2124,7 +2151,7 @@ document.addEventListener('DOMContentLoaded', function(){
 // chacune un décalage "top" fixe en pixels) sous leur hauteur cumulée, pour
 // ne jamais les cacher — recalculé à chaque affichage/masquage et au
 // redimensionnement (rotation de tablette).
-var TOP_BANNER_ORDER = ['pending-banner', 'sav-banner', 'update-banner', 'backup-reminder-banner'];
+var TOP_BANNER_ORDER = ['pending-banner', 'sav-banner', 'suivi-banner', 'update-banner', 'backup-reminder-banner'];
 
 function showTopBanner(bannerOrId){
   var banner = typeof bannerOrId === 'string' ? document.getElementById(bannerOrId) : bannerOrId;
@@ -2381,7 +2408,7 @@ auth.onAuthStateChanged(function(u) {
     document.getElementById('abadge').style.display = (iAm||isDir) ? 'inline' : 'none';
     document.getElementById('abadge').textContent = iAm ? 'Admin' : 'Direction';
     saveQuickProfile(u.email, u.displayName);
-    if (!inited) { inited = true; startDB(); startMachListener(); startRpListener(); startCmdIndexListener(); startCustomFormatsListener(); startInvcListener(); startCompListener(); startGammesListener(); startEtapesSupListener(); startQtyRulesListener(); startAlertSeenListener(); }
+    if (!inited) { inited = true; startDB(); startMachListener(); startRpListener(); startCmdIndexListener(); startCustomFormatsListener(); startInvcListener(); startCompListener(); startGammesListener(); startEtapesSupListener(); startTranspListener(); startQtyRulesListener(); startAlertSeenListener(); }
     if (location.hash === '#ecran') setTimeout(function(){ ecranAutoOpen(0); }, 400);
 
     // Rendu immédiat depuis le cache local, si on a déjà vu cet utilisateur
@@ -2457,6 +2484,7 @@ auth.onAuthStateChanged(function(u) {
       }
       newsAutoShow();
       savAlertsUpdate();
+      suiviAlertsUpdate();
     }).catch(function(err){
       if(isPermDenied(err)) forceSignOutDisabled(u.uid, 'Accès refusé : compte désactivé ou introuvable. Contacte un administrateur.');
       else { try { console.error('Lecture fiche utilisateur :', err); } catch(e){} }
@@ -2464,7 +2492,7 @@ auth.onAuthStateChanged(function(u) {
   } else {
     // Réinitialiser TOUTES les variables utilisateur pour éviter les conflits de cache
     try { if(_selfWatchRef){ _selfWatchRef.off(); _selfWatchRef = null; } } catch(e){}
-    me = null; iAm = false; isDir = false; _newsAuto = false; hideTopBanner('sav-banner');
+    me = null; iAm = false; isDir = false; _newsAuto = false; hideTopBanner('sav-banner'); hideTopBanner('suivi-banner');
     me_role = 'employee'; me_perms = {}; me_machineType = 'semi'; permsLoaded = false;
     // Réinitialiser les variables du rapport
     rptUid = null; rptStoreUid = null;
@@ -2574,6 +2602,7 @@ function ecranAutoOpen(tries){
 // Pas de correctif technique invisible ici. tag = qui est concerné :
 //   'all' (tout le monde), 'admin' (admin/direction), 'maint' (maintenance), 'stock' (ajout de stock), 'reprint' (réimpressions)
 var NEWS = [
+  {n:44, d:'03/11/2026', tag:'dashboard', t:'📮 Suivi d\'expédition : colis à confirmer', x:'Sur la fiche d\'une commande (Tableau de bord › Commandes), on peut ajouter un ou plusieurs colis (transporteur + n° de suivi). La commande passe « À confirmer » : les personnes concernées reçoivent un bandeau et une pastille « CONF » sur le Tableau de bord (et un nombre sur Commandes), puis cliquent « Confirmé » après avoir envoyé le mail. Les pastilles SAV sont désormais séparées (« SAV », et un nombre sur le sous-onglet SAV). Les droits se règlent dans Admin › Droits, la liste des transporteurs dans Admin › Réglages.'},
   {n:43, d:'28/10/2026', tag:'all', t:'Stock : références ISOCOM et fournisseur', x:'Chaque fourniture peut maintenant afficher sa référence ISOCOM, son fournisseur et sa référence fournisseur sous son nom. L\'admin les renseigne avec le crayon ✏️ du composant.'},
   {n:39, d:'28/10/2026', tag:'dashboard', t:'Stats : les pièces produites en table seule sont comptées', x:'Les pièces des formats produits uniquement en table (gamme « Table seule », ex. porte-clés) entrent maintenant dans le total produit, les stats par format, site, semaine et producteur. Les repassages semi-auto vers table restent comptés une seule fois. Sous « Répartition par machine », la table indique « dont X pcs repassées ».'},
   {n:38, d:'28/10/2026', tag:'dashboard', t:'Capacité : même reste à produire que « Charge actuelle »', x:'Le simulateur express de l\'onglet Capacité utilise maintenant le même « reste à produire » que la Charge actuelle de l\'onglet Aujourd\'hui (quantité commandée moins ce qui est déjà produit). Plus d\'écart entre les deux.'},
@@ -2690,14 +2719,7 @@ function savSeenKey(){ return 'stockbadge_sav_seen_' + (me && me.uid ? me.uid : 
 function savSeenGet(){ try { var v = localStorage.getItem(savSeenKey()); return v==null ? null : JSON.parse(v); } catch(e){ return null; } }
 function savSeenSet(ids){ try { localStorage.setItem(savSeenKey(), JSON.stringify(ids)); } catch(e){} }
 function savLabel(it){ return (it.c.nom || it.c.cmd || '?') + (it.sv.motif ? ' — ' + it.sv.motif : ''); }
-function savUpdateDot(count){
-  var g = document.getElementById('grp-dashboard');
-  if(!g) return;
-  var base = '📈 Tableau de bord';
-  g.innerHTML = count > 0
-    ? base + ' <span class="sav-dot" style="display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 4px;border-radius:99px;background:var(--red);color:#fff;font-size:.7rem;font-weight:800;margin-left:4px;box-sizing:border-box">'+count+'</span>'
-    : base;
-}
+function savUpdateDot(count){ _dotSav = count; dotsRender(); }
 function savAlertsUpdate(){
   if(!me || !canSavAlert()){
     hideTopBanner('sav-banner'); savUpdateDot(0); return;
@@ -3186,7 +3208,7 @@ function switchTab(name) {
   if (name==='stats') openStatsTab();
   if (name==='dashboard' && permsLoaded){ openDashboardTab(); dashSwitchSection('recherche'); } // ouverture directe sur « Commandes »
   if (name!=='dashboard') document.body.classList.remove('dash-commandes-wide');
-  if (name.indexOf('admin_')===0) { renderPrestataires(); renderSuppliers(); renderCustomFormatsList(); renderGammesList(); renderEtapesSupAdmin(); renderQtyRulesAdmin(); renderDashboardSettings(); if(name==='admin_interventions') admForgottenRefresh(); }
+  if (name.indexOf('admin_')===0) { renderPrestataires(); renderSuppliers(); renderCustomFormatsList(); renderGammesList(); renderEtapesSupAdmin(); renderTranspAdmin(); renderQtyRulesAdmin(); renderDashboardSettings(); if(name==='admin_interventions') admForgottenRefresh(); }
   if (name==='qualite') openQualiteTab();
 }
 
@@ -7713,6 +7735,269 @@ function changeMyEmail(){
     .finally(function(){ btn.disabled = false; btn.textContent = btnTxt; });
 }
 
+// ══════════════════════════════════════════════════════════════
+// SUIVI D'EXPÉDITION : colis (transporteur + n° de suivi) saisis sur la commande, à confirmer par mail
+// commandes/{id}/colis/{cid} = {transp, num, at, byName, byUid, conf?:{at, byName, byUid}}
+// « À confirmer » = au moins un colis sans confirmation (ajouter un colis après une confirmation remet « À confirmer »).
+// Champs purement additifs : une commande sans colis se comporte exactement comme avant.
+// ══════════════════════════════════════════════════════════════
+function canSuiviSaisie(){ return !!(iAm || isDir || (permsLoaded && me_perms && me_perms.suiviSaisie === true)); }
+function canSuiviConf(){ return !!(iAm || isDir || (permsLoaded && me_perms && me_perms.suiviConf === true)); }
+var TRANSP_DEFAUT = [['colissimo','Colissimo'],['chrono','Chronopost'],['dsv','DSV'],['jouve','Jouve'],['safal','Safal']];
+var S_transp = {};   // settings/transporteurs/{clé} = {label, actif, ord}
+function startTranspListener(){
+  db.ref('settings/transporteurs').on('value', function(snap){
+    S_transp = snap.val() || {};
+    if(curTab && curTab.indexOf('admin_')===0) renderTranspAdmin();
+  });
+}
+function transpCatalogue(includeInactive){
+  var out = {};
+  TRANSP_DEFAUT.forEach(function(d, i){ out[d[0]] = {key:d[0], label:d[1], actif:true, ord:i+1}; });
+  var cfg = S_transp || {};
+  Object.keys(cfg).forEach(function(k){
+    var o = cfg[k];
+    if(!/^[a-z0-9_]{1,30}$/.test(k) || !o || typeof o !== 'object') return;
+    var b = out[k] || {key:k, label:k, actif:true, ord:1000+(parseInt(o.ord)||0)/1e13};
+    if(o.label) b.label = String(o.label);
+    if(o.actif === false) b.actif = false;
+    out[k] = b;
+  });
+  var arr = Object.keys(out).map(function(k){ return out[k]; });
+  if(!includeInactive) arr = arr.filter(function(x){ return x.actif; });
+  arr.sort(function(a,b){ return (a.ord-b.ord) || a.label.localeCompare(b.label); });
+  return arr;
+}
+function renderTranspAdmin(){
+  var block = document.getElementById('admin-transp-block'); if(!block) return;
+  block.style.display = isDir ? '' : 'none';
+  if(!isDir) return;
+  var el = document.getElementById('admin-transp-list'); if(!el) return;
+  if(el.contains(document.activeElement)) return;
+  el.innerHTML = transpCatalogue(true).map(function(x){
+    return '<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-top:1px solid var(--brd);'+(x.actif?'':'opacity:.55')+'">'+
+      '<input type="text" value="'+esc(x.label)+'" maxlength="30" onchange="transpAdminSaveLabel(\''+x.key+'\',this.value)" style="flex:1;min-width:0;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.85rem;padding:7px 10px;outline:none">'+
+      '<button class="esup-btn '+(x.actif?'':'ok')+'" onclick="transpAdminToggle(\''+x.key+'\','+(x.actif?'false':'true')+')">'+(x.actif?'Désactiver':'Réactiver')+'</button></div>';
+  }).join('');
+}
+function transpAdminSaveLabel(key, val){
+  val = String(val||'').trim();
+  if(!/^[a-z0-9_]{1,30}$/.test(key) || !val){ renderTranspAdmin(); return; }
+  fbu('settings/transporteurs/'+key, {label:val}).then(function(){ toast('✅ Transporteur renommé'); });
+}
+function transpAdminToggle(key, actif){
+  if(!/^[a-z0-9_]{1,30}$/.test(key)) return;
+  fbu('settings/transporteurs/'+key, {label: transpCatalogue(true).filter(function(x){ return x.key===key; })[0].label, actif:actif}).then(function(){ toast(actif ? '✅ Transporteur réactivé' : '✅ Transporteur désactivé'); });
+}
+function transpAdminAdd(){
+  var inp = document.getElementById('admin-transp-inp');
+  var label = String((inp&&inp.value)||'').trim();
+  if(!label){ toast('Saisis un nom de transporteur', 1); return; }
+  var base = label.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,'').slice(0,26);
+  if(!base){ toast('Nom invalide', 1); return; }
+  var taken = transpCatalogue(true).map(function(x){ return x.key; });
+  var key = base, n = 2;
+  while(taken.indexOf(key) >= 0){ key = base+'_'+(n++); }
+  fbu('settings/transporteurs/'+key, {label:label, actif:true, ord:Date.now()}).then(function(){ if(inp) inp.value = ''; toast('✅ Transporteur ajouté : '+label); });
+}
+
+// ── Calculs ──
+function colisList(c){
+  var m = c && c.colis;
+  if(!m || typeof m !== 'object') return [];
+  return Object.keys(m).map(function(id){ return m[id] && typeof m[id] === 'object' ? Object.assign({id:id}, m[id]) : null; })
+    .filter(Boolean).sort(function(a,b){ return (a.at||0)-(b.at||0); });
+}
+function suiviPending(c){ return colisList(c).filter(function(k){ return !(k.conf && k.conf.at); }); }
+function suiviPendingCmds(){
+  var byId = (S_cmdIndex && S_cmdIndex.byId) || {}, out = [];
+  Object.keys(byId).forEach(function(cid){
+    var c = byId[cid]; if(!c) return;
+    var p = suiviPending(c);
+    if(p.length) out.push({cmdId:cid, c:c, colis:p});
+  });
+  return out.sort(function(a,b){ return (b.colis[b.colis.length-1].at||0) - (a.colis[a.colis.length-1].at||0); });
+}
+function suiviSeenKey(){ return 'isoprod_suivi_seen_' + (me && me.uid ? me.uid : 'x'); }
+function suiviSeenGet(){ try { var v = localStorage.getItem(suiviSeenKey()); return v==null ? null : JSON.parse(v); } catch(e){ return null; } }
+function suiviSeenSet(ids){ try { localStorage.setItem(suiviSeenKey(), JSON.stringify(ids)); } catch(e){} }
+
+// ── Pastilles séparées : « CONF n » et « SAV n » sur l'onglet Tableau de bord, un nombre sur chaque sous-onglet ──
+var _dotSav = 0, _dotConf = 0;
+function dotPillHtml(txt, bg, fg){
+  return '<span class="sav-dot" style="display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 6px;border-radius:99px;background:'+bg+';color:'+fg+';font-size:.68rem;font-weight:800;margin-left:4px;box-sizing:border-box">'+txt+'</span>';
+}
+function dotsRender(){
+  var g = document.getElementById('grp-dashboard');
+  if(g){
+    g.innerHTML = '📈 Tableau de bord' + (_dotConf > 0 ? dotPillHtml('CONF '+_dotConf, 'var(--acc)', '#000') : '') + (_dotSav > 0 ? dotPillHtml('SAV '+_dotSav, 'var(--red)', '#fff') : '');
+  }
+  var ts = document.getElementById('dash-tab-sav');
+  if(ts) ts.innerHTML = '🛠 SAV' + (_dotSav > 0 ? dotPillHtml(_dotSav, 'var(--red)', '#fff') : '');
+  var tr = document.getElementById('dash-tab-recherche');
+  if(tr) tr.innerHTML = '🔍 Commandes' + (_dotConf > 0 ? dotPillHtml(_dotConf, 'var(--acc)', '#000') : '');
+}
+function suiviUpdateDot(n){ _dotConf = n; dotsRender(); }
+
+function suiviLabel(it){
+  var k = it.colis[it.colis.length-1];
+  return (it.c.nom || it.c.cmd || '?') + (k ? ' — ' + (k.transp||'') + ' ' + (k.num||'') : '');
+}
+function suiviAlertsUpdate(){
+  if(!me || !canSuiviConf()){ hideTopBanner('suivi-banner'); suiviUpdateDot(0); return; }
+  var pend = suiviPendingCmds();
+  suiviUpdateDot(pend.length);
+  var dp = document.getElementById('dash-panel-recherche'); if(dp && dp.style.display !== 'none' && typeof dashRunSearch === 'function') dashRunSearch();
+  var ids = []; pend.forEach(function(it){ it.colis.forEach(function(k){ ids.push(k.id); }); });
+  var seen = suiviSeenGet();
+  if(seen === null){ suiviSeenSet(ids); seen = ids.slice(); }   // première fois sur cet appareil : l'existant est connu
+  // Mes propres saisies ne me préviennent pas
+  var mine = [];
+  pend.forEach(function(it){ it.colis.forEach(function(k){ if(k.byUid && me && k.byUid === me.uid && seen.indexOf(k.id) < 0) mine.push(k.id); }); });
+  if(mine.length){ seen = seen.concat(mine); }
+  seen = seen.filter(function(x){ return ids.indexOf(x) >= 0; });
+  suiviSeenSet(seen);
+  var unseen = pend.filter(function(it){ return it.colis.some(function(k){ return seen.indexOf(k.id) < 0; }); });
+  var tx = document.getElementById('suivi-banner-text');
+  if(!unseen.length){ hideTopBanner('suivi-banner'); return; }
+  if(tx) tx.textContent = unseen.length === 1 ? '📮 À confirmer : ' + suiviLabel(unseen[0]) : '📮 ' + unseen.length + ' commandes à confirmer';
+  showTopBanner('suivi-banner');
+}
+function suiviMarkAllSeen(){
+  var ids = []; suiviPendingCmds().forEach(function(it){ it.colis.forEach(function(k){ ids.push(k.id); }); });
+  suiviSeenSet(ids); hideTopBanner('suivi-banner');
+}
+function suiviDismissBanner(){ suiviMarkAllSeen(); }
+// Clic sur le bandeau : Tableau de bord > Commandes filtré « À confirmer » (sinon petite fenêtre pour ceux qui n'ont pas le Tableau de bord)
+function suiviGoToList(){
+  var g = document.getElementById('grp-dashboard');
+  suiviMarkAllSeen();
+  if(g && g.style.display !== 'none'){
+    switchGroup('dashboard');
+    dashSwitchSection('recherche');
+    var s = document.getElementById('dash-search-situation');
+    if(s){ s.value = 'conf'; dashRunSearch(); } else { window._dashPresetSituation = 'conf'; }
+  } else {
+    suiviOpenModal();
+  }
+}
+function suiviOpenModal(){
+  var b = document.getElementById('suivi-list-body'); if(!b) return;
+  b.innerHTML = suiviModalHtml();
+  om('m-suivi');
+}
+function suiviModalHtml(){
+  var pend = suiviPendingCmds();
+  if(!pend.length) return '<div style="color:var(--mut);font-size:.85rem;text-align:center;padding:14px">Aucune commande à confirmer.</div>';
+  return pend.map(function(it){
+    var c = it.c;
+    return '<div style="border:1.5px solid var(--acc);border-radius:10px;padding:10px;margin-bottom:8px;background:var(--sur)">'+
+      '<div style="font-weight:800;font-size:.9rem">'+esc(c.nom || c.cmd || '?')+'</div>'+
+      '<div style="font-size:.76rem;color:var(--mut);margin-bottom:4px">'+esc(c.site||'')+' · '+esc(c.cmd||'')+'</div>'+
+      suiviColisRowsHtml(it.cmdId, it.colis, false)+
+      (canSuiviConf() ? '<button class="btn bsec" style="width:100%;margin-top:8px;padding:8px;font-size:.8rem" onclick="suiviConfirm(\''+it.cmdId+'\')">✅ Confirmé (mail envoyé)</button>' : '')+
+    '</div>';
+  }).join('');
+}
+
+// ── Lignes de colis (fiche commande et fenêtre) ──
+function suiviColisRowsHtml(cmdId, list, withDelete){
+  return list.map(function(k){
+    var ok = !!(k.conf && k.conf.at);
+    var col = ok ? 'var(--grn)' : 'var(--acc)';
+    var d = k.at ? new Date(k.at).toLocaleDateString('fr-FR') : '—';
+    var can = withDelete && (iAm || (canSuiviSaisie() && !ok));
+    return '<div style="border-top:1px solid var(--brd);padding:7px 0;font-size:.82rem">'+
+      '<div style="display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap">'+
+        '<span><strong>'+esc(k.transp||'—')+'</strong> · <span style="font-family:monospace;font-size:.86rem;word-break:break-all">'+esc(k.num||'')+'</span></span>'+
+        '<span style="font-size:.7rem;font-weight:800;padding:2px 8px;border-radius:99px;border:1px solid '+col+';color:'+col+'">'+(ok?'✅ Confirmé':'🟠 À confirmer')+'</span>'+
+      '</div>'+
+      '<div style="font-size:.72rem;color:var(--mut)">Ajouté le '+d+' par '+esc(k.byName||'—')+(ok ? ' · confirmé le '+new Date(k.conf.at).toLocaleDateString('fr-FR')+' par '+esc(k.conf.byName||'—') : '')+'</div>'+
+      '<div style="display:flex;gap:6px;margin-top:5px">'+
+        '<button onclick="suiviCopy(\''+cmdId+'\',\''+k.id+'\')" style="padding:4px 10px;border-radius:8px;border:1px solid var(--brd);background:none;color:var(--txt);font-size:.72rem;cursor:pointer">📋 Copier le n°</button>'+
+        (can ? '<button onclick="suiviDeleteColis(\''+cmdId+'\',\''+k.id+'\')" style="padding:4px 10px;border-radius:8px;border:1px solid var(--red);background:none;color:var(--red);font-size:.72rem;cursor:pointer">Supprimer</button>' : '')+
+      '</div></div>';
+  }).join('');
+}
+function suiviFindColis(cmdId, kid){
+  var c = ((S_cmdIndex && S_cmdIndex.byId) || {})[cmdId];
+  return c && c.colis && c.colis[kid] ? c.colis[kid] : null;
+}
+function suiviCopy(cmdId, kid){
+  var k = suiviFindColis(cmdId, kid); if(!k) return;
+  var txt = String(k.num||'');
+  try {
+    if(navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(txt).then(function(){ toast('📋 N° copié'); }, function(){ toast(txt); }); return; }
+  } catch(e){}
+  toast(txt);
+}
+
+// ── Bloc sur la fiche commande ──
+function dashSuiviBlockHtml(c){
+  var list = colisList(c);
+  var pend = list.filter(function(k){ return !(k.conf && k.conf.at); });
+  var html = '<div style="margin-top:14px;border:1.5px solid var(--brd);border-radius:12px;padding:12px;background:var(--card);text-align:left">'+
+    '<div style="font-family:Open Sans,sans-serif;font-weight:800;font-size:.92rem;margin-bottom:6px">📮 Suivi d\'expédition'+(list.length?' ('+list.length+' colis)':'')+'</div>';
+  if(!list.length) html += '<div style="font-size:.8rem;color:var(--mut);margin-bottom:8px">Aucun colis renseigné pour cette commande.</div>';
+  html += suiviColisRowsHtml(c.id, list, true);
+  if(pend.length && canSuiviConf()){
+    html += '<button onclick="suiviConfirm(\''+c.id+'\')" style="width:100%;margin-top:8px;padding:9px;border-radius:10px;border:none;background:var(--grn);color:#fff;font-family:Open Sans,sans-serif;font-weight:800;font-size:.84rem;cursor:pointer">✅ Confirmé (mail envoyé)</button>';
+  }
+  if(canSuiviSaisie()){
+    var opts = transpCatalogue(false).map(function(t){ return '<option value="'+esc(t.label)+'">'+esc(t.label)+'</option>'; }).join('');
+    html += '<button id="dash-suivi-open-btn" onclick="dashSuiviOpenForm()" style="width:100%;margin-top:8px;padding:9px;border-radius:10px;border:1.5px dashed var(--acc);background:none;color:var(--acc);font-family:Open Sans,sans-serif;font-weight:800;font-size:.84rem;cursor:pointer">+ Ajouter un colis</button>'+
+      '<div id="dash-suivi-form" style="display:none;margin-top:8px">'+
+        '<select id="dash-suivi-transp" style="width:100%;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.85rem;padding:8px;margin-bottom:8px">'+opts+'</select>'+
+        '<input type="text" id="dash-suivi-num" maxlength="40" placeholder="N° de suivi" autocomplete="off" style="width:100%;box-sizing:border-box;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.9rem;padding:9px;margin-bottom:8px">'+
+        '<button onclick="dashSuiviSubmit(\''+c.id+'\')" style="width:100%;padding:10px;border-radius:10px;border:none;background:var(--acc);color:#000;font-family:Open Sans,sans-serif;font-weight:800;font-size:.86rem;cursor:pointer">Valider</button>'+
+      '</div>';
+  }
+  return html + '</div>';
+}
+function dashSuiviOpenForm(){
+  var f = document.getElementById('dash-suivi-form'), b = document.getElementById('dash-suivi-open-btn');
+  if(f) f.style.display = '';
+  if(b) b.style.display = 'none';
+  var n = document.getElementById('dash-suivi-num'); if(n) n.focus();
+}
+function dashSuiviRefreshAll(cmdId){
+  S_dash.commandes = dashCommandesArray();
+  var c = (S_dash.commandes||[]).find(function(x){ return x.id === cmdId; });
+  var blk = document.getElementById('dash-suivi-block');
+  if(blk && c) blk.innerHTML = dashSuiviBlockHtml(c);
+  if(typeof dashRunSearch === 'function') dashRunSearch();
+  var mb = document.getElementById('suivi-list-body'); if(mb && document.getElementById('m-suivi').classList.contains('open')) mb.innerHTML = suiviModalHtml();
+}
+function dashSuiviSubmit(cmdId){
+  if(!canSuiviSaisie()) return;
+  var tEl = document.getElementById('dash-suivi-transp'), nEl = document.getElementById('dash-suivi-num');
+  var transp = tEl ? tEl.value : '', num = nEl ? nEl.value.trim() : '';
+  if(!num){ toast('Saisis le n° de suivi', 1); return; }
+  if(!transp){ toast('Choisis un transporteur', 1); return; }
+  var entry = {transp:transp, num:num, at:Date.now(), byName:getMyName()};
+  if(me && me.uid) entry.byUid = me.uid;
+  fbs('commandes/'+cmdId+'/colis/'+gid(), entry)
+    .then(function(){ toast('✅ Colis ajouté — à confirmer'); dashSuiviRefreshAll(cmdId); })
+    .catch(function(){ toast('Erreur d\'enregistrement du colis', 1); });
+}
+function suiviConfirm(cmdId){
+  if(!canSuiviConf()) return;
+  var c = ((S_cmdIndex && S_cmdIndex.byId) || {})[cmdId]; if(!c) return;
+  var upd = {}, conf = {at:Date.now(), byName:getMyName()};
+  if(me && me.uid) conf.byUid = me.uid;
+  suiviPending(c).forEach(function(k){ upd['colis/'+k.id+'/conf'] = conf; });
+  if(!Object.keys(upd).length) return;
+  fbu('commandes/'+cmdId, upd)
+    .then(function(){ toast('✅ Expédition confirmée'); dashSuiviRefreshAll(cmdId); })
+    .catch(function(){ toast('Erreur de confirmation', 1); });
+}
+function suiviDeleteColis(cmdId, kid){
+  var k = suiviFindColis(cmdId, kid); if(!k) return;
+  if(!(iAm || (canSuiviSaisie() && !(k.conf && k.conf.at)))) return;
+  if(!confirm('Supprimer ce colis ('+(k.transp||'')+' '+(k.num||'')+') ?')) return;
+  fbd('commandes/'+cmdId+'/colis/'+kid).then(function(){ dashSuiviRefreshAll(cmdId); }).catch(function(){ toast('Erreur de suppression', 1); });
+}
+
 // ── PERMISSIONS PANEL ──
 var permsUserId = null;
 var PERMS_LIST = [
@@ -7725,6 +8010,8 @@ var PERMS_LIST = [
   {key:'sav',         label:'🛠 Peut déclarer un SAV (Tableau de bord)'},
   {key:'maintNotif',  label:'🔔 Reçoit les notifications de maintenance (rappels à faire, 1 message groupé par jour)'},
   {key:'savAlert',   label:'🔔 Reçoit les alertes SAV (bandeau + pastille quand un SAV est déclaré) — admin les reçoit toujours'},
+  {key:'suiviSaisie', label:'📮 Peut saisir les suivis d\'expédition (colis, n° de suivi) — admin et direction l\'ont toujours'},
+  {key:'suiviConf',  label:'✅ Confirme les expéditions et reçoit l\'alerte « à confirmer » (bandeau + pastille CONF) — admin et direction l\'ont toujours'},
   {key:'ecranAtelier', label:'📺 Voit le bouton « Écran atelier » (affichage TV) — admin et direction l\'ont toujours'},
 ];
 
@@ -7880,6 +8167,7 @@ function startCmdIndexListener(){
     S_cmdIndex = {byId:byId, bySiteCmd:bySiteCmd};
     cmdFixPoles(raw);
     if(typeof savAlertsUpdate==='function') savAlertsUpdate();
+    if(typeof suiviAlertsUpdate==='function') suiviAlertsUpdate();
     if(curTab==='reprint') renderReprint();
     updateDepUrgentBadge();
     if(curTab==='report' && typeof esupRefreshSlots==='function') esupRefreshSlots();
@@ -19755,7 +20043,7 @@ function dashOpenCommandeDetail(cmdId){
   var titleEl = document.getElementById('dash-cmd-detail-title');
   var bodyEl = document.getElementById('dash-cmd-detail-body');
   if(titleEl) titleEl.textContent = dashCmdLabel(c);
-  if(bodyEl) bodyEl.innerHTML = '<div id="dash-depart-block">'+dashDepartBlockHtml(c)+'</div><div id="dash-cmd-card"><div style="text-align:center;color:var(--mut);padding:20px;font-size:.85rem">🔍 Chargement…</div></div><div id="dash-esup-block">'+esupDetailHtml(c)+'</div><div id="dash-sav-block">'+dashSavBlockHtml(c)+'</div>';
+  if(bodyEl) bodyEl.innerHTML = '<div id="dash-depart-block">'+dashDepartBlockHtml(c)+'</div><div id="dash-cmd-card"><div style="text-align:center;color:var(--mut);padding:20px;font-size:.85rem">🔍 Chargement…</div></div><div id="dash-esup-block">'+esupDetailHtml(c)+'</div><div id="dash-suivi-block">'+dashSuiviBlockHtml(c)+'</div><div id="dash-sav-block">'+dashSavBlockHtml(c)+'</div>';
   om('m-dash-cmd-detail');
   dashEnsureAllReports().then(function(allReports){
     var g = dashAggregateCommandeDetail(c, allReports);
@@ -20624,6 +20912,7 @@ function dashRenderRecherche(){
     '<option value="produced">📦 Produite</option>'+
     '<option value="done">✅ Terminée</option>'+
     '<option value="sav">🛠 Avec SAV</option>'+
+    '<option value="conf">📮 À confirmer</option>'+
     '</select>';
   html += '</div>';
   html += '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">';
@@ -20641,6 +20930,7 @@ function dashRenderRecherche(){
     }).join('')+
     '</tr></thead><tbody id="dash-search-tbody"></tbody></table></div>';
   el.innerHTML = html;
+  if(window._dashPresetSituation){ var ps = document.getElementById('dash-search-situation'); if(ps) ps.value = window._dashPresetSituation; window._dashPresetSituation = null; }
   dashRunSearch();
 }
 
@@ -20669,6 +20959,7 @@ function dashRunSearch(){
     if(fromMs!=null && (c.createdAt||0) < fromMs) return false;
     if(toMs!=null && (c.createdAt||0) > toMs) return false;
     if(situationFilter === 'sav'){ if(!dashSavList(c).length) return false; }
+    else if(situationFilter === 'conf'){ if(!suiviPending(c).length) return false; }
     else if(situationFilter && dashComputeSituation(c).key !== situationFilter) return false;
     if(q){
       var hay = [c.cmd, c.nom, c.site].concat(dashProducersFor(c)).concat((c.formats||[]).map(function(f){return f.format;})).join(' ').toLowerCase();
@@ -20696,6 +20987,7 @@ function dashRunSearch(){
     var situationHtml =
       '<span style="display:inline-block;font-size:0.78rem;font-family:Open Sans,sans-serif;font-weight:800;padding:3px 9px;border-radius:99px;background:'+situation.bg+';color:'+situation.color+';border:1px solid '+situation.color+';white-space:nowrap">'+situation.label+'</span>'+
       (situation.sub ? '<div style="margin-top:3px"><span style="display:inline-block;font-size:0.69rem;font-family:Open Sans,sans-serif;font-weight:700;padding:2px 7px;border-radius:99px;background:none;color:'+situation.color+';border:1px solid '+situation.color+';white-space:nowrap">'+situation.sub+'</span></div>' : '');
+    if(suiviPending(c).length) situationHtml += '<div style="margin-top:3px"><span style="display:inline-block;font-size:0.69rem;font-weight:800;padding:2px 7px;border-radius:99px;background:rgba(217,119,6,.15);color:var(--acc)">📮 À confirmer</span></div>';
     var formatsTxt = (c.formats||[]).map(function(f){return f.format;}).join(', ')||'—';
     var producersTxt = S_dash.producersLoaded ? (dashProducersFor(c).join(', ')||'—') : '…';
     return '<tr style="border-bottom:1px solid var(--brd)'+(c.urgent && c.status!=='done'?';background:rgba(220,38,38,.08)':'')+'">'+
