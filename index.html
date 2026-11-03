@@ -1947,7 +1947,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.11.03-1111';
+var APP_VERSION = '2026.11.03-1344';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -2413,12 +2413,18 @@ function rptLineInView(l){
 // d'avant, à l'identique). Activé : une commande mixte n'est « terminée » que
 // lorsque les deux pôles ont produit ; chaque pôle fait son propre contrôle qualité ;
 // le départ est signalé bloqué tant que les contrôles ne sont pas tous faits.
-var S_poleCfg = {on:false};
+var S_poleCfg = {on:false, cqFrom:null};
 function poleCfgOn(){ return S_poleCfg.on === true; }
+// Contrôle qualité numérique : exigé seulement pour les commandes créées à partir de cette date
+// (réglage settings/poleNumerique/cqFrom ; repli = 30/10/2026, début des tests du pôle).
+// Les commandes plus anciennes se comportent comme avant (terminées dès le contrôle badges).
+var POLE_CQ_FROM_DEFAULT = new Date(2026, 9, 30).getTime();
+function poleCqFrom(){ return (S_poleCfg && S_poleCfg.cqFrom) || POLE_CQ_FROM_DEFAULT; }
+function poleCqRequired(c){ return !!(c && c.createdAt && c.createdAt >= poleCqFrom()); }
 function startPoleCfgListener(){
   db.ref('settings/poleNumerique').on('value', function(snap){
     var v = snap.val(), was = S_poleCfg.on;
-    S_poleCfg = {on: !!(v && v.enabled === true)};
+    S_poleCfg = {on: !!(v && v.enabled === true), cqFrom: (v && typeof v.cqFrom === 'number') ? v.cqFrom : null};
     if(typeof renderPoleCfgAdmin === 'function') renderPoleCfgAdmin();
     if(was !== S_poleCfg.on){
       try { if(curTab === 'depiautage') renderDepCmdList(); else if(curTab === 'qualite') renderQualite(); } catch(e){}
@@ -2430,13 +2436,21 @@ function polesSetCfg(on){
   fbu('settings/poleNumerique', {enabled: !!on, at: Date.now(), by: getMyName()});
   toast(on ? '✅ Gestion du pôle numérique activée' : '⏸️ Gestion du pôle numérique désactivée');
 }
+function polesSetCqFromNow(){
+  if(!iAm) return;
+  if(!confirm('Exiger le contrôle qualité numérique pour les commandes créées à partir de maintenant ? Les commandes plus anciennes seront « Terminées » dès le contrôle badges.')) return;
+  fbu('settings/poleNumerique', {cqFrom: Date.now(), cqFromBy: getMyName()});
+  toast('✅ Contrôle numérique exigé à partir de maintenant');
+}
 function renderPoleCfgAdmin(){
   var b = document.getElementById('admin-pole-block'); if(!b) return;
   b.style.display = iAm ? '' : 'none';
   var st = document.getElementById('admin-pole-state'); if(!st) return;
   var on = poleCfgOn();
   st.innerHTML = '<span style="font-weight:800;color:'+(on?'var(--grn)':'var(--mut)')+'">'+(on?'● ACTIVÉE':'○ Désactivée (fonctionnement d\'avant)')+'</span> '+
-    '<button class="btn '+(on?'bdano':'bpri')+'" style="flex:none;padding:7px 14px;margin-left:8px" onclick="polesSetCfg('+(on?'false':'true')+')">'+(on?'Désactiver':'Activer')+'</button>';
+    '<button class="btn '+(on?'bdano':'bpri')+'" style="flex:none;padding:7px 14px;margin-left:8px" onclick="polesSetCfg('+(on?'false':'true')+')">'+(on?'Désactiver':'Activer')+'</button>'+
+    '<div style="font-size:.76rem;color:var(--mut);margin-top:8px">Contrôle qualité numérique exigé pour les commandes créées depuis le <b>'+new Date(poleCqFrom()).toLocaleDateString('fr-FR')+'</b>. '+
+    '<button class="btn" style="flex:none;padding:4px 10px;margin-left:6px" onclick="polesSetCqFromNow()">Mettre à aujourd\'hui</button></div>';
 }
 var POLE_ST_LABEL = {todo:'à produire', ongoing:'en production', produced:'à contrôler', checked:'contrôlé'};
 var POLE_LABEL = {badges:'🏷️ Badges', numerique:'🖨️ Numérique'};
@@ -13329,6 +13343,8 @@ function renderQualite(){
         var cmdDep = (firstItem.l.cmdId && cmdRefIndexCqById[firstItem.l.cmdId])
           ? cmdRefIndexCqById[firstItem.l.cmdId]
           : cmdRefIndexCq[cqRefKey];
+        // Commande antérieure à la date d'exigence du contrôle numérique : pas de contrôle numérique
+        if(gPole === 'numerique' && cmdDep && !poleCqRequired(cmdDep)) return;
         if(cmdDep && cmdDep.formats){
           // Formats badges de la commande dans Dépiautage
           var badgeFmtsRef = cmdDep.formats
@@ -13387,7 +13403,7 @@ function renderQualite(){
           groupItems.cmdObjId = cmdIdG;
           groupItems.polesInfo = null;
           groupItems.numWait = null;
-          if(poleCfgOn() && cmdDep && cmdIsMixed(cmdDep)){
+          if(poleCfgOn() && cmdDep && cmdIsMixed(cmdDep) && poleCqRequired(cmdDep)){
             groupItems.polesInfo = polesStateFrom(Object.assign({}, cmdDep, {id: cmdIdG}), cqAllLines);
             // Commande partagée : le contrôle badges est le DERNIER, il attend le contrôle du pôle numérique
             if(gPole === 'badges' && !(cmdDep.cqNum && cmdDep.cqNum.at)) groupItems.numWait = true;
@@ -16394,7 +16410,7 @@ function qtyAwaitingControl(c){
   var hasNum = qtyHasNumFmt(c);
   if(hasBadge && !(c.cq && c.cq.at)) return true;
   // Pôle numérique : son propre contrôle est requis (commande 100 % numérique, ou partagée une fois le mode pôles activé)
-  if(hasNum && (!hasBadge || poleCfgOn()) && !(c.cqNum && c.cqNum.at)) return true;
+  if(hasNum && poleCqRequired(c) && (!hasBadge || poleCfgOn()) && !(c.cqNum && c.cqNum.at)) return true;
   return false;
 }
 // Une réimpression est demandée sur une commande déjà « Terminée » : elle repasse « En cours »
