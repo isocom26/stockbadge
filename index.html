@@ -2000,7 +2000,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.11.04-1055';
+var APP_VERSION = '2026.11.04-1118';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -8220,7 +8220,7 @@ function suiviAlertsUpdate(){
   if(!me || !canSuiviConf()){ hideTopBanner('suivi-banner'); suiviUpdateDot(0); return; }
   var pend = suiviPendingCmds();
   suiviUpdateDot(pend.length);
-  var dp = document.getElementById('dash-panel-recherche'); if(dp && dp.style.display !== 'none' && typeof dashRunSearch === 'function') dashRunSearch();
+  var dp = document.getElementById('dash-panel-recherche'); if(dp && dp.style.display !== 'none' && typeof dashRunSearch === 'function'){ S_dash.commandes = dashCommandesArray(); dashRunSearch(); }
   var ids = []; pend.forEach(function(it){ it.colis.forEach(function(k){ ids.push(k.id); }); });
   var seen = suiviSeenGet();
   if(seen === null){ suiviSeenSet(ids); seen = ids.slice(); }   // première fois sur cet appareil : l'existant est connu
@@ -8649,7 +8649,7 @@ function simpApply(){
   var ids = Object.keys(perOrder);
   if(!ids.length){ toast('Rien à enregistrer', 1); return; }
   Promise.all(ids.map(function(id){ return fbu('commandes/'+id, perOrder[id]); }))
-    .then(function(){ toast('✅ '+nCol+' colis et '+nEmp+' emport(s) enregistrés'); cm('m-suivi-import'); if(typeof dashRunSearch === 'function') dashRunSearch(); })
+    .then(function(){ toast('✅ '+nCol+' colis et '+nEmp+' emport(s) enregistrés'); cm('m-suivi-import'); S_dash.commandes = dashCommandesArray(); if(typeof dashRunSearch === 'function') dashRunSearch(); })
     .catch(function(){ toast('Erreur d\'enregistrement de l\'import', 1); });
 }
 
