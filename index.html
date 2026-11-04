@@ -2001,7 +2001,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.11.04-1625';
+var APP_VERSION = '2026.11.04-1705';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -8419,18 +8419,18 @@ function simpSplit(line, sep){
 }
 // Bordereau récapitulatif Chronopost : lignes « N° de LT ; Réf. Envoi ; Réf. Desti. ; … »
 function simpParseChrono(text){
-  var lines = text.split(/\r?\n/), out = [], iLT = -1, iBl = -1, inTable = false;
+  var lines = text.split(/\r?\n/), out = [], iLT = -1, iBl = -1, iEnv = -1, inTable = false;
   lines.forEach(function(l){
     var p = simpSplit(l, ';'), c0 = simpNorm(p[0]);
     if(/^numero de lt/.test(c0)){
-      iLT = 0; iBl = -1;
-      p.forEach(function(h, j){ if(/desti/.test(simpNorm(h)) && iBl < 0) iBl = j; });
+      iLT = 0; iBl = -1; iEnv = -1;
+      p.forEach(function(h, j){ var hn = simpNorm(h); if(/desti/.test(hn) && iBl < 0) iBl = j; if(/ref\.? ?envoi/.test(hn) && iEnv < 0) iEnv = j; });
       inTable = iBl >= 0; return;
     }
     if(!inTable) return;
     if(!l.trim() || /^(detail|resume)/.test(c0)){ inTable = false; return; }
     var lt = String(p[iLT]||'').trim(), bl = String(p[iBl]||'').trim().toUpperCase();
-    if(/^[A-Z0-9]{8,20}$/.test(lt)) out.push({transp:'Chronopost', num:lt, bl:/^BL\d{8}$/.test(bl) ? bl : ''});
+    if(/^[A-Z0-9]{8,20}$/.test(lt)) out.push({transp:'Chronopost', num:lt, bl:/^BL\d{8}$/.test(bl) ? bl : '', dest:iEnv >= 0 ? String(p[iEnv]||'').trim() : ''});
   });
   return out;
 }
@@ -8442,8 +8442,8 @@ function simpParseColissimo(text){
     var p = l.indexOf(';') >= 0 ? simpSplit(l, ';') : null;
     var num = (p ? String(p[0]||'').trim() : l.slice(0, 13).trim());
     if(!/^[A-Z0-9]{11,15}$/.test(num)) return;
-    var m = /BL\d{8}/.exec(l);
-    out.push({transp:'Colissimo', num:num, bl:m ? m[0] : ''});
+    var m = /BL\d{8}/.exec(l), dm = p ? null : /^\S+\s+(.+?)(?:\s{2,}|$)/.exec(l.slice(13));
+    out.push({transp:'Colissimo', num:num, bl:m ? m[0] : '', dest:dm ? dm[1].trim() : ''});
   });
   return out;
 }
@@ -8492,20 +8492,68 @@ function simpFindExact(ref){
   }
   return null;
 }
-// Propositions par ressemblance de nom (client EBP / texte de la référence) — toujours à valider à la main
-function simpCandidates(ref, client){
+// Proximité de noms (client EBP / nom du destinataire du colis  ↔  nom de la commande dans l'appli).
+// Abréviations courantes ramenées à un même mot (OT = office de tourisme, STA/STE = sainte…), fautes légères tolérées.
+var SIMP_STOP = {};
+'de du des les la le et sa sas sarl eurl ets mr mme mlle cde cmd commande mail au aux en sur pour par chez the'.split(' ').forEach(function(w){ SIMP_STOP[w] = 1; });
+var SIMP_ABBR = {st:'saint', sta:'saint', ste:'saint', sainte:'saint', saint:'saint', ot:'tourisme', office:'tourisme', tourisme:'tourisme', tourism:'tourisme', asso:'association', assoc:'association', association:'association'};
+function simpTokens(str){
+  var out = [], seen = {};
+  simpNorm(str).replace(/[^a-z0-9]+/g, ' ').split(' ').forEach(function(t){
+    if(t.length < 2 || /\d/.test(t) || SIMP_STOP[t]) return;
+    t = SIMP_ABBR[t] || t;
+    if(!seen[t]){ seen[t] = 1; out.push(t); }
+  });
+  return out;
+}
+function simpLev(a, b){
+  var m = a.length, n = b.length, d = [], i, j;
+  for(i = 0; i <= m; i++){ d[i] = [i]; }
+  for(j = 1; j <= n; j++) d[0][j] = j;
+  for(i = 1; i <= m; i++) for(j = 1; j <= n; j++) d[i][j] = Math.min(d[i-1][j]+1, d[i][j-1]+1, d[i-1][j-1]+(a.charAt(i-1) === b.charAt(j-1) ? 0 : 1));
+  return d[m][n];
+}
+function simpTokMatch(q, set, list){
+  if(set[q]) return true;
+  for(var k = 0; k < list.length; k++){
+    var h = list[k];
+    if(q.length >= 4 && h.length >= 4 && (h.indexOf(q) === 0 || q.indexOf(h) === 0)) return true;   // nom tronqué (25 car. chez Chronopost)
+    if(q.length >= 5 && Math.abs(q.length - h.length) <= 1 && simpLev(q, h) <= 1) return true;      // faute de frappe
+  }
+  return false;
+}
+function simpScore(qt, ht){
+  if(!qt.length || !ht.length) return {sc:0, ratio:0, strong:false};
+  var hs = {}, w = function(t){ return t.length >= 5 ? 2 : 1; }, tot = 0, got = 0, totH = 0;
+  ht.forEach(function(t){ hs[t] = 1; totH += w(t); });
+  qt.forEach(function(t){ tot += w(t); if(simpTokMatch(t, hs, ht)) got += w(t); });
+  var ratio = got / Math.min(tot, totH);
+  return {sc:got, ratio:ratio, strong:((got >= 3 && ratio >= 0.6) || (got >= 1 && got >= tot && tot >= totH))};
+}
+function simpOrderTok(id, c){
+  var idx = S_cmdIndex; if(!idx) return [];
+  idx._tok = idx._tok || {};
+  return idx._tok[id] || (idx._tok[id] = simpTokens((c.nom||'')+' '+(c.cmd||'')));
+}
+// Commandes les plus proches d'un nom (client EBP, référence EBP, destinataire du colis) — toujours à valider à la main
+function simpCandidates(ref, client, dest){
   var byId = (S_cmdIndex && S_cmdIndex.byId) || {};
-  var toks = simpNorm(client+' '+ref).replace(/[^a-z0-9]+/g, ' ').split(' ').filter(function(t){ return t.length >= 3 && !/^(mail|cmd|the|des|les|sas|sarl|eurl|association)$/.test(t); });
-  if(!toks.length) return [];
+  var qt = simpTokens([client, ref, dest].join(' '));
+  if(!qt.length) return [];
   var out = [];
   Object.keys(byId).forEach(function(id){
     var c = byId[id]; if(!c) return;
-    var hay = ' '+simpNorm((c.nom||'')+' '+(c.cmd||'')+' '+(c.site||'')).replace(/[^a-z0-9]+/g, ' ')+' ';
-    var sc = 0; toks.forEach(function(t){ if(hay.indexOf(' '+t) >= 0) sc++; });
-    if(sc > 0) out.push({id:id, c:c, sc:sc});
+    var r = simpScore(qt, simpOrderTok(id, c));
+    if(r.sc >= 2 || r.strong) out.push({id:id, c:c, sc:r.sc, ratio:r.ratio, strong:r.strong});
   });
   out.sort(function(a, b){ return (b.sc - a.sc) || ((b.c.createdAt||0) - (a.c.createdAt||0)); });
   return out.slice(0, 6);
+}
+// La proposition « évidente » : une seule commande très proche, nettement devant les autres
+function simpPickBest(cands){
+  if(!cands || !cands.length || !cands[0].strong) return null;
+  if(cands.length > 1 && cands[0].sc - cands[1].sc < 2) return null;
+  return cands[0];
 }
 function simpOrderLabel(c){ return dashCmdLabel(c)+' · '+(c.site||'—'); }
 // Une commande est « à confirmer » à la main si CMC / mail / U-stickers (confirmées par le pôle numérique), ou si elle porte un nom de client (commande passée par mail)
@@ -8531,25 +8579,40 @@ function simpColisEntry(transp, num, bl, c, now, src){
   if(!suiviNeedsConfirm(c)) e.conf = {at:now, byName:'Import automatique', auto:true};
   return e;
 }
+function simpOrphByNum(){
+  var m = {};
+  Object.keys(S_orph||{}).forEach(function(id){ var o = S_orph[id] || {}; if(o.num) m[String(o.num).replace(/\s+/g, '').toUpperCase()] = {id:id, hp:o.hp === true}; });
+  return m;
+}
 function simpBuild(){
-  var nums = simpAllNums(), seenNew = {}, blIdx = simpBlIndex(), byId = (S_cmdIndex && S_cmdIndex.byId) || {};
+  var nums = simpAllNums(), seenNew = {}, blIdx = simpBlIndex(), byId = (S_cmdIndex && S_cmdIndex.byId) || {}, aside = simpOrphByNum();
   var inFiles = {}; SIMP.carrier.forEach(function(k){ if(k.bl) inFiles[k.bl] = 1; });
   SIMP.rows = SIMP.carrier.map(function(k){
-    var row = {transp:k.transp, num:k.num, bl:k.bl, ref:'', client:'', orderId:'', cands:[], state:'none', on:false};
+    var row = {transp:k.transp, num:k.num, bl:k.bl, dest:k.dest||'', ref:'', client:'', orderId:'', cands:[], state:'none', on:false, hp:false};
     var key = String(k.num).replace(/\s+/g, '').toUpperCase();
     var e = k.bl ? SIMP.ebp[k.bl] : null;
     if(e){ row.ref = e.ref; row.client = e.client; }
     if(nums[key] || seenNew[key]){ row.state = 'dup'; return row; }
     seenNew[key] = 1;
-    if(!k.bl){ row.state = 'nobl'; return row; }
-    var ids = blIdx[k.bl] || [];                       // BL déjà mémorisé sur une commande
-    if(ids.length === 1){ row.orderId = ids[0]; row.state = 'ok'; row.on = true; return row; }
-    if(ids.length > 1){ row.cands = ids.map(function(id){ return {id:id, c:byId[id], sc:9}; }); row.state = 'choose'; return row; }
-    if(!e){ row.state = SIMP.ebpLoaded ? 'noebp' : 'needebp'; return row; }
-    var c = simpFindExact(e.ref);
-    if(c){ row.orderId = c.id; row.state = 'ok'; row.on = true; return row; }
-    row.cands = simpCandidates(e.ref, e.client);
-    row.state = row.cands.length ? 'choose' : 'none';
+    // Proposition par ressemblance de nom (client EBP, référence, destinataire du colis) — jamais cochée d'office
+    var propose = function(fallback){
+      row.cands = simpCandidates(row.ref, row.client, row.dest);
+      var b = simpPickBest(row.cands);
+      if(b){ row.orderId = b.id; row.state = 'sug'; } else row.state = row.cands.length ? 'choose' : fallback;
+      return row;
+    };
+    var ids = k.bl ? (blIdx[k.bl] || []) : [];          // BL déjà mémorisé sur une commande
+    if(ids.length === 1){ row.orderId = ids[0]; row.state = 'ok'; row.on = true; }
+    else if(ids.length > 1){ row.cands = ids.map(function(id){ return {id:id, c:byId[id], sc:9}; }); row.state = 'choose'; }
+    else if(!k.bl) propose('nobl');
+    else if(!e) propose(SIMP.ebpLoaded ? 'noebp' : 'needebp');
+    else {
+      var c = simpFindExact(e.ref);
+      if(c){ row.orderId = c.id; row.state = 'ok'; row.on = true; }
+      else propose('none');
+    }
+    // Colis déjà mis de côté lors d'un import précédent (et toujours sans commande) : on ne le remet pas dans la liste
+    if(row.state !== 'ok' && aside[key]){ row.state = aside[key].hp ? 'hp' : 'aside'; row.stored = true; row.orderId = ''; row.on = false; row.cands = []; }
     return row;
   });
   // BL d'EBP dont la commande existe dans l'app : on les mémorise sur la commande (colis parti ou non)
@@ -8631,7 +8694,8 @@ function simpDrop(ev){
 var SIMP_STATE = {
   ok:['✅ Trouvée','var(--grn)'], choose:['🔎 À choisir','var(--acc)'], none:['❓ Introuvable','var(--red)'],
   dup:['⏭ Déjà enregistré','var(--mut)'], nobl:['⚠️ Pas de BL','var(--red)'], noebp:['⚠️ BL absent de l\'export EBP','var(--red)'],
-  needebp:['⚠️ Ajoute l\'export EBP','var(--red)']
+  needebp:['⚠️ Ajoute l\'export EBP','var(--red)'], sug:['💡 Proposée (à vérifier)','var(--acc)'],
+  hp:['🏭 Hors production','var(--mut)'], aside:['📎 Déjà mis de côté','var(--mut)']
 };
 function simpRender(){
   var el = document.getElementById('simp-body'); if(!el) return;
@@ -8644,16 +8708,20 @@ function simpRender(){
   if(SIMP.rows.length){
     h += '<div class="dash-tbl-wrap"><table style="width:100%;min-width:560px;border-collapse:collapse;font-size:.76rem"><thead><tr style="text-align:left;border-bottom:1.5px solid var(--brd);color:var(--mut)"><th style="padding:5px 4px"></th><th style="padding:5px 4px">COLIS</th><th style="padding:5px 4px">BL</th><th style="padding:5px 4px">COMMANDE</th><th style="padding:5px 4px">ÉTAT</th></tr></thead><tbody>';
     SIMP.rows.forEach(function(r, i){
-      var st = SIMP_STATE[r.state] || SIMP_STATE.none, byId = (S_cmdIndex && S_cmdIndex.byId) || {}, cmd = '';
-      if(r.state === 'ok' || (r.state === 'choose' && r.orderId)){
+      var st = SIMP_STATE[r.hp ? 'hp' : r.state] || SIMP_STATE.none, byId = (S_cmdIndex && S_cmdIndex.byId) || {}, cmd = '';
+      if(r.state === 'ok' || ((r.state === 'choose' || r.state === 'sug') && r.orderId)){
         var oc = byId[r.orderId]; cmd = oc ? esc(simpOrderLabel(oc)) : '—';
       }
-      if(r.state === 'choose' || r.state === 'none'){
+      if(!r.hp && (r.state === 'choose' || r.state === 'none' || r.state === 'sug' || (r.cands.length && /^(noebp|needebp|nobl)$/.test(r.state)))){
         var opts = '<option value="">— choisir —</option>'+r.cands.map(function(x){ return '<option value="'+x.id+'"'+(x.id === r.orderId ? ' selected' : '')+'>'+esc(simpOrderLabel(x.c))+'</option>'; }).join('');
         cmd = (r.cands.length || r.state === 'none') ? '<select onchange="simpPick('+i+',this.value)" style="max-width:220px;background:var(--sur);color:var(--txt);border:1px solid var(--brd);border-radius:6px;font-size:.72rem;padding:3px">'+opts+'</select>' : '—';
         if(r.ref) cmd += '<div style="font-size:.66rem;color:var(--mut)">EBP : '+esc(r.ref)+(r.client ? ' · '+esc(r.client) : '')+'</div>';
+        else if(r.dest) cmd += '<div style="font-size:.66rem;color:var(--mut)">Colis pour : '+esc(r.dest)+'</div>';
       }
-      h += '<tr style="border-bottom:1px solid var(--brd)"><td style="padding:5px 4px"><input type="checkbox" '+(r.on ? 'checked ' : '')+(r.orderId ? '' : 'disabled ')+'onchange="simpToggle('+i+',this.checked)"></td>'+
+      if(r.hp) cmd = '—';
+      // colis sans commande : possibilité de le marquer « hors production » (sous-traitance…)
+      if(!r.stored && r.state !== 'dup' && r.state !== 'ok' && !(r.on && r.orderId)) cmd += '<div><a href="#" onclick="event.preventDefault();simpHp('+i+')" style="font-size:.68rem;color:var(--mut);text-decoration:underline">'+(r.hp ? '↩ Annuler « hors production »' : '🏭 Hors production')+'</a></div>';
+      h += '<tr style="border-bottom:1px solid var(--brd)"><td style="padding:5px 4px"><input type="checkbox" '+(r.on ? 'checked ' : '')+((r.orderId && !r.hp) ? '' : 'disabled ')+'onchange="simpToggle('+i+',this.checked)"></td>'+
         '<td style="padding:5px 4px"><div style="font-size:.66rem;color:var(--mut)">'+esc(r.transp)+'</div><span style="font-family:monospace">'+esc(r.num)+'</span></td>'+
         '<td style="padding:5px 4px;font-family:monospace">'+esc(r.bl||'—')+'</td><td style="padding:5px 4px">'+(cmd||'—')+'</td>'+
         '<td style="padding:5px 4px;color:'+st[1]+';font-weight:700;white-space:nowrap">'+st[0]+'</td></tr>';
@@ -8669,19 +8737,26 @@ function simpRender(){
     });
   }
   var nCol = SIMP.rows.filter(function(r){ return r.on && r.orderId; }).length, nEmp = SIMP.emports.filter(function(e){ return e.on; }).length;
-  var nSide = SIMP.rows.filter(function(r){ return r.state !== 'dup' && !(r.on && r.orderId); }).length;
+  var isNew = function(r){ return r.state !== 'dup' && r.state !== 'aside' && !r.stored; };
+  var nHp = SIMP.rows.filter(function(r){ return isNew(r) && r.hp && !(r.on && r.orderId); }).length;
+  var nSide = SIMP.rows.filter(function(r){ return isNew(r) && !r.hp && !(r.on && r.orderId); }).length;
   var nBl = simpBlWrites().length;
   if(SIMP.rows.length || SIMP.emports.length || SIMP.blLinks.length){
     var nConf = SIMP.rows.filter(function(r){ var c = ((S_cmdIndex.byId)||{})[r.orderId]; return r.on && r.orderId && suiviNeedsConfirm(c); }).length;
     h += '<div style="font-size:.76rem;color:var(--mut);margin-top:10px">'+nCol+' colis à enregistrer dont '+nConf+' à confirmer ; '+nEmp+' emport(s) ; '+nBl+' BL mémorisé(s) sur leur commande.'+
-      (nSide ? '<br><strong style="color:var(--acc)">'+nSide+' colis non rattaché(s) seront mis de côté dans « Colis à rattacher » : rien ne se perd.</strong>' : '')+'</div>'+
-      '<button class="btn bpri" style="width:100%;margin-top:8px" '+((nCol+nEmp+nSide+nBl) ? '' : 'disabled ')+'onclick="simpApply()">✅ Enregistrer</button>';
+      (nSide ? '<br><strong style="color:var(--acc)">'+nSide+' colis non rattaché(s) seront mis de côté dans « Colis à rattacher » : rien ne se perd.</strong>' : '')+(nHp ? '<br>'+nHp+' colis marqué(s) « hors production » (consultables dans la liste « Hors production »).' : '')+'</div>'+
+      '<button class="btn bpri" style="width:100%;margin-top:8px" '+((nCol+nEmp+nSide+nHp+nBl) ? '' : 'disabled ')+'onclick="simpApply()">✅ Enregistrer</button>';
   }
-  var nO = Object.keys(S_orph||{}).length;
-  var top = '<button onclick="simpView(\''+(SIMP.view === 'orph' ? '' : 'orph')+'\')" style="width:100%;margin-bottom:10px;padding:8px;border-radius:8px;border:1.5px solid '+(nO ? 'var(--acc)' : 'var(--brd)')+';background:none;color:var(--txt);font-weight:700;font-size:.8rem;cursor:pointer">'+(SIMP.view === 'orph' ? '← Retour à l\'import' : '📎 Colis à rattacher ('+nO+')')+'</button>';
+  var nO = simpOrphList().length, nH = simpHpList().length;
+  var tb = function(v, label, n, on){ return '<button onclick="simpView(\''+(SIMP.view === v ? '' : v)+'\')" style="flex:1;padding:8px;border-radius:8px;border:1.5px solid '+(n ? 'var(--acc)' : 'var(--brd)')+';background:'+(on ? 'var(--card)' : 'none')+';color:var(--txt);font-weight:700;font-size:.78rem;cursor:pointer">'+label+' ('+n+')</button>'; };
+  var top = SIMP.view
+    ? '<button onclick="simpView(\'\')" style="width:100%;margin-bottom:10px;padding:8px;border-radius:8px;border:1.5px solid var(--brd);background:none;color:var(--txt);font-weight:700;font-size:.8rem;cursor:pointer">← Retour à l\'import</button>'
+    : '<div style="display:flex;gap:8px;margin-bottom:10px">'+tb('orph', '📎 Colis à rattacher', nO, false)+tb('hp', '🏭 Hors production', nH, false)+'</div>';
   if(SIMP.view === 'orph'){ el.innerHTML = top+simpOrphHtml(); return; }
+  if(SIMP.view === 'hp'){ el.innerHTML = top+simpHpHtml(); return; }
   el.innerHTML = top+(h || '<div style="font-size:.8rem;color:var(--mut)">Choisis les fichiers du soir : export EBP, bordereau Chronopost et export ColiShip. Rien n\'est enregistré avant ta validation.</div>');
 }
+function simpHp(i){ var r = SIMP.rows[i]; if(!r) return; r.hp = !r.hp; if(r.hp) r.on = false; simpRender(); }
 function simpPick(i, id){ var r = SIMP.rows[i]; if(!r) return; r.orderId = id || ''; r.on = !!id; simpRender(); }
 function simpToggle(i, v){ var r = SIMP.rows[i]; if(r){ r.on = !!v; simpRender(); } }
 function simpToggleEmp(i, v){ var e = SIMP.emports[i]; if(e){ e.on = !!v; simpRender(); } }
@@ -8702,15 +8777,21 @@ function simpBlWrites(){
 }
 function simpApply(){
   if(!canSuiviSaisie()) return;
-  var byId = (S_cmdIndex && S_cmdIndex.byId) || {}, now = Date.now(), perOrder = {}, nCol = 0, nEmp = 0, side = [];
+  var byId = (S_cmdIndex && S_cmdIndex.byId) || {}, now = Date.now(), perOrder = {}, nCol = 0, nEmp = 0, nHp = 0, side = [];
   var me_name = getMyName(), already = {};
-  Object.keys(S_orph||{}).forEach(function(k){ already[String((S_orph[k]||{}).num||'').replace(/\s+/g, '').toUpperCase()] = 1; });
+  var byNum = simpOrphByNum(), clear = [];
+  Object.keys(byNum).forEach(function(k){ already[k] = 1; });
   SIMP.rows.forEach(function(r){
-    if(r.state === 'dup') return;
-    if(r.on && r.orderId && byId[r.orderId]){
+    if(r.state === 'dup' || r.state === 'aside' || r.stored && !(r.on && r.orderId)) return;
+    var key = String(r.num).replace(/\s+/g, '').toUpperCase();
+    if(r.on && r.orderId && byId[r.orderId] && !r.hp){
       (perOrder[r.orderId] = perOrder[r.orderId] || {})['colis/'+gid()] = simpColisEntry(r.transp, r.num, r.bl, byId[r.orderId], now, 'import'); nCol++;
-    } else if(!already[String(r.num).replace(/\s+/g, '').toUpperCase()]){
-      side.push({transp:r.transp, num:r.num, bl:r.bl||'', ref:r.ref||'', client:r.client||'', at:now, byName:me_name});
+      if(byNum[key]) clear.push(byNum[key].id);   // il était mis de côté : il est maintenant rattaché
+    } else if(!already[key]){
+      var o = {transp:r.transp, num:r.num, bl:r.bl||'', ref:r.ref||'', client:r.client||'', at:now, byName:me_name};
+      if(r.dest) o.dest = r.dest;
+      if(r.hp){ o.hp = true; o.hpAt = now; o.hpBy = me_name; nHp++; }
+      side.push(o);
     }
   });
   simpBlWrites().forEach(function(x){ (perOrder[x.orderId] = perOrder[x.orderId] || {})['bls/'+x.bl] = {at:now, src:'ebp'}; });
@@ -8720,19 +8801,21 @@ function simpApply(){
   });
   var ids = Object.keys(perOrder);
   if(!ids.length && !side.length){ toast('Rien à enregistrer', 1); return; }
-  var jobs = ids.map(function(id){ return fbu('commandes/'+id, perOrder[id]); }).concat(side.map(function(o){ return fbs('suiviOrphelins/'+gid(), o); }));
+  var jobs = ids.map(function(id){ return fbu('commandes/'+id, perOrder[id]); }).concat(side.map(function(o){ return fbs('suiviOrphelins/'+gid(), o); })).concat(clear.map(function(id){ return fbd('suiviOrphelins/'+id); }));
   Promise.all(jobs)
-    .then(function(){ toast('✅ '+nCol+' colis, '+nEmp+' emport(s)'+(side.length ? ', '+side.length+' mis de côté à rattacher' : '')+' enregistrés'); cm('m-suivi-import'); S_dash.commandes = dashCommandesArray(); if(typeof dashRunSearch === 'function') dashRunSearch(); })
+    .then(function(){ toast('✅ '+nCol+' colis, '+nEmp+' emport(s)'+(side.length-nHp ? ', '+(side.length-nHp)+' mis de côté à rattacher' : '')+(nHp ? ', '+nHp+' hors production' : '')+' enregistrés'); cm('m-suivi-import'); S_dash.commandes = dashCommandesArray(); if(typeof dashRunSearch === 'function') dashRunSearch(); })
     .catch(function(){ toast('Erreur d\'enregistrement de l\'import', 1); });
 }
 
 // ── Colis à rattacher (mis de côté) ──
-function simpOrphList(){
+function simpOrphAll(){
   return Object.keys(S_orph||{}).map(function(id){ return Object.assign({id:id}, S_orph[id]); }).sort(function(a, b){ return (a.at||0)-(b.at||0); });
 }
+function simpOrphList(){ return simpOrphAll().filter(function(o){ return o.hp !== true; }); }
+function simpHpList(){ return simpOrphAll().filter(function(o){ return o.hp === true; }); }
 function simpOrphUpdateCount(){
   var el = document.getElementById('simp-orph-count'); if(!el) return;
-  var n = Object.keys(S_orph||{}).length;
+  var n = simpOrphList().length;
   el.innerHTML = n ? ' <span style="display:inline-block;margin-left:6px;padding:1px 8px;border-radius:99px;background:var(--acc);color:#000;font-size:.7rem;font-weight:800">📎 '+n+' à rattacher</span>' : '';
 }
 // Commande suggérée pour un colis mis de côté : BL déjà mémorisé, sinon référence EBP exacte
@@ -8741,6 +8824,11 @@ function simpOrphSuggest(o){
   if(ids.length === 1) return ids[0];
   var c = o.ref ? simpFindExact(o.ref) : null;
   return c ? c.id : '';
+}
+// Proposition par ressemblance de nom pour un colis mis de côté (jamais rattaché sans validation)
+function simpOrphProposal(o){
+  var cands = simpCandidates(o.ref, o.client, o.dest);
+  return {cands:cands, best:simpPickBest(cands)};
 }
 function simpSearchOrders(q){
   var toks = simpNorm(q).replace(/[^a-z0-9]+/g, ' ').split(' ').filter(function(t){ return t.length >= 2; });
@@ -8760,16 +8848,39 @@ function simpOrphHtml(){
   var nSug = list.filter(function(o){ return simpOrphSuggest(o); }).length;
   var h = (nSug ? '<button class="btn bpri" style="width:100%;margin-bottom:8px" onclick="simpOrphAttachAll()">✅ Rattacher les '+nSug+' colis dont la commande est connue</button>' : '');
   list.forEach(function(o){
-    var sug = simpOrphSuggest(o), sc = sug ? byId[sug] : null;
+    var sug = simpOrphSuggest(o), sc = sug ? byId[sug] : null, pr = sc ? null : simpOrphProposal(o), pb = pr && pr.best ? pr.best : null;
     h += '<div style="border-top:1px solid var(--brd);padding:8px 0;font-size:.78rem">'+
       '<div><strong>'+esc(o.transp||'')+'</strong> · <span style="font-family:monospace">'+esc(o.num||'')+'</span> <span style="color:var(--mut)">BL '+esc(o.bl||'—')+'</span></div>'+
-      '<div style="font-size:.7rem;color:var(--mut)">EBP : '+esc(o.ref||'—')+(o.client ? ' · '+esc(o.client) : '')+' · mis de côté le '+new Date(o.at||Date.now()).toLocaleDateString('fr-FR')+'</div>'+
+      '<div style="font-size:.7rem;color:var(--mut)">EBP : '+esc(o.ref||'—')+(o.client ? ' · '+esc(o.client) : '')+(o.dest ? ' · colis pour : '+esc(o.dest) : '')+' · mis de côté le '+new Date(o.at||Date.now()).toLocaleDateString('fr-FR')+'</div>'+
       (sc ? '<div style="color:var(--grn);font-weight:700;margin-top:2px">✅ Commande trouvée : '+esc(simpOrderLabel(sc))+'</div>' : '')+
+      (pb ? '<div style="color:var(--acc);font-weight:700;margin-top:2px">💡 Proposée (à vérifier) : '+esc(simpOrderLabel(pb.c))+'</div>' : '')+
       '<div style="display:flex;gap:6px;margin-top:5px;flex-wrap:wrap">'+
         '<input type="text" placeholder="Chercher une commande (nom, n°, site)" oninput="simpOrphSearch(\''+o.id+'\',this.value)" style="flex:1;min-width:150px;background:var(--sur);border:1px solid var(--brd);border-radius:6px;color:var(--txt);font-size:.76rem;padding:5px 8px;outline:none">'+
-        '<select id="simp-os-'+o.id+'" style="max-width:240px;background:var(--sur);color:var(--txt);border:1px solid var(--brd);border-radius:6px;font-size:.74rem;padding:4px">'+(sc ? '<option value="'+sug+'">'+esc(simpOrderLabel(sc))+'</option>' : '<option value="">— cherche d\'abord —</option>')+'</select>'+
+        '<select id="simp-os-'+o.id+'" style="max-width:240px;background:var(--sur);color:var(--txt);border:1px solid var(--brd);border-radius:6px;font-size:.74rem;padding:4px">'+(sc ? '<option value="'+sug+'">'+esc(simpOrderLabel(sc))+'</option>' : (pr && pr.cands.length ? pr.cands.map(function(x){ return '<option value="'+x.id+'">'+(pb && x.id === pb.id ? '💡 ' : '')+esc(simpOrderLabel(x.c))+'</option>'; }).join('') : '<option value="">— cherche d\'abord —</option>'))+'</select>'+
         '<button onclick="simpOrphAttach(\''+o.id+'\')" style="padding:5px 10px;border-radius:6px;border:1px solid var(--grn);background:none;color:var(--grn);font-size:.74rem;font-weight:700;cursor:pointer">Rattacher</button>'+
+        '<button onclick="simpOrphHp(\''+o.id+'\')" title="Colis sans commande dans l\'appli (sous-traitance…)" style="padding:5px 10px;border-radius:6px;border:1px solid var(--brd);background:none;color:var(--mut);font-size:.74rem;font-weight:700;cursor:pointer">🏭 Hors production</button>'+
       '</div></div>';
+  });
+  return h;
+}
+function simpOrphHp(id){
+  var o = (S_orph||{})[id]; if(!o) return;
+  if(!confirm('Marquer ce colis « hors production » ?\n'+(o.transp||'')+' '+(o.num||'')+(o.client ? ' — '+o.client : (o.dest ? ' — '+o.dest : ''))+'\nIl ne sera plus compté dans « Colis à rattacher » (tu le retrouves dans la liste « Hors production »).')) return;
+  fbu('suiviOrphelins/'+id, {hp:true, hpAt:Date.now(), hpBy:getMyName()}).then(function(){ toast('🏭 Colis noté hors production'); }).catch(function(){ toast('Erreur d\'enregistrement', 1); });
+}
+function simpHpBack(id){
+  fbu('suiviOrphelins/'+id, {hp:null, hpAt:null, hpBy:null}).then(function(){ toast('↩ Remis dans « Colis à rattacher »'); }).catch(function(){ toast('Erreur d\'enregistrement', 1); });
+}
+function simpHpHtml(){
+  var list = simpHpList();
+  if(!list.length) return '<div style="font-size:.8rem;color:var(--mut)">Aucun colis « hors production ». Ce sont les colis sans commande dans l\'appli (sous-traitance par les commerciaux, par exemple).</div>';
+  var h = '<div style="font-size:.74rem;color:var(--mut);margin-bottom:6px">Colis partis sans commande dans l\'appli (sous-traitance…). Ils ne comptent pas dans « Colis à rattacher ».</div>';
+  list.slice().reverse().forEach(function(o){
+    var u = suiviTrackUrl(o.transp, o.num);
+    h += '<div style="border-top:1px solid var(--brd);padding:8px 0;font-size:.78rem">'+
+      '<div><strong>'+esc(o.transp||'')+'</strong> · '+(u ? '<a href="'+esc(u)+'" target="_blank" rel="noopener noreferrer" style="font-family:monospace;color:var(--blu);text-decoration:underline">'+esc(o.num||'')+'</a>' : '<span style="font-family:monospace">'+esc(o.num||'')+'</span>')+' <span style="color:var(--mut)">BL '+esc(o.bl||'—')+'</span></div>'+
+      '<div style="font-size:.7rem;color:var(--mut)">'+(o.client ? esc(o.client) : (o.dest ? esc(o.dest) : '—'))+' · noté le '+new Date(o.hpAt||o.at||Date.now()).toLocaleDateString('fr-FR')+(o.hpBy ? ' par '+esc(o.hpBy) : '')+'</div>'+
+      '<button onclick="simpHpBack(\''+o.id+'\')" style="margin-top:4px;padding:4px 10px;border-radius:6px;border:1px solid var(--brd);background:none;color:var(--mut);font-size:.72rem;font-weight:700;cursor:pointer">↩ Remettre à rattacher</button></div>';
   });
   return h;
 }
