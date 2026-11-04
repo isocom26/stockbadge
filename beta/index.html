@@ -2000,7 +2000,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.11.04-1055';
+var APP_VERSION = '2026.11.04-1122';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -2685,7 +2685,7 @@ auth.onAuthStateChanged(function(u) {
     document.getElementById('abadge').style.display = (iAm||isDir) ? 'inline' : 'none';
     document.getElementById('abadge').textContent = iAm ? 'Admin' : 'Direction';
     saveQuickProfile(u.email, u.displayName);
-    if (!inited) { inited = true; startDB(); startMachListener(); startRpListener(); startCmdIndexListener(); startCustomFormatsListener(); startInvcListener(); startCompListener(); startGammesListener(); startEtapesSupListener(); startTranspListener(); startQtyRulesListener(); startPoleCfgListener(); startAlertSeenListener(); }
+    if (!inited) { inited = true; startDB(); startMachListener(); startRpListener(); startCmdIndexListener(); startCustomFormatsListener(); startInvcListener(); startCompListener(); startGammesListener(); startEtapesSupListener(); startTranspListener(); startOrphListener(); startQtyRulesListener(); startPoleCfgListener(); startAlertSeenListener(); }
     if (location.hash === '#ecran') setTimeout(function(){ ecranAutoOpen(0); }, 400);
 
     // Rendu immédiat depuis le cache local, si on a déjà vu cet utilisateur
@@ -8220,7 +8220,7 @@ function suiviAlertsUpdate(){
   if(!me || !canSuiviConf()){ hideTopBanner('suivi-banner'); suiviUpdateDot(0); return; }
   var pend = suiviPendingCmds();
   suiviUpdateDot(pend.length);
-  var dp = document.getElementById('dash-panel-recherche'); if(dp && dp.style.display !== 'none' && typeof dashRunSearch === 'function') dashRunSearch();
+  var dp = document.getElementById('dash-panel-recherche'); if(dp && dp.style.display !== 'none' && typeof dashRunSearch === 'function'){ S_dash.commandes = dashCommandesArray(); dashRunSearch(); }
   var ids = []; pend.forEach(function(it){ it.colis.forEach(function(k){ ids.push(k.id); }); });
   var seen = suiviSeenGet();
   if(seen === null){ suiviSeenSet(ids); seen = ids.slice(); }   // première fois sur cet appareil : l'existant est connu
@@ -8392,7 +8392,15 @@ function suiviDeleteColis(cmdId, kid){
 // Champs additifs : commandes/{id}/colis/{k} = {transp, num, bl, at, byName, src:'import', conf?} et
 // commandes/{id}/livraison = {mode, bl, at, byName} (emport / autre mode sans colis).
 // ══════════════════════════════════════════════════════════════
-var SIMP = {info:[], carrier:[], ebp:{}, rows:[], emports:[], ebpLoaded:false};
+var SIMP = {info:[], carrier:[], ebp:{}, rows:[], emports:[], blLinks:[], ebpLoaded:false, view:''};
+var S_orph = {};   // suiviOrphelins/{id} = {transp, num, bl, ref, client, at, byName} : colis d'un fichier transporteur pas encore rattachés
+function startOrphListener(){
+  db.ref('suiviOrphelins').on('value', function(snap){
+    S_orph = snap.val() || {};
+    simpOrphUpdateCount();
+    if(document.getElementById('m-suivi-import') && document.getElementById('m-suivi-import').classList.contains('open')) simpRender();
+  });
+}
 function simpNorm(s){ return String(s==null?'':s).normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().trim(); }
 function simpDecode(buf){
   try { return new TextDecoder('utf-8', {fatal:true}).decode(buf).replace(/^﻿/, ''); }
@@ -8507,8 +8515,22 @@ function simpAllNums(){
   Object.keys(byId).forEach(function(id){ colisList(byId[id]).forEach(function(k){ if(k.num) set[String(k.num).replace(/\s+/g, '').toUpperCase()] = id; }); });
   return set;
 }
+function simpBlIndex(){
+  var m = {}, byId = (S_cmdIndex && S_cmdIndex.byId) || {};
+  Object.keys(byId).forEach(function(id){
+    var b = byId[id] && byId[id].bls;
+    if(b && typeof b === 'object') Object.keys(b).forEach(function(bl){ (m[bl] = m[bl] || []).push(id); });
+  });
+  return m;
+}
+function simpColisEntry(transp, num, bl, c, now, src){
+  var e = {transp:transp, num:num, bl:bl||'', at:now, byName:getMyName(), src:src||'import'};
+  if(me && me.uid) e.byUid = me.uid;
+  if(!suiviNeedsConfirm(c)) e.conf = {at:now, byName:'Import automatique', auto:true};
+  return e;
+}
 function simpBuild(){
-  var nums = simpAllNums(), seenNew = {};
+  var nums = simpAllNums(), seenNew = {}, blIdx = simpBlIndex(), byId = (S_cmdIndex && S_cmdIndex.byId) || {};
   var inFiles = {}; SIMP.carrier.forEach(function(k){ if(k.bl) inFiles[k.bl] = 1; });
   SIMP.rows = SIMP.carrier.map(function(k){
     var row = {transp:k.transp, num:k.num, bl:k.bl, ref:'', client:'', orderId:'', cands:[], state:'none', on:false};
@@ -8518,12 +8540,21 @@ function simpBuild(){
     if(nums[key] || seenNew[key]){ row.state = 'dup'; return row; }
     seenNew[key] = 1;
     if(!k.bl){ row.state = 'nobl'; return row; }
+    var ids = blIdx[k.bl] || [];                       // BL déjà mémorisé sur une commande
+    if(ids.length === 1){ row.orderId = ids[0]; row.state = 'ok'; row.on = true; return row; }
+    if(ids.length > 1){ row.cands = ids.map(function(id){ return {id:id, c:byId[id], sc:9}; }); row.state = 'choose'; return row; }
     if(!e){ row.state = SIMP.ebpLoaded ? 'noebp' : 'needebp'; return row; }
     var c = simpFindExact(e.ref);
     if(c){ row.orderId = c.id; row.state = 'ok'; row.on = true; return row; }
     row.cands = simpCandidates(e.ref, e.client);
     row.state = row.cands.length ? 'choose' : 'none';
     return row;
+  });
+  // BL d'EBP dont la commande existe dans l'app : on les mémorise sur la commande (colis parti ou non)
+  SIMP.blLinks = [];
+  Object.keys(SIMP.ebp).forEach(function(bl){
+    var c = simpFindExact(SIMP.ebp[bl].ref);
+    if(c && !(c.bls && c.bls[bl])) SIMP.blLinks.push({bl:bl, orderId:c.id});
   });
   // Emports / autres modes : lignes EBP sans fichier transporteur
   SIMP.emports = [];
@@ -8615,42 +8646,138 @@ function simpRender(){
     });
   }
   var nCol = SIMP.rows.filter(function(r){ return r.on && r.orderId; }).length, nEmp = SIMP.emports.filter(function(e){ return e.on; }).length;
-  if(SIMP.rows.length || SIMP.emports.length){
+  var nSide = SIMP.rows.filter(function(r){ return r.state !== 'dup' && !(r.on && r.orderId); }).length;
+  var nBl = simpBlWrites().length;
+  if(SIMP.rows.length || SIMP.emports.length || SIMP.blLinks.length){
     var nConf = SIMP.rows.filter(function(r){ var c = ((S_cmdIndex.byId)||{})[r.orderId]; return r.on && r.orderId && suiviNeedsConfirm(c); }).length;
-    h += '<div style="font-size:.76rem;color:var(--mut);margin-top:10px">'+nCol+' colis à enregistrer dont '+nConf+' à confirmer ; '+nEmp+' emport(s).</div>'+
-      '<button class="btn bpri" style="width:100%;margin-top:8px" '+((nCol+nEmp) ? '' : 'disabled ')+'onclick="simpApply()">✅ Enregistrer</button>';
+    h += '<div style="font-size:.76rem;color:var(--mut);margin-top:10px">'+nCol+' colis à enregistrer dont '+nConf+' à confirmer ; '+nEmp+' emport(s) ; '+nBl+' BL mémorisé(s) sur leur commande.'+
+      (nSide ? '<br><strong style="color:var(--acc)">'+nSide+' colis non rattaché(s) seront mis de côté dans « Colis à rattacher » : rien ne se perd.</strong>' : '')+'</div>'+
+      '<button class="btn bpri" style="width:100%;margin-top:8px" '+((nCol+nEmp+nSide+nBl) ? '' : 'disabled ')+'onclick="simpApply()">✅ Enregistrer</button>';
   }
-  el.innerHTML = h || '<div style="font-size:.8rem;color:var(--mut)">Choisis les fichiers du soir : export EBP, bordereau Chronopost et export ColiShip. Rien n\'est enregistré avant ta validation.</div>';
+  var nO = Object.keys(S_orph||{}).length;
+  var top = '<button onclick="simpView(\''+(SIMP.view === 'orph' ? '' : 'orph')+'\')" style="width:100%;margin-bottom:10px;padding:8px;border-radius:8px;border:1.5px solid '+(nO ? 'var(--acc)' : 'var(--brd)')+';background:none;color:var(--txt);font-weight:700;font-size:.8rem;cursor:pointer">'+(SIMP.view === 'orph' ? '← Retour à l\'import' : '📎 Colis à rattacher ('+nO+')')+'</button>';
+  if(SIMP.view === 'orph'){ el.innerHTML = top+simpOrphHtml(); return; }
+  el.innerHTML = top+(h || '<div style="font-size:.8rem;color:var(--mut)">Choisis les fichiers du soir : export EBP, bordereau Chronopost et export ColiShip. Rien n\'est enregistré avant ta validation.</div>');
 }
 function simpPick(i, id){ var r = SIMP.rows[i]; if(!r) return; r.orderId = id || ''; r.on = !!id; simpRender(); }
 function simpToggle(i, v){ var r = SIMP.rows[i]; if(r){ r.on = !!v; simpRender(); } }
 function simpToggleEmp(i, v){ var e = SIMP.emports[i]; if(e){ e.on = !!v; simpRender(); } }
 function simpOpen(){
   if(!canSuiviSaisie()) return;
-  SIMP.info = []; SIMP.carrier = []; SIMP.ebp = {}; SIMP.rows = []; SIMP.emports = []; SIMP.ebpLoaded = false;
+  SIMP.info = []; SIMP.carrier = []; SIMP.ebp = {}; SIMP.rows = []; SIMP.emports = []; SIMP.blLinks = []; SIMP.ebpLoaded = false; SIMP.view = '';
   var f = document.getElementById('simp-files'); if(f) f.value = '';
   simpRender(); om('m-suivi-import');
 }
+function simpView(v){ SIMP.view = v || ''; simpRender(); }
+// BL à mémoriser sur les commandes : ceux d'EBP + ceux des colis rattachés
+function simpBlWrites(){
+  var byId = (S_cmdIndex && S_cmdIndex.byId) || {}, out = {}, list = [];
+  function add(bl, id){ var c = byId[id]; if(!bl || !c || (c.bls && c.bls[bl]) || out[id+'|'+bl]) return; out[id+'|'+bl] = 1; list.push({bl:bl, orderId:id}); }
+  SIMP.blLinks.forEach(function(x){ add(x.bl, x.orderId); });
+  SIMP.rows.forEach(function(r){ if(r.on && r.orderId) add(r.bl, r.orderId); });
+  return list;
+}
 function simpApply(){
   if(!canSuiviSaisie()) return;
-  var byId = (S_cmdIndex && S_cmdIndex.byId) || {}, now = Date.now(), perOrder = {}, nCol = 0, nEmp = 0;
-  var me_name = getMyName();
+  var byId = (S_cmdIndex && S_cmdIndex.byId) || {}, now = Date.now(), perOrder = {}, nCol = 0, nEmp = 0, side = [];
+  var me_name = getMyName(), already = {};
+  Object.keys(S_orph||{}).forEach(function(k){ already[String((S_orph[k]||{}).num||'').replace(/\s+/g, '').toUpperCase()] = 1; });
   SIMP.rows.forEach(function(r){
-    if(!r.on || !r.orderId || !byId[r.orderId]) return;
-    var e = {transp:r.transp, num:r.num, bl:r.bl, at:now, byName:me_name, src:'import'};
-    if(me && me.uid) e.byUid = me.uid;
-    if(!suiviNeedsConfirm(byId[r.orderId])) e.conf = {at:now, byName:'Import automatique', auto:true};
-    (perOrder[r.orderId] = perOrder[r.orderId] || {})['colis/'+gid()] = e; nCol++;
+    if(r.state === 'dup') return;
+    if(r.on && r.orderId && byId[r.orderId]){
+      (perOrder[r.orderId] = perOrder[r.orderId] || {})['colis/'+gid()] = simpColisEntry(r.transp, r.num, r.bl, byId[r.orderId], now, 'import'); nCol++;
+    } else if(!already[String(r.num).replace(/\s+/g, '').toUpperCase()]){
+      side.push({transp:r.transp, num:r.num, bl:r.bl||'', ref:r.ref||'', client:r.client||'', at:now, byName:me_name});
+    }
   });
+  simpBlWrites().forEach(function(x){ (perOrder[x.orderId] = perOrder[x.orderId] || {})['bls/'+x.bl] = {at:now, src:'ebp'}; });
   SIMP.emports.forEach(function(x){
     if(!x.on || !byId[x.orderId]) return;
     (perOrder[x.orderId] = perOrder[x.orderId] || {})['livraison'] = {mode:x.mode, bl:x.bl, at:now, byName:me_name}; nEmp++;
   });
   var ids = Object.keys(perOrder);
-  if(!ids.length){ toast('Rien à enregistrer', 1); return; }
-  Promise.all(ids.map(function(id){ return fbu('commandes/'+id, perOrder[id]); }))
-    .then(function(){ toast('✅ '+nCol+' colis et '+nEmp+' emport(s) enregistrés'); cm('m-suivi-import'); if(typeof dashRunSearch === 'function') dashRunSearch(); })
+  if(!ids.length && !side.length){ toast('Rien à enregistrer', 1); return; }
+  var jobs = ids.map(function(id){ return fbu('commandes/'+id, perOrder[id]); }).concat(side.map(function(o){ return fbs('suiviOrphelins/'+gid(), o); }));
+  Promise.all(jobs)
+    .then(function(){ toast('✅ '+nCol+' colis, '+nEmp+' emport(s)'+(side.length ? ', '+side.length+' mis de côté à rattacher' : '')+' enregistrés'); cm('m-suivi-import'); S_dash.commandes = dashCommandesArray(); if(typeof dashRunSearch === 'function') dashRunSearch(); })
     .catch(function(){ toast('Erreur d\'enregistrement de l\'import', 1); });
+}
+
+// ── Colis à rattacher (mis de côté) ──
+function simpOrphList(){
+  return Object.keys(S_orph||{}).map(function(id){ return Object.assign({id:id}, S_orph[id]); }).sort(function(a, b){ return (a.at||0)-(b.at||0); });
+}
+function simpOrphUpdateCount(){
+  var el = document.getElementById('simp-orph-count'); if(!el) return;
+  var n = Object.keys(S_orph||{}).length;
+  el.innerHTML = n ? ' <span style="display:inline-block;margin-left:6px;padding:1px 8px;border-radius:99px;background:var(--acc);color:#000;font-size:.7rem;font-weight:800">📎 '+n+' à rattacher</span>' : '';
+}
+// Commande suggérée pour un colis mis de côté : BL déjà mémorisé, sinon référence EBP exacte
+function simpOrphSuggest(o){
+  var blIdx = simpBlIndex(), ids = o.bl ? (blIdx[o.bl] || []) : [];
+  if(ids.length === 1) return ids[0];
+  var c = o.ref ? simpFindExact(o.ref) : null;
+  return c ? c.id : '';
+}
+function simpSearchOrders(q){
+  var toks = simpNorm(q).replace(/[^a-z0-9]+/g, ' ').split(' ').filter(function(t){ return t.length >= 2; });
+  if(!toks.length) return [];
+  var byId = (S_cmdIndex && S_cmdIndex.byId) || {}, out = [];
+  Object.keys(byId).forEach(function(id){
+    var c = byId[id]; if(!c) return;
+    var hay = ' '+simpNorm((c.nom||'')+' '+(c.cmd||'')+' '+(c.site||'')).replace(/[^a-z0-9]+/g, ' ')+' ';
+    if(toks.every(function(t){ return hay.indexOf(t) >= 0; })) out.push({id:id, c:c});
+  });
+  out.sort(function(a, b){ return (b.c.createdAt||0)-(a.c.createdAt||0); });
+  return out.slice(0, 15);
+}
+function simpOrphHtml(){
+  var list = simpOrphList(), byId = (S_cmdIndex && S_cmdIndex.byId) || {};
+  if(!list.length) return '<div style="font-size:.8rem;color:var(--mut)">Aucun colis en attente de rattachement.</div>';
+  var nSug = list.filter(function(o){ return simpOrphSuggest(o); }).length;
+  var h = (nSug ? '<button class="btn bpri" style="width:100%;margin-bottom:8px" onclick="simpOrphAttachAll()">✅ Rattacher les '+nSug+' colis dont la commande est connue</button>' : '');
+  list.forEach(function(o){
+    var sug = simpOrphSuggest(o), sc = sug ? byId[sug] : null;
+    h += '<div style="border-top:1px solid var(--brd);padding:8px 0;font-size:.78rem">'+
+      '<div><strong>'+esc(o.transp||'')+'</strong> · <span style="font-family:monospace">'+esc(o.num||'')+'</span> <span style="color:var(--mut)">BL '+esc(o.bl||'—')+'</span></div>'+
+      '<div style="font-size:.7rem;color:var(--mut)">EBP : '+esc(o.ref||'—')+(o.client ? ' · '+esc(o.client) : '')+' · mis de côté le '+new Date(o.at||Date.now()).toLocaleDateString('fr-FR')+'</div>'+
+      (sc ? '<div style="color:var(--grn);font-weight:700;margin-top:2px">✅ Commande trouvée : '+esc(simpOrderLabel(sc))+'</div>' : '')+
+      '<div style="display:flex;gap:6px;margin-top:5px;flex-wrap:wrap">'+
+        '<input type="text" placeholder="Chercher une commande (nom, n°, site)" oninput="simpOrphSearch(\''+o.id+'\',this.value)" style="flex:1;min-width:150px;background:var(--sur);border:1px solid var(--brd);border-radius:6px;color:var(--txt);font-size:.76rem;padding:5px 8px;outline:none">'+
+        '<select id="simp-os-'+o.id+'" style="max-width:240px;background:var(--sur);color:var(--txt);border:1px solid var(--brd);border-radius:6px;font-size:.74rem;padding:4px">'+(sc ? '<option value="'+sug+'">'+esc(simpOrderLabel(sc))+'</option>' : '<option value="">— cherche d\'abord —</option>')+'</select>'+
+        '<button onclick="simpOrphAttach(\''+o.id+'\')" style="padding:5px 10px;border-radius:6px;border:1px solid var(--grn);background:none;color:var(--grn);font-size:.74rem;font-weight:700;cursor:pointer">Rattacher</button>'+
+      '</div></div>';
+  });
+  return h;
+}
+function simpOrphSearch(id, q){
+  var sel = document.getElementById('simp-os-'+id); if(!sel) return;
+  var res = simpSearchOrders(q);
+  sel.innerHTML = res.length ? res.map(function(x){ return '<option value="'+x.id+'">'+esc(simpOrderLabel(x.c))+'</option>'; }).join('') : '<option value="">Aucune commande</option>';
+}
+function simpOrphDo(id, orderId, ask){
+  var o = (S_orph||{})[id], byId = (S_cmdIndex && S_cmdIndex.byId) || {}, c = byId[orderId];
+  if(!o || !c) return Promise.resolve(false);
+  if(ask && !confirm('Rattacher '+(o.transp||'')+' '+(o.num||'')+(o.bl ? ' (BL '+o.bl+')' : '')+(o.client ? ' — client EBP : '+o.client : '')+'\nà la commande : '+simpOrderLabel(c)+' ?')) return Promise.resolve(false);
+  var key = String(o.num||'').replace(/\s+/g, '').toUpperCase(), nums = simpAllNums(), now = Date.now(), upd = {};
+  if(!nums[key]) upd['colis/'+gid()] = simpColisEntry(o.transp, o.num, o.bl, c, now, 'rattache');
+  if(o.bl && !(c.bls && c.bls[o.bl])) upd['bls/'+o.bl] = {at:now, src:'manuel'};
+  var p = Object.keys(upd).length ? fbu('commandes/'+orderId, upd) : Promise.resolve();
+  return p.then(function(){ return fbd('suiviOrphelins/'+id); }).then(function(){ return true; });
+}
+function simpOrphAttach(id){
+  var sel = document.getElementById('simp-os-'+id), oid = sel ? sel.value : '';
+  if(!oid){ toast('Choisis une commande', 1); return; }
+  simpOrphDo(id, oid, true).then(function(ok){ if(ok){ toast('✅ Colis rattaché'); S_dash.commandes = dashCommandesArray(); if(typeof dashRunSearch === 'function') dashRunSearch(); } })
+    .catch(function(){ toast('Erreur de rattachement', 1); });
+}
+function simpOrphAttachAll(){
+  var list = simpOrphList().filter(function(o){ return simpOrphSuggest(o); });
+  if(!list.length) return;
+  if(!confirm('Rattacher '+list.length+' colis à la commande trouvée pour chacun ?')) return;
+  list.reduce(function(p, o){ return p.then(function(){ return simpOrphDo(o.id, simpOrphSuggest(o), false); }); }, Promise.resolve())
+    .then(function(){ toast('✅ '+list.length+' colis rattachés'); S_dash.commandes = dashCommandesArray(); if(typeof dashRunSearch === 'function') dashRunSearch(); })
+    .catch(function(){ toast('Erreur de rattachement', 1); });
 }
 
 // ── PERMISSIONS PANEL ──
@@ -21915,7 +22042,7 @@ function dashRenderRecherche(){
   html += '<label style="font-size:.78rem;color:var(--mut);display:flex;align-items:center;gap:4px">Au <input type="date" id="dash-search-to" onchange="dashRunSearch()" style="background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.82rem;padding:6px 8px;outline:none"></label>';
   html += '<button onclick="dashResetRecherche()" style="padding:7px 12px;border-radius:8px;border:1.5px solid var(--brd);background:none;color:var(--mut);font-family:Open Sans,sans-serif;font-weight:700;font-size:0.84rem;cursor:pointer">↺ Réinitialiser</button>';
   html += '</div></div>';
-  if(canSuiviSaisie()) html += '<button onclick="simpOpen()" style="margin-bottom:8px;padding:7px 12px;border-radius:8px;border:1.5px solid var(--brd);background:none;color:var(--txt);font-family:Open Sans,sans-serif;font-weight:700;font-size:.8rem;cursor:pointer">📥 Importer les expéditions du jour</button>';
+  if(canSuiviSaisie()) html += '<button onclick="simpOpen()" style="margin-bottom:8px;padding:7px 12px;border-radius:8px;border:1.5px solid var(--brd);background:none;color:var(--txt);font-family:Open Sans,sans-serif;font-weight:700;font-size:.8rem;cursor:pointer">📥 Importer les expéditions du jour<span id="simp-orph-count"></span></button>';
   html += '<div id="dash-search-count" style="font-size:.72rem;color:var(--mut);margin-bottom:8px"></div>';
   html += '<div style="font-size:.7rem;color:var(--acc);margin-bottom:6px">↔ Sur mobile, faites défiler le tableau horizontalement pour voir toutes les colonnes</div>';
   html += '<div class="dash-tbl-wrap">';
@@ -21939,6 +22066,7 @@ function dashResetRecherche(){
 }
 
 function dashRunSearch(){
+  if(typeof simpOrphUpdateCount === 'function') simpOrphUpdateCount();
   var qEl = document.getElementById('dash-search-q');
   if(!qEl) return;
   var q = (qEl.value||'').trim().toLowerCase();
