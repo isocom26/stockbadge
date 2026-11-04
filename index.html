@@ -1493,7 +1493,8 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
   <div class="modal" onclick="event.stopPropagation()" style="max-height:88vh;overflow-y:auto;max-width:760px">
     <div class="dh"></div>
     <h3 style="text-align:center">📥 Importer les expéditions du jour</h3>
-    <input type="file" id="simp-files" multiple accept=".csv,.txt,.xls,.xlsx" onchange="simpHandleFiles(this.files)" style="width:100%;margin-bottom:10px;font-size:.82rem">
+    <input type="file" id="simp-files" multiple accept=".csv,.txt,.xls,.xlsx" onchange="simpHandleFiles(this.files)">
+    <button class="btn bpri" style="width:100%;margin-bottom:10px" onclick="document.getElementById('simp-files').click()">📂 Choisir les fichiers (EBP, Chronopost, Colissimo)</button>
     <div id="simp-body"></div>
     <button class="btn bsec" style="width:100%;margin-top:12px" onclick="cm('m-suivi-import')">Fermer</button>
   </div>
@@ -1999,7 +2000,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.11.04-1039';
+var APP_VERSION = '2026.11.04-1055';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
