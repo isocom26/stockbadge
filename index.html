@@ -1493,8 +1493,9 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
   <div class="modal" onclick="event.stopPropagation()" style="max-height:88vh;overflow-y:auto;max-width:760px">
     <div class="dh"></div>
     <h3 style="text-align:center">📥 Importer les expéditions du jour</h3>
-    <input type="file" id="simp-files" multiple accept=".csv,.txt,.xls,.xlsx" onchange="simpHandleFiles(this.files)">
-    <button class="btn bpri" style="width:100%;margin-bottom:10px" onclick="document.getElementById('simp-files').click()">📂 Choisir les fichiers (EBP, Chronopost, Colissimo)</button>
+    <input type="file" id="simp-files" multiple accept=".csv,.txt,.xls,.xlsx" onchange="simpHandleFiles(this.files);this.value=''">
+    <button class="btn bpri" id="simp-drop" style="width:100%;margin-bottom:6px;border:2px dashed transparent" onclick="document.getElementById('simp-files').click()" ondragover="event.preventDefault();this.style.borderColor='#fff'" ondragleave="this.style.borderColor='transparent'" ondrop="simpDrop(event)">📂 Ajouter des fichiers (EBP, Chronopost, Colissimo)</button>
+    <div style="font-size:.72rem;color:var(--mut);text-align:center;margin-bottom:10px">Un par un ou tous ensemble, dans l'ordre que tu veux (tu peux aussi les glisser ici). Un nouveau fichier du même type remplace l'ancien.</div>
     <div id="simp-body"></div>
     <button class="btn bsec" style="width:100%;margin-top:12px" onclick="cm('m-suivi-import')">Fermer</button>
   </div>
@@ -2000,7 +2001,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.11.04-1152';
+var APP_VERSION = '2026.11.04-1625';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -8568,12 +8569,14 @@ function simpBuild(){
   });
 }
 function simpHandleFiles(files){
-  SIMP.info = []; SIMP.carrier = []; SIMP.ebp = {}; SIMP.ebpLoaded = false;
+  // Chargement cumulatif : chaque type de fichier (EBP, Chronopost, Colissimo) garde sa dernière version ;
+  // un nouveau fichier du même type remplace l'ancien, les autres types sont conservés.
+  SIMP.srcs = SIMP.srcs || {}; SIMP.errs = [];
   var list = Array.prototype.slice.call(files||[]), jobs = list.map(function(f){
     return new Promise(function(res){
       var ext = (f.name.split('.').pop()||'').toLowerCase();
       var rd = new FileReader();
-      rd.onerror = function(){ SIMP.info.push({ok:false, txt:f.name+' : lecture impossible'}); res(); };
+      rd.onerror = function(){ SIMP.errs.push({ok:false, txt:f.name+' : lecture impossible'}); res(); };
       rd.onload = function(){
         try {
           if(ext === 'xls' || ext === 'xlsx'){
@@ -8581,33 +8584,49 @@ function simpHandleFiles(files){
               var wb = XLSX.read(rd.result, {type:'array'}), ws = wb.Sheets[wb.SheetNames[0]];
               var r = simpParseEbpRows(XLSX.utils.sheet_to_json(ws, {header:1, raw:true, defval:''}));
               simpAddEbp(f.name, r); res();
-            }).catch(function(){ SIMP.info.push({ok:false, txt:f.name+' : lecteur Excel indisponible (connexion ?)'}); res(); });
+            }).catch(function(){ SIMP.errs.push({ok:false, txt:f.name+' : lecteur Excel indisponible (connexion ?)'}); res(); });
             return;
           }
           var text = simpDecode(rd.result), head = simpNorm(text.slice(0, 400));
           if(/bordereau recapitulatif/.test(head) || /numero de lt/.test(simpNorm(text.slice(0, 3000)))){
-            var a = simpParseChrono(text); SIMP.carrier = SIMP.carrier.concat(a);
-            SIMP.info.push({ok:a.length > 0, txt:'Chronopost : '+a.length+' colis ('+f.name+')'});
+            var a = simpParseChrono(text);
+            SIMP.srcs.chrono = {carrier:a, info:{ok:a.length > 0, txt:'Chronopost : '+a.length+' colis ('+f.name+')'}};
           } else if(/^numero du colis/.test(head)){
-            var b = simpParseColissimo(text); SIMP.carrier = SIMP.carrier.concat(b);
-            SIMP.info.push({ok:b.length > 0, txt:'Colissimo : '+b.length+' colis ('+f.name+')'});
+            var b = simpParseColissimo(text);
+            SIMP.srcs.coli = {carrier:b, info:{ok:b.length > 0, txt:'Colissimo : '+b.length+' colis ('+f.name+')'}};
           } else if(/du bl/.test(head) || /cmd\. isocom/.test(head)){
             var lines = text.split(/\r?\n/), sep = (lines[0]||'').indexOf(';') >= 0 ? ';' : ((lines[0]||'').indexOf('\t') >= 0 ? '\t' : ',');
             simpAddEbp(f.name, simpParseEbpRows(lines.map(function(l){ return simpSplit(l, sep); })));
-          } else SIMP.info.push({ok:false, txt:f.name+' : format non reconnu'});
-        } catch(e){ SIMP.info.push({ok:false, txt:f.name+' : fichier illisible'}); }
+          } else SIMP.errs.push({ok:false, txt:f.name+' : format non reconnu'});
+        } catch(e){ SIMP.errs.push({ok:false, txt:f.name+' : fichier illisible'}); }
         res();
       };
       rd.readAsArrayBuffer(f);
     });
   });
-  return Promise.all(jobs).then(function(){ simpBuild(); simpRender(); });
+  return Promise.all(jobs).then(function(){ simpMerge(); simpBuild(); simpRender(); });
 }
 function simpAddEbp(name, r){
-  if(r.error){ SIMP.info.push({ok:false, txt:name+' : colonnes « N° du BL » et « Réf. Cmd. Isocom » introuvables'}); return; }
-  Object.keys(r.map).forEach(function(k){ SIMP.ebp[k] = r.map[k]; });
-  SIMP.ebpLoaded = true;
-  SIMP.info.push({ok:true, txt:'EBP : '+r.count+' BL ('+name+')'});
+  if(r.error){ SIMP.errs.push({ok:false, txt:name+' : colonnes « N° du BL » et « Réf. Cmd. Isocom » introuvables'}); return; }
+  SIMP.srcs.ebp = {map:r.map, info:{ok:true, txt:'EBP : '+r.count+' BL ('+name+')'}};
+}
+// Recompose l'état à partir des fichiers chargés (EBP + Chronopost + Colissimo), dans n'importe quel ordre
+function simpMerge(){
+  var S = SIMP.srcs || {};
+  SIMP.info = []; SIMP.carrier = []; SIMP.ebp = {}; SIMP.ebpLoaded = !!S.ebp;
+  if(S.ebp){ SIMP.ebp = S.ebp.map; SIMP.info.push(S.ebp.info); }
+  ['chrono', 'coli'].forEach(function(k){ if(S[k]){ SIMP.carrier = SIMP.carrier.concat(S[k].carrier); SIMP.info.push(S[k].info); } });
+  SIMP.errs = SIMP.errs || []; SIMP.info = SIMP.info.concat(SIMP.errs);
+  var miss = []; if(!S.ebp) miss.push('EBP'); if(!S.chrono) miss.push('Chronopost'); if(!S.coli) miss.push('Colissimo');
+  SIMP.missing = miss;
+}
+function simpReset(){
+  SIMP.srcs = {}; SIMP.errs = []; SIMP.rows = []; SIMP.emports = []; SIMP.blLinks = []; SIMP.view = '';
+  simpMerge(); simpRender();
+}
+function simpDrop(ev){
+  ev.preventDefault(); var b = document.getElementById('simp-drop'); if(b) b.style.borderColor = 'transparent';
+  if(ev.dataTransfer && ev.dataTransfer.files && ev.dataTransfer.files.length) simpHandleFiles(ev.dataTransfer.files);
 }
 var SIMP_STATE = {
   ok:['✅ Trouvée','var(--grn)'], choose:['🔎 À choisir','var(--acc)'], none:['❓ Introuvable','var(--red)'],
@@ -8618,6 +8637,9 @@ function simpRender(){
   var el = document.getElementById('simp-body'); if(!el) return;
   var h = '';
   if(SIMP.info.length) h += '<div style="font-size:.78rem;margin-bottom:8px">'+SIMP.info.map(function(i){ return '<div style="color:'+(i.ok?'var(--grn)':'var(--red)')+'">'+(i.ok?'✔ ':'✖ ')+esc(i.txt)+'</div>'; }).join('')+'</div>';
+  if(SIMP.srcs && Object.keys(SIMP.srcs).length){
+    h += '<div style="font-size:.74rem;color:var(--mut);margin-bottom:8px">'+(SIMP.missing && SIMP.missing.length ? 'Pas encore chargé : '+SIMP.missing.join(', ')+' · ' : '')+'<a href="#" onclick="event.preventDefault();simpReset()" style="color:var(--mut);text-decoration:underline">Tout effacer et recommencer</a></div>';
+  }
   if(SIMP.carrier.length && !SIMP.ebpLoaded) h += '<div style="font-size:.78rem;color:var(--red);margin-bottom:8px">Ajoute aussi l\'export EBP : c\'est lui qui relie chaque BL à sa commande.</div>';
   if(SIMP.rows.length){
     h += '<div class="dash-tbl-wrap"><table style="width:100%;min-width:560px;border-collapse:collapse;font-size:.76rem"><thead><tr style="text-align:left;border-bottom:1.5px solid var(--brd);color:var(--mut)"><th style="padding:5px 4px"></th><th style="padding:5px 4px">COLIS</th><th style="padding:5px 4px">BL</th><th style="padding:5px 4px">COMMANDE</th><th style="padding:5px 4px">ÉTAT</th></tr></thead><tbody>';
@@ -8665,7 +8687,7 @@ function simpToggle(i, v){ var r = SIMP.rows[i]; if(r){ r.on = !!v; simpRender()
 function simpToggleEmp(i, v){ var e = SIMP.emports[i]; if(e){ e.on = !!v; simpRender(); } }
 function simpOpen(){
   if(!canSuiviSaisie()) return;
-  SIMP.info = []; SIMP.carrier = []; SIMP.ebp = {}; SIMP.rows = []; SIMP.emports = []; SIMP.blLinks = []; SIMP.ebpLoaded = false; SIMP.view = '';
+  SIMP.srcs = {}; SIMP.errs = []; SIMP.info = []; SIMP.carrier = []; SIMP.ebp = {}; SIMP.rows = []; SIMP.emports = []; SIMP.blLinks = []; SIMP.ebpLoaded = false; SIMP.view = ''; SIMP.missing = [];
   var f = document.getElementById('simp-files'); if(f) f.value = '';
   simpRender(); om('m-suivi-import');
 }
