@@ -2000,7 +2000,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.11.04-1134';
+var APP_VERSION = '2026.11.04-1152';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -19795,8 +19795,14 @@ function adminCatchUpCmdStatus(){
         if(allDone && !esupIncompleteKeys(c).length){
           if(!qtyRulesOn()){ fixed++; fbu('commandes/'+id, {status:'done'}); finish(); }
           else qtyLoadLines(Object.assign({id:id}, c)).then(function(all){
-            var st = qtyCommandeState(Object.assign({id:id}, c), all, {reprints:S_rp});
-            if(!st.formats.length || st.canBeDone){ fixed++; fbu('commandes/'+id, {status:'done'}); }
+            var cc = Object.assign({id:id}, c);
+            var st = qtyCommandeState(cc, all, {reprints:S_rp});
+            var okNum = true;   // pôle numérique activé : les produits numériques doivent aussi être terminés (comme updateCmdStatusIfDone)
+            if(qtyHasNumFmt(cc) && (!st.formats.length || poleCfgOn())){
+              var sn = qtyCommandeState(cc, all, {reprints:S_rp, pole:'numerique'});
+              okNum = !sn.formats.length || sn.canBeDone;
+            }
+            if((!st.formats.length || st.canBeDone) && okNum){ fixed++; fbu('commandes/'+id, {status:'done'}); }
             finish();
           });
         } else finish();
