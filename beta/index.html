@@ -2000,7 +2000,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.11.04-1122';
+var APP_VERSION = '2026.11.04-1134';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -8484,8 +8484,9 @@ function simpFindExact(ref){
   for(var i = 0; i < tries.length; i++){
     var sites = SITE_ALIAS[tries[i][0].toUpperCase()] || [tries[i][0].toUpperCase()];
     for(var s = 0; s < sites.length; s++){
-      var c = idx[looseMatchKey(sites[s])+'||'+looseMatchKey(tries[i][1])];
-      if(c) return c;
+      var kk = looseMatchKey(sites[s])+'||'+looseMatchKey(tries[i][1]), c = idx[kk];
+      // les commandes brutes de Firebase n'ont pas de champ « id » : on le rajoute sur une copie
+      if(c){ var cid = (S_cmdIndex.idBySiteCmd && S_cmdIndex.idBySiteCmd[kk]) || c.id; return Object.assign({}, c, {id:cid}); }
     }
   }
   return null;
@@ -8948,13 +8949,13 @@ function cmdFixPoles(raw){
 function startCmdIndexListener(){
   db.ref('commandes').on('value', function(snap){
     var raw = snap.val() || {};
-    var byId = {}, bySiteCmd = {};
+    var byId = {}, bySiteCmd = {}, idBySiteCmd = {};
     Object.keys(raw).forEach(function(id){
       var c = raw[id];
       byId[id] = c;
-      if(c.site && c.cmd) bySiteCmd[looseMatchKey(c.site)+'||'+looseMatchKey(c.cmd)] = c;
+      if(c.site && c.cmd){ var kk = looseMatchKey(c.site)+'||'+looseMatchKey(c.cmd); bySiteCmd[kk] = c; idBySiteCmd[kk] = id; }
     });
-    S_cmdIndex = {byId:byId, bySiteCmd:bySiteCmd};
+    S_cmdIndex = {byId:byId, bySiteCmd:bySiteCmd, idBySiteCmd:idBySiteCmd};
     cmdFixPoles(raw);
     if(typeof savAlertsUpdate==='function') savAlertsUpdate();
     if(typeof suiviAlertsUpdate==='function') suiviAlertsUpdate();
