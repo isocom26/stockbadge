@@ -1489,6 +1489,15 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
   </div>
 </div>
 
+<div class="mover" id="m-suivi-import" onclick="cm('m-suivi-import')">
+  <div class="modal" onclick="event.stopPropagation()" style="max-height:88vh;overflow-y:auto;max-width:760px">
+    <div class="dh"></div>
+    <h3 style="text-align:center">📥 Importer les expéditions du jour</h3>
+    <input type="file" id="simp-files" multiple accept=".csv,.txt,.xls,.xlsx" onchange="simpHandleFiles(this.files)" style="width:100%;margin-bottom:10px;font-size:.82rem">
+    <div id="simp-body"></div>
+    <button class="btn bsec" style="width:100%;margin-top:12px" onclick="cm('m-suivi-import')">Fermer</button>
+  </div>
+</div>
 <div class="mover" id="m-suivi" onclick="cm('m-suivi')">
   <div class="modal" onclick="event.stopPropagation()" style="max-height:85vh;overflow-y:auto">
     <div class="dh"></div>
@@ -1990,7 +1999,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.11.03-1559';
+var APP_VERSION = '2026.11.04-1039';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -8283,7 +8292,8 @@ function suiviColisRowsHtml(cmdId, list, withDelete){
   }).join('');
 }
 function suiviRowLinksHtml(c){
-  var list = colisList(c); if(!list.length) return '<span style="color:var(--mut)">—</span>';
+  var list = colisList(c);
+  if(!list.length) return (c && c.livraison && c.livraison.mode) ? '<span style="font-size:.72rem;color:var(--mut)">'+esc(c.livraison.mode)+'</span>' : '<span style="color:var(--mut)">—</span>';
   var out = list.slice(0,3).map(function(k){
     var u = suiviTrackUrl(k.transp, k.num);
     return '<div style="line-height:1.25">'+
@@ -8372,6 +8382,274 @@ function suiviDeleteColis(cmdId, kid){
   if(!(iAm || (canSuiviSaisie() && !(k.conf && k.conf.at)))) return;
   if(!confirm('Supprimer ce colis ('+(k.transp||'')+' '+(k.num||'')+') ?')) return;
   fbd('commandes/'+cmdId+'/colis/'+kid).then(function(){ dashSuiviRefreshAll(cmdId); }).catch(function(){ toast('Erreur de suppression', 1); });
+}
+
+// ══════════════════════════════════════════════════════════════
+// ── IMPORT DES EXPÉDITIONS DU SOIR ──
+// Trois fichiers : export EBP (BL ↔ n° de commande) + bordereau Chronopost + export ColiShip (Colissimo).
+// Tout est lu dans le navigateur ; seuls transporteur, n° de colis et BL sont enregistrés (jamais les adresses).
+// Champs additifs : commandes/{id}/colis/{k} = {transp, num, bl, at, byName, src:'import', conf?} et
+// commandes/{id}/livraison = {mode, bl, at, byName} (emport / autre mode sans colis).
+// ══════════════════════════════════════════════════════════════
+var SIMP = {info:[], carrier:[], ebp:{}, rows:[], emports:[], ebpLoaded:false};
+function simpNorm(s){ return String(s==null?'':s).normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().trim(); }
+function simpDecode(buf){
+  try { return new TextDecoder('utf-8', {fatal:true}).decode(buf).replace(/^﻿/, ''); }
+  catch(e){ return new TextDecoder('windows-1252').decode(buf); }
+}
+function simpSplit(line, sep){
+  var out = [], cur = '', q = false;
+  for(var i = 0; i < line.length; i++){
+    var ch = line[i];
+    if(ch === '"'){ q = !q; continue; }
+    if(ch === sep && !q){ out.push(cur); cur = ''; continue; }
+    cur += ch;
+  }
+  out.push(cur); return out;
+}
+// Bordereau récapitulatif Chronopost : lignes « N° de LT ; Réf. Envoi ; Réf. Desti. ; … »
+function simpParseChrono(text){
+  var lines = text.split(/\r?\n/), out = [], iLT = -1, iBl = -1, inTable = false;
+  lines.forEach(function(l){
+    var p = simpSplit(l, ';'), c0 = simpNorm(p[0]);
+    if(/^numero de lt/.test(c0)){
+      iLT = 0; iBl = -1;
+      p.forEach(function(h, j){ if(/desti/.test(simpNorm(h)) && iBl < 0) iBl = j; });
+      inTable = iBl >= 0; return;
+    }
+    if(!inTable) return;
+    if(!l.trim() || /^(detail|resume)/.test(c0)){ inTable = false; return; }
+    var lt = String(p[iLT]||'').trim(), bl = String(p[iBl]||'').trim().toUpperCase();
+    if(/^[A-Z0-9]{8,20}$/.test(lt)) out.push({transp:'Chronopost', num:lt, bl:/^BL\d{8}$/.test(bl) ? bl : ''});
+  });
+  return out;
+}
+// Export ColiShip : lignes en largeur fixe (n° de colis = 13 premiers caractères, BL repéré par son motif) ou délimitées
+function simpParseColissimo(text){
+  var out = [];
+  text.split(/\r?\n/).forEach(function(l, i){
+    if(!l.trim() || /^numero du colis/.test(simpNorm(l.slice(0, 30)))) return;
+    var p = l.indexOf(';') >= 0 ? simpSplit(l, ';') : null;
+    var num = (p ? String(p[0]||'').trim() : l.slice(0, 13).trim());
+    if(!/^[A-Z0-9]{11,15}$/.test(num)) return;
+    var m = /BL\d{8}/.exec(l);
+    out.push({transp:'Colissimo', num:num, bl:m ? m[0] : ''});
+  });
+  return out;
+}
+// Export EBP : tableau de tableaux (xls/xlsx ou csv) -> {BL: {ref, client, mode}}
+function simpParseEbpRows(aoa){
+  var hi = -1, iBl = -1, iRef = -1, iCli = -1, iTr = -1;
+  for(var i = 0; i < Math.min(aoa.length, 10); i++){
+    var r = aoa[i] || [], b = -1, f = -1, c = -1, t = -1;
+    r.forEach(function(v, j){
+      var s = simpNorm(v);
+      if(/(^|\s)du bl$|^n.{0,3}bl$|numero du bl/.test(s) && b < 0) b = j;
+      if(/ref.*cmd/.test(s) && f < 0) f = j;
+      if(s === 'client' && c < 0) c = j;
+      if(/transporteur/.test(s) && t < 0) t = j;
+    });
+    if(b >= 0 && f >= 0){ hi = i; iBl = b; iRef = f; iCli = c; iTr = t; break; }
+  }
+  var out = {}, n = 0;
+  if(hi < 0) return {map:out, count:0, error:true};
+  for(var k = hi + 1; k < aoa.length; k++){
+    var row = aoa[k] || [], bl = String(row[iBl]||'').trim().toUpperCase();
+    if(!/^BL\d{8}$/.test(bl)) continue;
+    out[bl] = {ref:String(row[iRef]||'').trim(), client:iCli >= 0 ? String(row[iCli]||'').trim() : '', mode:iTr >= 0 ? String(row[iTr]||'').trim() : ''};
+    n++;
+  }
+  return {map:out, count:n, error:false};
+}
+function simpIsCarrierMode(mode){ return /colissimo|chrono/i.test(mode||''); }
+
+// Trouve la commande de l'app d'après la « Réf. Cmd. Isocom » d'EBP (ex. CB2026-32544, FDB-2026-12370, BMM2026-15925)
+function simpFindExact(ref){
+  var idx = (S_cmdIndex && S_cmdIndex.bySiteCmd) || {};
+  ref = String(ref||'').trim();
+  var m = /^([A-Za-z]{2,5})-?(\d{4})-(\d+)$/.exec(ref), tries = [];
+  if(m) tries.push([m[1], m[3]]);
+  var m2 = /^([A-Za-z]{2,5})-(\d+)$/.exec(ref);
+  if(m2){ tries.push([m2[1], m2[2]]); tries.push([m2[1], m2[2].replace(/^0+/, '')]); }
+  var SITE_ALIAS = {TOP:['TOP','TopBadges'], TB:['TopBadges'], UST:['UST','U-Stickers','U Stickers','USTICKERS']};
+  for(var i = 0; i < tries.length; i++){
+    var sites = SITE_ALIAS[tries[i][0].toUpperCase()] || [tries[i][0].toUpperCase()];
+    for(var s = 0; s < sites.length; s++){
+      var c = idx[looseMatchKey(sites[s])+'||'+looseMatchKey(tries[i][1])];
+      if(c) return c;
+    }
+  }
+  return null;
+}
+// Propositions par ressemblance de nom (client EBP / texte de la référence) — toujours à valider à la main
+function simpCandidates(ref, client){
+  var byId = (S_cmdIndex && S_cmdIndex.byId) || {};
+  var toks = simpNorm(client+' '+ref).replace(/[^a-z0-9]+/g, ' ').split(' ').filter(function(t){ return t.length >= 3 && !/^(mail|cmd|the|des|les|sas|sarl|eurl|association)$/.test(t); });
+  if(!toks.length) return [];
+  var out = [];
+  Object.keys(byId).forEach(function(id){
+    var c = byId[id]; if(!c) return;
+    var hay = ' '+simpNorm((c.nom||'')+' '+(c.cmd||'')+' '+(c.site||'')).replace(/[^a-z0-9]+/g, ' ')+' ';
+    var sc = 0; toks.forEach(function(t){ if(hay.indexOf(' '+t) >= 0) sc++; });
+    if(sc > 0) out.push({id:id, c:c, sc:sc});
+  });
+  out.sort(function(a, b){ return (b.sc - a.sc) || ((b.c.createdAt||0) - (a.c.createdAt||0)); });
+  return out.slice(0, 6);
+}
+function simpOrderLabel(c){ return dashCmdLabel(c)+' · '+(c.site||'—'); }
+// Une commande est « à confirmer » à la main si CMC / mail / U-stickers (confirmées par le pôle numérique), ou si elle porte un nom de client (commande passée par mail)
+function suiviNeedsConfirm(c){
+  return !!(c && (c.site === 'CMC' || c.site === 'CMD MAIL' || /^(ust|u[\s-]?stickers?)$/i.test(String(c.site||'').trim()) || (c.nom && String(c.nom).trim())));
+}
+function simpAllNums(){
+  var set = {}, byId = (S_cmdIndex && S_cmdIndex.byId) || {};
+  Object.keys(byId).forEach(function(id){ colisList(byId[id]).forEach(function(k){ if(k.num) set[String(k.num).replace(/\s+/g, '').toUpperCase()] = id; }); });
+  return set;
+}
+function simpBuild(){
+  var nums = simpAllNums(), seenNew = {};
+  var inFiles = {}; SIMP.carrier.forEach(function(k){ if(k.bl) inFiles[k.bl] = 1; });
+  SIMP.rows = SIMP.carrier.map(function(k){
+    var row = {transp:k.transp, num:k.num, bl:k.bl, ref:'', client:'', orderId:'', cands:[], state:'none', on:false};
+    var key = String(k.num).replace(/\s+/g, '').toUpperCase();
+    var e = k.bl ? SIMP.ebp[k.bl] : null;
+    if(e){ row.ref = e.ref; row.client = e.client; }
+    if(nums[key] || seenNew[key]){ row.state = 'dup'; return row; }
+    seenNew[key] = 1;
+    if(!k.bl){ row.state = 'nobl'; return row; }
+    if(!e){ row.state = SIMP.ebpLoaded ? 'noebp' : 'needebp'; return row; }
+    var c = simpFindExact(e.ref);
+    if(c){ row.orderId = c.id; row.state = 'ok'; row.on = true; return row; }
+    row.cands = simpCandidates(e.ref, e.client);
+    row.state = row.cands.length ? 'choose' : 'none';
+    return row;
+  });
+  // Emports / autres modes : lignes EBP sans fichier transporteur
+  SIMP.emports = [];
+  Object.keys(SIMP.ebp).forEach(function(bl){
+    var e = SIMP.ebp[bl];
+    if(!e.mode || simpIsCarrierMode(e.mode) || inFiles[bl]) return;
+    var c = simpFindExact(e.ref); if(!c) return;
+    if(c.livraison || colisList(c).length) return;
+    SIMP.emports.push({bl:bl, mode:e.mode, orderId:c.id, client:e.client, on:true});
+  });
+}
+function simpHandleFiles(files){
+  SIMP.info = []; SIMP.carrier = []; SIMP.ebp = {}; SIMP.ebpLoaded = false;
+  var list = Array.prototype.slice.call(files||[]), jobs = list.map(function(f){
+    return new Promise(function(res){
+      var ext = (f.name.split('.').pop()||'').toLowerCase();
+      var rd = new FileReader();
+      rd.onerror = function(){ SIMP.info.push({ok:false, txt:f.name+' : lecture impossible'}); res(); };
+      rd.onload = function(){
+        try {
+          if(ext === 'xls' || ext === 'xlsx'){
+            invcLoadXlsx().then(function(){
+              var wb = XLSX.read(rd.result, {type:'array'}), ws = wb.Sheets[wb.SheetNames[0]];
+              var r = simpParseEbpRows(XLSX.utils.sheet_to_json(ws, {header:1, raw:true, defval:''}));
+              simpAddEbp(f.name, r); res();
+            }).catch(function(){ SIMP.info.push({ok:false, txt:f.name+' : lecteur Excel indisponible (connexion ?)'}); res(); });
+            return;
+          }
+          var text = simpDecode(rd.result), head = simpNorm(text.slice(0, 400));
+          if(/bordereau recapitulatif/.test(head) || /numero de lt/.test(simpNorm(text.slice(0, 3000)))){
+            var a = simpParseChrono(text); SIMP.carrier = SIMP.carrier.concat(a);
+            SIMP.info.push({ok:a.length > 0, txt:'Chronopost : '+a.length+' colis ('+f.name+')'});
+          } else if(/^numero du colis/.test(head)){
+            var b = simpParseColissimo(text); SIMP.carrier = SIMP.carrier.concat(b);
+            SIMP.info.push({ok:b.length > 0, txt:'Colissimo : '+b.length+' colis ('+f.name+')'});
+          } else if(/du bl/.test(head) || /cmd\. isocom/.test(head)){
+            var lines = text.split(/\r?\n/), sep = (lines[0]||'').indexOf(';') >= 0 ? ';' : ((lines[0]||'').indexOf('\t') >= 0 ? '\t' : ',');
+            simpAddEbp(f.name, simpParseEbpRows(lines.map(function(l){ return simpSplit(l, sep); })));
+          } else SIMP.info.push({ok:false, txt:f.name+' : format non reconnu'});
+        } catch(e){ SIMP.info.push({ok:false, txt:f.name+' : fichier illisible'}); }
+        res();
+      };
+      rd.readAsArrayBuffer(f);
+    });
+  });
+  return Promise.all(jobs).then(function(){ simpBuild(); simpRender(); });
+}
+function simpAddEbp(name, r){
+  if(r.error){ SIMP.info.push({ok:false, txt:name+' : colonnes « N° du BL » et « Réf. Cmd. Isocom » introuvables'}); return; }
+  Object.keys(r.map).forEach(function(k){ SIMP.ebp[k] = r.map[k]; });
+  SIMP.ebpLoaded = true;
+  SIMP.info.push({ok:true, txt:'EBP : '+r.count+' BL ('+name+')'});
+}
+var SIMP_STATE = {
+  ok:['✅ Trouvée','var(--grn)'], choose:['🔎 À choisir','var(--acc)'], none:['❓ Introuvable','var(--red)'],
+  dup:['⏭ Déjà enregistré','var(--mut)'], nobl:['⚠️ Pas de BL','var(--red)'], noebp:['⚠️ BL absent de l\'export EBP','var(--red)'],
+  needebp:['⚠️ Ajoute l\'export EBP','var(--red)']
+};
+function simpRender(){
+  var el = document.getElementById('simp-body'); if(!el) return;
+  var h = '';
+  if(SIMP.info.length) h += '<div style="font-size:.78rem;margin-bottom:8px">'+SIMP.info.map(function(i){ return '<div style="color:'+(i.ok?'var(--grn)':'var(--red)')+'">'+(i.ok?'✔ ':'✖ ')+esc(i.txt)+'</div>'; }).join('')+'</div>';
+  if(SIMP.carrier.length && !SIMP.ebpLoaded) h += '<div style="font-size:.78rem;color:var(--red);margin-bottom:8px">Ajoute aussi l\'export EBP : c\'est lui qui relie chaque BL à sa commande.</div>';
+  if(SIMP.rows.length){
+    h += '<div class="dash-tbl-wrap"><table style="width:100%;min-width:560px;border-collapse:collapse;font-size:.76rem"><thead><tr style="text-align:left;border-bottom:1.5px solid var(--brd);color:var(--mut)"><th style="padding:5px 4px"></th><th style="padding:5px 4px">COLIS</th><th style="padding:5px 4px">BL</th><th style="padding:5px 4px">COMMANDE</th><th style="padding:5px 4px">ÉTAT</th></tr></thead><tbody>';
+    SIMP.rows.forEach(function(r, i){
+      var st = SIMP_STATE[r.state] || SIMP_STATE.none, byId = (S_cmdIndex && S_cmdIndex.byId) || {}, cmd = '';
+      if(r.state === 'ok' || (r.state === 'choose' && r.orderId)){
+        var oc = byId[r.orderId]; cmd = oc ? esc(simpOrderLabel(oc)) : '—';
+      }
+      if(r.state === 'choose' || r.state === 'none'){
+        var opts = '<option value="">— choisir —</option>'+r.cands.map(function(x){ return '<option value="'+x.id+'"'+(x.id === r.orderId ? ' selected' : '')+'>'+esc(simpOrderLabel(x.c))+'</option>'; }).join('');
+        cmd = (r.cands.length || r.state === 'none') ? '<select onchange="simpPick('+i+',this.value)" style="max-width:220px;background:var(--sur);color:var(--txt);border:1px solid var(--brd);border-radius:6px;font-size:.72rem;padding:3px">'+opts+'</select>' : '—';
+        if(r.ref) cmd += '<div style="font-size:.66rem;color:var(--mut)">EBP : '+esc(r.ref)+(r.client ? ' · '+esc(r.client) : '')+'</div>';
+      }
+      h += '<tr style="border-bottom:1px solid var(--brd)"><td style="padding:5px 4px"><input type="checkbox" '+(r.on ? 'checked ' : '')+(r.orderId ? '' : 'disabled ')+'onchange="simpToggle('+i+',this.checked)"></td>'+
+        '<td style="padding:5px 4px"><div style="font-size:.66rem;color:var(--mut)">'+esc(r.transp)+'</div><span style="font-family:monospace">'+esc(r.num)+'</span></td>'+
+        '<td style="padding:5px 4px;font-family:monospace">'+esc(r.bl||'—')+'</td><td style="padding:5px 4px">'+(cmd||'—')+'</td>'+
+        '<td style="padding:5px 4px;color:'+st[1]+';font-weight:700;white-space:nowrap">'+st[0]+'</td></tr>';
+    });
+    h += '</tbody></table></div>';
+  }
+  if(SIMP.emports.length){
+    h += '<div style="margin-top:10px;font-weight:800;font-size:.82rem">🚶 Emports et autres modes (sans colis)</div>';
+    var by = (S_cmdIndex && S_cmdIndex.byId) || {};
+    SIMP.emports.forEach(function(e, i){
+      var oc = by[e.orderId];
+      h += '<label style="display:flex;gap:8px;align-items:center;font-size:.76rem;padding:3px 0"><input type="checkbox" '+(e.on ? 'checked ' : '')+'onchange="simpToggleEmp('+i+',this.checked)"><span><strong>'+esc(e.mode)+'</strong> · '+esc(oc ? simpOrderLabel(oc) : e.orderId)+' <span style="color:var(--mut)">('+esc(e.bl)+')</span></span></label>';
+    });
+  }
+  var nCol = SIMP.rows.filter(function(r){ return r.on && r.orderId; }).length, nEmp = SIMP.emports.filter(function(e){ return e.on; }).length;
+  if(SIMP.rows.length || SIMP.emports.length){
+    var nConf = SIMP.rows.filter(function(r){ var c = ((S_cmdIndex.byId)||{})[r.orderId]; return r.on && r.orderId && suiviNeedsConfirm(c); }).length;
+    h += '<div style="font-size:.76rem;color:var(--mut);margin-top:10px">'+nCol+' colis à enregistrer dont '+nConf+' à confirmer ; '+nEmp+' emport(s).</div>'+
+      '<button class="btn bpri" style="width:100%;margin-top:8px" '+((nCol+nEmp) ? '' : 'disabled ')+'onclick="simpApply()">✅ Enregistrer</button>';
+  }
+  el.innerHTML = h || '<div style="font-size:.8rem;color:var(--mut)">Choisis les fichiers du soir : export EBP, bordereau Chronopost et export ColiShip. Rien n\'est enregistré avant ta validation.</div>';
+}
+function simpPick(i, id){ var r = SIMP.rows[i]; if(!r) return; r.orderId = id || ''; r.on = !!id; simpRender(); }
+function simpToggle(i, v){ var r = SIMP.rows[i]; if(r){ r.on = !!v; simpRender(); } }
+function simpToggleEmp(i, v){ var e = SIMP.emports[i]; if(e){ e.on = !!v; simpRender(); } }
+function simpOpen(){
+  if(!canSuiviSaisie()) return;
+  SIMP.info = []; SIMP.carrier = []; SIMP.ebp = {}; SIMP.rows = []; SIMP.emports = []; SIMP.ebpLoaded = false;
+  var f = document.getElementById('simp-files'); if(f) f.value = '';
+  simpRender(); om('m-suivi-import');
+}
+function simpApply(){
+  if(!canSuiviSaisie()) return;
+  var byId = (S_cmdIndex && S_cmdIndex.byId) || {}, now = Date.now(), perOrder = {}, nCol = 0, nEmp = 0;
+  var me_name = getMyName();
+  SIMP.rows.forEach(function(r){
+    if(!r.on || !r.orderId || !byId[r.orderId]) return;
+    var e = {transp:r.transp, num:r.num, bl:r.bl, at:now, byName:me_name, src:'import'};
+    if(me && me.uid) e.byUid = me.uid;
+    if(!suiviNeedsConfirm(byId[r.orderId])) e.conf = {at:now, byName:'Import automatique', auto:true};
+    (perOrder[r.orderId] = perOrder[r.orderId] || {})['colis/'+gid()] = e; nCol++;
+  });
+  SIMP.emports.forEach(function(x){
+    if(!x.on || !byId[x.orderId]) return;
+    (perOrder[x.orderId] = perOrder[x.orderId] || {})['livraison'] = {mode:x.mode, bl:x.bl, at:now, byName:me_name}; nEmp++;
+  });
+  var ids = Object.keys(perOrder);
+  if(!ids.length){ toast('Rien à enregistrer', 1); return; }
+  Promise.all(ids.map(function(id){ return fbu('commandes/'+id, perOrder[id]); }))
+    .then(function(){ toast('✅ '+nCol+' colis et '+nEmp+' emport(s) enregistrés'); cm('m-suivi-import'); if(typeof dashRunSearch === 'function') dashRunSearch(); })
+    .catch(function(){ toast('Erreur d\'enregistrement de l\'import', 1); });
 }
 
 // ── PERMISSIONS PANEL ──
@@ -21636,6 +21914,7 @@ function dashRenderRecherche(){
   html += '<label style="font-size:.78rem;color:var(--mut);display:flex;align-items:center;gap:4px">Au <input type="date" id="dash-search-to" onchange="dashRunSearch()" style="background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.82rem;padding:6px 8px;outline:none"></label>';
   html += '<button onclick="dashResetRecherche()" style="padding:7px 12px;border-radius:8px;border:1.5px solid var(--brd);background:none;color:var(--mut);font-family:Open Sans,sans-serif;font-weight:700;font-size:0.84rem;cursor:pointer">↺ Réinitialiser</button>';
   html += '</div></div>';
+  if(canSuiviSaisie()) html += '<button onclick="simpOpen()" style="margin-bottom:8px;padding:7px 12px;border-radius:8px;border:1.5px solid var(--brd);background:none;color:var(--txt);font-family:Open Sans,sans-serif;font-weight:700;font-size:.8rem;cursor:pointer">📥 Importer les expéditions du jour</button>';
   html += '<div id="dash-search-count" style="font-size:.72rem;color:var(--mut);margin-bottom:8px"></div>';
   html += '<div style="font-size:.7rem;color:var(--acc);margin-bottom:6px">↔ Sur mobile, faites défiler le tableau horizontalement pour voir toutes les colonnes</div>';
   html += '<div class="dash-tbl-wrap">';
