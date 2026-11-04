@@ -1999,7 +1999,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.11.04-0948';
+var APP_VERSION = '2026.11.04-1039';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -8471,7 +8471,7 @@ function simpFindExact(ref){
   if(m) tries.push([m[1], m[3]]);
   var m2 = /^([A-Za-z]{2,5})-(\d+)$/.exec(ref);
   if(m2){ tries.push([m2[1], m2[2]]); tries.push([m2[1], m2[2].replace(/^0+/, '')]); }
-  var SITE_ALIAS = {TOP:['TOP','TopBadges'], TB:['TopBadges']};
+  var SITE_ALIAS = {TOP:['TOP','TopBadges'], TB:['TopBadges'], UST:['UST','U-Stickers','U Stickers','USTICKERS']};
   for(var i = 0; i < tries.length; i++){
     var sites = SITE_ALIAS[tries[i][0].toUpperCase()] || [tries[i][0].toUpperCase()];
     for(var s = 0; s < sites.length; s++){
@@ -8497,9 +8497,9 @@ function simpCandidates(ref, client){
   return out.slice(0, 6);
 }
 function simpOrderLabel(c){ return dashCmdLabel(c)+' · '+(c.site||'—'); }
-// Une commande est « à confirmer » à la main si CMC / mail, ou si elle porte un nom de client (commande passée par mail)
+// Une commande est « à confirmer » à la main si CMC / mail / U-stickers (confirmées par le pôle numérique), ou si elle porte un nom de client (commande passée par mail)
 function suiviNeedsConfirm(c){
-  return !!(c && (c.site === 'CMC' || c.site === 'CMD MAIL' || (c.nom && String(c.nom).trim())));
+  return !!(c && (c.site === 'CMC' || c.site === 'CMD MAIL' || /^(ust|u[\s-]?stickers?)$/i.test(String(c.site||'').trim()) || (c.nom && String(c.nom).trim())));
 }
 function simpAllNums(){
   var set = {}, byId = (S_cmdIndex && S_cmdIndex.byId) || {};
