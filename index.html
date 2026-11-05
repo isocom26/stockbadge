@@ -901,6 +901,7 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
   <div id="rpt-totals"></div>
 </div>
 <div id="view-meeting" class="view">
+  <div id="mtg-pole-switch" style="display:none;gap:6px;margin-bottom:10px"><button class="mpole-btn active" id="mtgpole-badges" onclick="mtgSetPole('badges')">🏷️ Badges</button><button class="mpole-btn" id="mtgpole-numerique" onclick="mtgSetPole('numerique')">🖨️ Numérique</button></div>
   <div class="rpt-nav" style="flex-direction:column;gap:8px">
     <div style="display:flex;align-items:center;justify-content:space-between;width:100%">
       <button class="rpt-nav-btn" onclick="mtgChangeWeek(-1)">←</button>
@@ -2013,7 +2014,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.11.05-1018';
+var APP_VERSION = '2026.11.05-1044';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -2596,11 +2597,7 @@ function polesSync(cmdId){
 function applyPoleMenus(){
   try { stockApplyPole(); } catch(e){}   // catégories/commandes de stock selon le pôle affiché (aussi au démarrage)
   var num = (viewPole === 'numerique');
-  // Pôle numérique : maintenance propre au pôle ; pas de réunion (pour l'instant) ni de réimpression.
-  ['grp-meeting'].forEach(function(id){
-    var el = document.getElementById(id);
-    if(el && num) el.style.display = 'none';   // (re)montrés par applyTabPerms selon les droits
-  });
+  // Pôle numérique : maintenance et réunion propres au pôle ; pas de réimpression.
   var gs = document.getElementById('grp-stock');   // pas de classe « ao » : visible pour tous les pôles (stock numérique séparé par familles)
   if(gs) gs.style.display = '';
   // L'inventaire (comptage, EBP) ne concerne que les badges
@@ -2611,7 +2608,7 @@ function applyPoleMenus(){
   try { updateInventaireBadge(); } catch(e){}
   var rp = document.getElementById('sub-reprint');
   if(rp) rp.style.display = num ? 'none' : '';
-  if(num && (['meeting'].indexOf(activeGroup) >= 0 || activeSubTab === 'reprint' || activeSubTab === 'inventaire')){
+  if(num && (activeSubTab === 'reprint' || activeSubTab === 'inventaire')){
     switchGroup('production');
   }
   var sel = document.getElementById('pole-sel');
@@ -2646,7 +2643,7 @@ function setViewPole(v){
     _viewPoleMem = v;
     try { localStorage.setItem(POLE_VIEW_KEY, v); } catch(e){}
   }
-  _maintPoleSel = '';
+  _maintPoleSel = ''; _mtgPoleSel = '';
   computeViewPole();
   refreshPoleUI();
   try { if(curTab) switchTab(curTab); } catch(e){}
@@ -11869,7 +11866,26 @@ function openMeetingTab(){
   if(!(iAm||isDir||(me_perms&&me_perms['tabs_meeting']===true))) return;
   mtgWeekStart = rptMondayOf(new Date());
   mtgSide = 'recto';
+  mtgApplyPole();
   mtgSwitchSide('recto');
+}
+
+// Pôle de la réunion : suit la vue ; admin / direction / « Tous » peuvent basculer sur place (feuilles séparées)
+var _mtgPoleSel = '';
+function mtgPole(){
+  if(poleCanSwitch() && _mtgPoleSel) return _mtgPoleSel;
+  return viewPole === 'numerique' ? 'numerique' : 'badges';
+}
+function mtgApplyPole(){
+  var p = mtgPole();
+  var sw = document.getElementById('mtg-pole-switch'); if(sw) sw.style.display = poleCanSwitch() ? 'flex' : 'none';
+  ['badges', 'numerique'].forEach(function(k){ var b = document.getElementById('mtgpole-'+k); if(b) b.classList.toggle('active', k === p); });
+}
+function mtgSetPole(p){
+  if(!poleCanSwitch() || (p !== 'badges' && p !== 'numerique')) return;
+  _mtgPoleSel = p;
+  mtgApplyPole();
+  mtgRenderCurrentSide();
 }
 
 function mtgGoToDate(){
@@ -11931,30 +11947,97 @@ function mtgRenderCurrentSide(){
 function mtgRenderRecto(){
   var el = document.getElementById('mtg-recto-view');
   el.innerHTML = '<div style="text-align:center;color:var(--mut);padding:30px 0">Chargement…</div>';
-  var wk = rptWeekKey(mtgWeekStart);
+  var wk = rptWeekKey(mtgWeekStart), pole = mtgPole();
+  mtgFetchRecap(wk, pole).then(function(results){
+    if(pole === 'numerique') mtgRenderRectoNum(results); else mtgRenderRectoTables(results);
+  });
+}
 
-  fbg('users').then(function(usnap){
+// Rapports de la semaine à présenter en réunion. Badges : collaborateurs de production hors pôle numérique.
+// Numérique : collaborateurs du pôle numérique + producteurs badges qui ont saisi de la sublimation (dépannage).
+// La feuille privée de l'admin est incluse dans les totaux, sans nom.
+function mtgHasSubLines(data){
+  for(var di=0; di<5; di++) for(var hi=0; hi<2; hi++){
+    var ls = (((data||{})['d'+di]||{})['h'+hi]||{}).lines || [];
+    for(var i=0; i<ls.length; i++){ if(ls[i] && ls[i].sec === 'sub') return true; }
+  }
+  return false;
+}
+function mtgFetchRecap(wk, pole){
+  return fbg('users').then(function(usnap){
     var users = usnap.val() || {};
     var prodUids = Object.keys(users).filter(function(uid){
-      return users[uid].perms && users[uid].perms.production && !isNumPoleUser(users[uid]);
+      return users[uid].perms && users[uid].perms.production && (pole === 'numerique' || !isNumPoleUser(users[uid]));
     });
     var promises = prodUids.map(function(uid){
       return fbg('reports/'+uid+'/'+wk).then(function(snap){
         return {uid:uid, name: users[uid].name||users[uid].email, data: snap.val()||{}};
       });
     });
-    // Admin's own private sheet (included in totals, not shown by name)
     promises.push(mtgFetchAdminSheet(wk));
-
-    Promise.all(promises).then(function(results){
-      mtgRenderRectoTables(results);
+    return Promise.all(promises).then(function(results){
+      if(pole !== 'numerique') return results;
+      return results.filter(function(r){ return r.uid === '__admin__' || isNumPoleUser(users[r.uid]) || mtgHasSubLines(r.data); });
     });
   });
 }
 
+// Sublimation de la semaine : total et détail par produit (toutes les feuilles, admin compris)
+function mtgSubTotals(results){
+  var total = 0, byFmt = {};
+  results.forEach(function(r){
+    for(var di=0; di<5; di++) for(var hi=0; hi<2; hi++){
+      var ls = (((r.data||{})['d'+di]||{})['h'+hi]||{}).lines || [];
+      ls.forEach(function(l){
+        if(!l || l.sec !== 'sub') return;
+        var q = parseInt(l.qty)||0; if(q <= 0) return;
+        var k = (l.format||'—').trim() || '—';
+        byFmt[k] = (byFmt[k]||0) + q; total += q;
+      });
+    }
+  });
+  var rows = Object.keys(byFmt).map(function(k){ return [k, byFmt[k]]; }).sort(function(a,b){ return b[1]-a[1]; });
+  return {total:total, rows:rows};
+}
+
+function mtgRenderRectoNum(results){
+  var named = results.filter(function(r){ return r.uid !== '__admin__'; });
+  var adminResult = results.find(function(r){ return r.uid === '__admin__'; });
+  var perPerson = named.map(function(r){ return {name:r.name, sub: mtgPerPersonDayTotals(r.data).sub}; });
+  var html = '<div class="mtg-block"><div class="mtg-block-title">Quantités produites sur la semaine par opérateur — Sublimation</div>';
+  if(!perPerson.length){
+    html += '<div style="color:var(--mut);font-size:.82rem;text-align:center;padding:10px 0">Aucune production de sublimation saisie cette semaine.</div>';
+  }
+  for(var i=0; i<perPerson.length; i+=4){
+    var chunk = perPerson.slice(i, i+4);
+    html += '<div class="mtg-scroll" style="margin-bottom:'+(i+4<perPerson.length?'14px':'0')+'"><table class="mtg-table"><thead><tr><th></th>';
+    chunk.forEach(function(p){ html += '<th>'+esc(p.name)+'</th>'; });
+    html += '</tr></thead><tbody>';
+    RPT_DAYS.forEach(function(d, di){
+      html += '<tr><td class="lbl">'+d+'</td>';
+      chunk.forEach(function(p){ html += '<td>'+(p.sub[di]||'')+'</td>'; });
+      html += '</tr>';
+    });
+    html += '<tr class="total"><td class="lbl">TOTAL</td>';
+    chunk.forEach(function(p){ var t = p.sub.reduce(function(a,b){return a+b;},0); html += '<td>'+(t||'')+'</td>'; });
+    html += '</tr></tbody></table></div>';
+  }
+  html += '</div>';
+  var st = mtgSubTotals(results);
+  html += '<div class="mtg-block"><div class="mtg-block-title">Production semaine écoulée — Totaux</div>'+
+    '<div class="mtg-scroll"><table class="mtg-table"><thead><tr><th>Sublimation</th></tr></thead><tbody><tr class="total"><td>'+st.total+'</td></tr></tbody></table></div>';
+  if(st.rows.length){
+    html += '<div class="mtg-scroll" style="margin-top:10px"><table class="mtg-table"><thead><tr><th style="text-align:left">Produit</th><th>Qté</th></tr></thead><tbody>'+
+      st.rows.map(function(r){ return '<tr><td class="lbl">'+esc(r[0])+'</td><td>'+r[1]+'</td></tr>'; }).join('')+'</tbody></table></div>';
+  }
+  html += '</div>';
+  html += mtgRenderTasksTable(named, adminResult);
+  document.getElementById('mtg-recto-view').innerHTML = html;
+}
+
 function mtgPerPersonDayTotals(data){
   // returns {prod: [d0..d4], table: [d0..d4]} where prod = semi+auto combined
-  var prod = [0,0,0,0,0], table = [0,0,0,0,0];
+  var prod = [0,0,0,0,0], table = [0,0,0,0,0], sub = [0,0,0,0,0];
   for(var di=0; di<5; di++){
     var dayData = data['d'+di] || {};
     for(var hi=0; hi<2; hi++){
@@ -11962,13 +12045,13 @@ function mtgPerPersonDayTotals(data){
       lines.forEach(function(l){
         var q = parseInt(l.qty)||0;
         var s = l.sec||'semi';
-        if(s==='sub') return;   // la sublimation (pôle numérique) n'entre pas dans le tableau de réunion badges
+        if(s==='sub'){ sub[di] += q; return; }   // la sublimation (pôle numérique) n'entre pas dans le tableau de réunion badges
         if(s==='table') table[di] += q;
         else prod[di] += q; // semi + auto combined into "PROD" column like the paper sheet
       });
     }
   }
-  return {prod:prod, table:table};
+  return {prod:prod, table:table, sub:sub};
 }
 
 function mtgRenderRectoTables(results){
@@ -12099,12 +12182,13 @@ function mtgFetchAdminSheet(wk){
   }).catch(function(){ return {uid:'__admin__', name:null, data:{}}; });
 }
 function mtgVersoPath(){
-  return 'meetings/'+(mtgAdminUid || me.uid)+'/'+rptWeekKey(mtgWeekStart);
+  return 'meetings/'+(mtgAdminUid || me.uid)+'/'+rptWeekKey(mtgWeekStart)+(mtgPole() === 'numerique' ? '-num' : '');
 }
 
 function mtgRenderVerso(){
   var el = document.getElementById('mtg-verso-view');
   el.innerHTML = '<div style="text-align:center;color:var(--mut);padding:30px 0">Chargement…</div>';
+  if(mtgPole() === 'numerique'){ mtgRenderVersoNum(el); return; }
   mtgEnsureAdminUid().then(function(){ return Promise.all([
     fbg(mtgVersoPath()),
     fbg('machines'),
@@ -12143,7 +12227,7 @@ function mtgRenderVerso(){
 function mtgFetchAutoChargeParPoste(){
   // Reste à produire (commandé moins produit) : demande les rapports de l'équipe, comme le tableau de bord
   return fbg('users').then(function(us){ return dashFetchAllReports(us.val() || {}); }).then(function(all){
-    return dashCalcResteParPoste(dashCommandesArray(), S_gammes, all, false);
+    return dashCalcResteParPoste(dashCommandesArray(true), S_gammes, all, false);
   });
 }
 
@@ -12207,6 +12291,14 @@ function mtgRecalcChargeParPoste(){
 // cours), regroupée par famille pour la lisibilité dans la réunion.
 var MTG_FAM_ORDER = [['badge_magnet','🏷️ Badges & Magnets'],['porte_cle','🔑 Porte-clés'],['pins','📌 Pins'],['divers','📦 Divers'],['mugs','🖨️ Sublimation'],['rollup','🧻 Roll up'],['totebag','👜 Tote bags']];
 
+// Familles présentées selon le pôle de la réunion. Pôle numérique activé : chaque réunion ne montre que ses familles ;
+// désactivé : réunion badges inchangée (toutes les familles).
+function mtgFams(pole){
+  return MTG_FAM_ORDER.filter(function(f){
+    if(pole === 'numerique') return famPole(f[0]) === 'numerique';
+    return !poleCfgOn() || famPole(f[0]) === 'badges';
+  });
+}
 function mtgScanNotOrderedAlerts(){
   var byFam = {badge_magnet:[], porte_cle:[], pins:[], divers:[], mugs:[], rollup:[], totebag:[]};
   (S.cats||[]).forEach(function(cat){
@@ -12224,14 +12316,14 @@ function mtgScanNotOrderedAlerts(){
   return byFam;
 }
 
-function mtgNotOrderedAlertsHtml(){
-  var byFam = mtgScanNotOrderedAlerts();
-  var total = MTG_FAM_ORDER.reduce(function(s,f){ return s+byFam[f[0]].length; }, 0);
+function mtgNotOrderedAlertsHtml(pole){
+  var byFam = mtgScanNotOrderedAlerts(), fams = mtgFams(pole);
+  var total = fams.reduce(function(s,f){ return s+byFam[f[0]].length; }, 0);
   if(!total){
     return '<div style="font-size:.76rem;color:var(--grn);margin-bottom:10px">✅ Aucune alerte stock bas non commandée.</div>';
   }
   var html = '<div style="font-size:.66rem;color:var(--mut);margin-bottom:8px">⚠️ '+total+' alerte(s) stock bas sans commande en cours (mise à jour automatique) :</div>';
-  MTG_FAM_ORDER.forEach(function(f){
+  fams.forEach(function(f){
     var rows = byFam[f[0]];
     if(!rows.length) return;
     html += '<div style="font-size:.72rem;font-weight:700;color:var(--txt);margin:10px 0 4px">'+f[1]+' ('+rows.length+')</div>';
@@ -12255,12 +12347,12 @@ function mtgPdfNum(n){
   return String(Math.round(n||0)).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
 }
 
-function mtgNotOrderedAlertsText(){
-  var byFam = mtgScanNotOrderedAlerts();
-  var total = MTG_FAM_ORDER.reduce(function(s,f){ return s+byFam[f[0]].length; }, 0);
+function mtgNotOrderedAlertsText(pole){
+  var byFam = mtgScanNotOrderedAlerts(), fams = mtgFams(pole);
+  var total = fams.reduce(function(s,f){ return s+byFam[f[0]].length; }, 0);
   if(!total) return 'Aucune alerte stock bas non commandée.';
   var lines = [];
-  MTG_FAM_ORDER.forEach(function(f){
+  fams.forEach(function(f){
     var rows = byFam[f[0]];
     if(!rows.length) return;
     lines.push((MTG_FAM_PLAIN[f[0]]||f[0])+' :');
@@ -12308,7 +12400,7 @@ function mtgVersoHTML(d, machinesRaw){
   var stocks     = d.stocks || '';
   var parcMachineNote = d.parcMachine || '';
   var sujets     = d.sujets || '';
-  var autoSummary = mtgMachineWeekSummary(machinesRaw||{});
+  var autoSummary = mtgMachineWeekSummary(machinesRaw||{}, false, 'badges');
 
   return '<div class="mtg-block"><div class="mtg-block-title">Capacité de production hebdomadaire</div>'+
     '<div class="mtg-num-row"><label>Nb salariés × 2000 × jours (total pièces)</label>'+
@@ -12330,7 +12422,7 @@ function mtgVersoHTML(d, machinesRaw){
     '</div>'+
 
     '<div class="mtg-block"><div class="mtg-block-title">État des stocks / urgences</div>'+
-    mtgNotOrderedAlertsHtml()+
+    mtgNotOrderedAlertsHtml('badges')+
     '<div style="font-size:.66rem;color:var(--mut);margin:10px 0 4px">Notes complémentaires :</div>'+
     '<textarea class="mtg-textarea" placeholder="Urgences à signaler…" onchange="mtgSaveField(\'stocks\',this.value)">'+stocks+'</textarea>'+
     '</div>'+
@@ -12360,24 +12452,14 @@ function mtgSaveField(field, val){
 function mtgExportPDF(){
   if(!window.jspdf){ toast('Erreur : librairie PDF non chargée',1); return; }
   toast('📥 Génération du PDF…');
-  var wk = rptWeekKey(mtgWeekStart);
-
-  fbg('users').then(function(usnap){
-    var users = usnap.val() || {};
-    var prodUids = Object.keys(users).filter(function(uid){
-      return users[uid].perms && users[uid].perms.production && !isNumPoleUser(users[uid]);
-    });
-    var promises = prodUids.map(function(uid){
-      return fbg('reports/'+uid+'/'+wk).then(function(snap){
-        return {uid:uid, name: users[uid].name||users[uid].email, data: snap.val()||{}};
-      });
-    });
-    promises.push(mtgFetchAdminSheet(wk));
-    Promise.all(promises).then(function(results){
-      Promise.all([fbg(mtgVersoPath()), fbg('machines')]).then(function(r2){
+  var wk = rptWeekKey(mtgWeekStart), pole = mtgPole();
+  mtgEnsureAdminUid().then(function(){
+    return mtgFetchRecap(wk, pole).then(function(results){
+      return Promise.all([fbg(mtgVersoPath()), fbg('machines')]).then(function(r2){
         var verso = r2[0].val() || {};
         var machinesRaw = r2[1].val() || {};
-        mtgBuildPDF(results, verso, machinesRaw);
+        if(pole === 'numerique') mtgBuildPDFNum(results, verso, machinesRaw);
+        else mtgBuildPDF(results, verso, machinesRaw);
       });
     });
   });
@@ -12509,10 +12591,10 @@ function mtgBuildPDF(results, verso, machinesRaw){
     doc.text(lines, margin, y+10);
     y += 10 + lines.length*12 + 10;
   }
-  var stocksAutoPdf = mtgNotOrderedAlertsText();
+  var stocksAutoPdf = mtgNotOrderedAlertsText('badges');
   var stocksCombined = stocksAutoPdf + (verso.stocks ? '\n\nNotes complémentaires :\n'+verso.stocks : '');
   freeTextBlock('État des stocks / urgences :', stocksCombined);
-  var autoSummaryPdf = mtgMachineWeekSummary(machinesRaw||{}, true);
+  var autoSummaryPdf = mtgMachineWeekSummary(machinesRaw||{}, true, 'badges');
   var parcCombined = (autoSummaryPdf ? autoSummaryPdf : 'Aucune intervention enregistrée cette semaine.')
     + (verso.parcMachine ? '\n\nNotes complémentaires :\n'+verso.parcMachine : '');
   freeTextBlock('État du parc machine :', parcCombined);
@@ -12520,6 +12602,169 @@ function mtgBuildPDF(results, verso, machinesRaw){
 
   pdfFooterAllPages(doc);
   doc.save('Reunion-Hebdo-'+rptWeekKey(mtgWeekStart)+'.pdf');
+  toast('✅ PDF téléchargé !');
+}
+
+// ── RÉUNION DU PÔLE NUMÉRIQUE : verso (semaine à venir) ──
+// Feuille séparée de celle des badges (chemin « …/semaine-num »), mêmes blocs.
+function mtgFetchAutoSubAVenir(){
+  return fbg('users').then(function(us){ return dashFetchAllReports(us.val() || {}); }).then(function(all){
+    return dashCalcResteParPoste(dashCommandesArray(true), S_gammes, all, true).sub || 0;
+  });
+}
+function mtgRenderVersoNum(el){
+  mtgEnsureAdminUid().then(function(){ return Promise.all([
+    fbg(mtgVersoPath()),
+    fbg('machines'),
+    mtgFetchAutoSubAVenir().catch(function(){ return null; })
+  ]); }).then(function(results){
+    var d = results[0].val() || {}, machinesRaw = results[1].val() || {}, auto = results[2];
+    // Pré-remplissage seulement si le champ n'a jamais été renseigné (jamais d'écrasement)
+    if(!d.subAVenir && auto !== null){ d.subAVenir = String(auto); fbu(mtgVersoPath(), {subAVenir: d.subAVenir}); }
+    mtgManualData = d;
+    el.innerHTML = mtgVersoHTMLNum(d, machinesRaw);
+  });
+}
+function mtgRecalcSubAVenir(){
+  toast('⏳ Recalcul en cours…');
+  mtgFetchAutoSubAVenir().then(function(v){
+    var inp = document.getElementById('mtg-inp-subAVenir');
+    if(inp) inp.value = v;
+    mtgManualData.subAVenir = String(v);
+    fbu(mtgVersoPath(), {subAVenir: String(v)}).then(function(){ toast('✅ Recalculé'); });
+  }).catch(function(){ toast('⚠️ Erreur de calcul', 1); });
+}
+function mtgVersoHTMLNum(d, machinesRaw){
+  var autoSummary = mtgMachineWeekSummary(machinesRaw||{}, false, 'numerique');
+  return '<div class="mtg-block"><div class="mtg-block-title">Capacité de production hebdomadaire</div>'+
+    '<div class="mtg-num-row"><label>Capacité de la semaine (pièces)</label>'+
+    '<input class="mtg-input" id="mtg-inp-capacite" style="max-width:140px" type="text" inputmode="numeric" value="'+esc(d.capacite||'')+'" placeholder="ex: 500" onchange="mtgSaveField(\'capacite\',this.value)"></div>'+
+    '</div>'+
+
+    '<div class="mtg-block"><div class="mtg-block-title" style="display:flex;align-items:center;justify-content:space-between;gap:8px">'+
+      '<span>Production prévue — Semaine à venir</span>'+
+      '<button onclick="mtgRecalcSubAVenir()" style="background:var(--card);border:1px solid var(--brd);color:var(--mut);border-radius:8px;padding:5px 10px;font-size:.68rem;cursor:pointer;white-space:nowrap;font-weight:700">🔄 Recalculer</button>'+
+    '</div>'+
+    '<div class="mtg-num-row"><label>🖨️ Sublimation</label><input class="mtg-input" id="mtg-inp-subAVenir" style="max-width:140px" type="text" inputmode="numeric" value="'+esc(d.subAVenir||'')+'" placeholder="0" onchange="mtgSaveField(\'subAVenir\',this.value)"></div>'+
+    '<div style="font-size:.66rem;color:var(--mut);margin-top:6px">ℹ️ Pré-remplie automatiquement (reste à produire des commandes en cours : commandé moins produit) si le champ était vide — modifiable à tout moment, ou recalculable via le bouton.</div>'+
+    '</div>'+
+
+    '<div class="mtg-block"><div class="mtg-block-title">État des stocks / urgences</div>'+
+    mtgNotOrderedAlertsHtml('numerique')+
+    '<div style="font-size:.66rem;color:var(--mut);margin:10px 0 4px">Notes complémentaires :</div>'+
+    '<textarea class="mtg-textarea" placeholder="Urgences à signaler…" onchange="mtgSaveField(\'stocks\',this.value)">'+esc(d.stocks||'')+'</textarea>'+
+    '</div>'+
+
+    '<div class="mtg-block"><div class="mtg-block-title">État du parc machine</div>'+
+    (autoSummary
+      ? '<div style="font-size:.66rem;color:var(--mut);margin-bottom:6px">🔩 Interventions enregistrées cette semaine (automatique) :</div>'+
+        '<div style="background:var(--sur);border:1.5px solid var(--brd);border-radius:10px;padding:10px 12px;margin-bottom:10px;font-size:.78rem;white-space:pre-wrap;line-height:1.5">'+esc(autoSummary)+'</div>'
+      : '<div style="font-size:.72rem;color:var(--mut);margin-bottom:10px">ℹ️ Aucune intervention enregistrée dans l\'onglet Maintenance cette semaine.</div>')+
+    '<div style="font-size:.66rem;color:var(--mut);margin-bottom:4px">Notes complémentaires :</div>'+
+    '<textarea class="mtg-textarea" placeholder="Précisions ou points à ajouter…" onchange="mtgSaveField(\'parcMachine\',this.value)">'+esc(d.parcMachine||'')+'</textarea>'+
+    '</div>'+
+
+    '<div class="mtg-block"><div class="mtg-block-title">Autres sujets à aborder</div>'+
+    '<textarea class="mtg-textarea" placeholder="Sujets pour la réunion…" onchange="mtgSaveField(\'sujets\',this.value)">'+esc(d.sujets||'')+'</textarea>'+
+    '</div>';
+}
+
+// ── PDF de la réunion du pôle numérique ──
+function mtgBuildPDFNum(results, verso, machinesRaw){
+  var named = results.filter(function(r){ return r.uid !== '__admin__'; });
+  var adminResult = results.find(function(r){ return r.uid === '__admin__'; });
+  var jsPDF = window.jspdf.jsPDF;
+  var doc = new jsPDF({unit:'pt', format:'a4'});
+  var pageW = doc.internal.pageSize.getWidth();
+  var margin = 36, y = margin;
+  var weekLabel = 'Semaine du '+rptFmtDate(mtgWeekStart)+' au '+(function(){var f=new Date(mtgWeekStart);f.setDate(f.getDate()+4);return rptFmtDate(f);})();
+  function sectionTitle(t){ y += 16; pdfSectionTitle(doc, t, margin, y); y += 10; }
+
+  y = pdfHeader(doc, pageW, 'Réunion hebdo numérique — Semaine écoulée', weekLabel);
+  doc.setFont('helvetica','normal'); doc.setFontSize(8);
+  sectionTitle('Quantités produites sur la semaine par opérateur (Sublimation) :');
+  var perPerson = named.map(function(r){ return {name:r.name, sub: mtgPerPersonDayTotals(r.data).sub}; });
+  if(!perPerson.length){ doc.text('Aucune production de sublimation saisie cette semaine.', margin, y+10); y += 24; }
+  for(var i=0; i<perPerson.length; i+=4){
+    var chunk = perPerson.slice(i, i+4);
+    var body = RPT_DAYS.map(function(d, di){ return [d].concat(chunk.map(function(p){ return String(p.sub[di]||''); })); });
+    body.push(['TOTAL'].concat(chunk.map(function(p){ return String(p.sub.reduce(function(a,b){return a+b;},0)||''); })));
+    doc.autoTable({
+      startY: y, margin:{left:margin,right:margin},
+      head:[[''].concat(chunk.map(function(p){ return p.name; }))], body: body,
+      theme:'grid', styles:{fontSize:7, halign:'center', cellPadding:3},
+      headStyles: pdfTableHead(), columnStyles:{0:{halign:'left', fontStyle:'bold'}}
+    });
+    y = doc.lastAutoTable.finalY + 10;
+  }
+  sectionTitle('Production semaine écoulée — Totaux :');
+  var st = mtgSubTotals(results);
+  doc.autoTable({
+    startY:y, margin:{left:margin,right:margin},
+    head:[['Sublimation']], body:[[String(st.total)]],
+    theme:'grid', styles:{fontSize:8, halign:'center', cellPadding:5}, headStyles: pdfTableHead()
+  });
+  y = doc.lastAutoTable.finalY + 8;
+  if(st.rows.length){
+    doc.autoTable({
+      startY:y, margin:{left:margin,right:margin},
+      head:[['Produit','Qté']], body: st.rows.map(function(r){ return [r[0], String(r[1])]; }),
+      theme:'grid', styles:{fontSize:7, cellPadding:3}, headStyles: pdfTableHead()
+    });
+    y = doc.lastAutoTable.finalY + 10;
+  }
+  sectionTitle('Rotation des tâches effectuées sur la semaine :');
+  var taskBody = [];
+  RPT_DAYS.forEach(function(d, di){
+    RPT_HALVES.forEach(function(h, hi){
+      var depiNames=[], expedNames=[], tachesTexts=[];
+      named.forEach(function(r){
+        var hData = ((r.data['d'+di]||{})['h'+hi]) || {};
+        if(hData.depiautage) depiNames.push(r.name);
+        if(hData.exped) expedNames.push(r.name);
+        var taches = hData.taches || [];
+        if(typeof taches === 'string'){ taches = taches ? [taches] : []; }
+        taches.forEach(function(t){ if(t&&t.trim()) tachesTexts.push(r.name+': '+t); });
+      });
+      if(adminResult && adminResult.data){
+        var aHData = ((adminResult.data['d'+di]||{})['h'+hi]) || {};
+        if(aHData.exped){ expedNames.push(getMyName()); }
+      }
+      taskBody.push([hi===0?d:'', h, depiNames.join(', '), tachesTexts.join('\n'), expedNames.join(', ')]);
+    });
+  });
+  doc.autoTable({
+    startY:y, margin:{left:margin,right:margin},
+    head:[['','','Dépiautage\ncommande','Tâches diverses','Expéditions']], body: taskBody,
+    theme:'grid', styles:{fontSize:6.5, cellPadding:3}, headStyles: pdfTableHead({fontSize:7})
+  });
+
+  doc.addPage();
+  y = pdfHeader(doc, pageW, 'Réunion hebdo numérique — Semaine à venir', weekLabel);
+  doc.setFont('helvetica','normal'); doc.setFontSize(9);
+  sectionTitle('Capacité de production hebdomadaire :');
+  doc.text('Capacité de la semaine : '+(verso.capacite||'—'), margin, y+10);
+  y += 24;
+  sectionTitle('Production prévue :');
+  doc.autoTable({
+    startY:y, margin:{left:margin,right:margin},
+    head:[['Sublimation']], body:[[String(verso.subAVenir||'—')]],
+    theme:'grid', styles:{fontSize:8, halign:'center', cellPadding:5}, headStyles: pdfTableHead()
+  });
+  y = doc.lastAutoTable.finalY + 14;
+  function freeTextBlock(title, text){
+    sectionTitle(title);
+    doc.setFont('helvetica','normal'); doc.setFontSize(9);
+    var lines = doc.splitTextToSize(text || '—', pageW-2*margin);
+    doc.text(lines, margin, y+10);
+    y += 10 + lines.length*12 + 10;
+  }
+  freeTextBlock('État des stocks / urgences :', mtgNotOrderedAlertsText('numerique') + (verso.stocks ? '\n\nNotes complémentaires :\n'+verso.stocks : ''));
+  var parc = mtgMachineWeekSummary(machinesRaw||{}, true, 'numerique');
+  freeTextBlock('État du parc machine :', (parc ? parc : 'Aucune intervention enregistrée cette semaine.') + (verso.parcMachine ? '\n\nNotes complémentaires :\n'+verso.parcMachine : ''));
+  freeTextBlock('Autres sujets à aborder :', verso.sujets);
+  pdfFooterAllPages(doc);
+  doc.save('Reunion-Hebdo-Numerique-'+rptWeekKey(mtgWeekStart)+'.pdf');
   toast('✅ PDF téléchargé !');
 }
 
@@ -20829,10 +21074,10 @@ function dashActiveProducers(users){
 }
 
 // ── Commandes (à partir de l'index déjà maintenu en direct par l'app) ──
-function dashCommandesArray(){
+function dashCommandesArray(allPoles){
   var byId = (typeof S_cmdIndex !== 'undefined' && S_cmdIndex.byId) || {};
   var all = Object.keys(byId).map(function(id){ return Object.assign({id:id}, byId[id]); });
-  if(typeof viewPole === 'undefined' || viewPole === 'tout') return all;
+  if(allPoles || typeof viewPole === 'undefined' || viewPole === 'tout') return all;
   // Vue d'un pôle : seulement les commandes qui ont des produits de ce pôle, avec uniquement ces produits
   // (copies : la base n'est jamais modifiée). Une commande sans produit renseigné reste côté badges.
   return all.filter(function(c){
