@@ -2014,7 +2014,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.11.05-1044';
+var APP_VERSION = '2026.11.05-1057';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -12031,7 +12031,7 @@ function mtgRenderRectoNum(results){
       st.rows.map(function(r){ return '<tr><td class="lbl">'+esc(r[0])+'</td><td>'+r[1]+'</td></tr>'; }).join('')+'</tbody></table></div>';
   }
   html += '</div>';
-  html += mtgRenderTasksTable(named, adminResult);
+  html += mtgRenderTasksTable(named, adminResult, true);
   document.getElementById('mtg-recto-view').innerHTML = html;
 }
 
@@ -12117,9 +12117,9 @@ function mtgRenderRectoTables(results){
   document.getElementById('mtg-recto-view').innerHTML = html;
 }
 
-function mtgRenderTasksTable(named, adminResult){
+function mtgRenderTasksTable(named, adminResult, noExped){   // noExped : pôle numérique, pas d'expéditions
   var html = '<div class="mtg-block"><div class="mtg-block-title">Rotation des tâches effectuées sur la semaine</div>'+
-    '<div class="mtg-scroll"><table class="mtg-table"><thead><tr><th></th><th></th><th>Dépiautage<br>commande</th><th>Tâches<br>diverses</th><th>Expéditions</th></tr></thead><tbody>';
+    '<div class="mtg-scroll"><table class="mtg-table"><thead><tr><th></th><th></th><th>Dépiautage<br>commande</th><th>Tâches<br>diverses</th>'+(noExped ? '' : '<th>Expéditions</th>')+'</tr></thead><tbody>';
 
   RPT_DAYS.forEach(function(d, di){
     RPT_HALVES.forEach(function(h, hi){
@@ -12149,7 +12149,7 @@ function mtgRenderTasksTable(named, adminResult){
         '<td class="lbl">'+h+'</td>'+
         '<td class="mtg-task-text">'+(depiNames.length?depiNames.join(', '):'')+'</td>'+
         '<td class="mtg-task-text">'+(tachesTexts.length?tachesTexts.join('<br>'):'')+'</td>'+
-        '<td class="mtg-task-text">'+(expedNames.length?expedNames.join(', '):'')+'</td>'+
+        (noExped ? '' : '<td class="mtg-task-text">'+(expedNames.length?expedNames.join(', '):'')+'</td>')+
         '</tr>';
     });
   });
@@ -12672,7 +12672,6 @@ function mtgVersoHTMLNum(d, machinesRaw){
 // ── PDF de la réunion du pôle numérique ──
 function mtgBuildPDFNum(results, verso, machinesRaw){
   var named = results.filter(function(r){ return r.uid !== '__admin__'; });
-  var adminResult = results.find(function(r){ return r.uid === '__admin__'; });
   var jsPDF = window.jspdf.jsPDF;
   var doc = new jsPDF({unit:'pt', format:'a4'});
   var pageW = doc.internal.pageSize.getWidth();
@@ -12717,25 +12716,20 @@ function mtgBuildPDFNum(results, verso, machinesRaw){
   var taskBody = [];
   RPT_DAYS.forEach(function(d, di){
     RPT_HALVES.forEach(function(h, hi){
-      var depiNames=[], expedNames=[], tachesTexts=[];
+      var depiNames=[], tachesTexts=[];
       named.forEach(function(r){
         var hData = ((r.data['d'+di]||{})['h'+hi]) || {};
         if(hData.depiautage) depiNames.push(r.name);
-        if(hData.exped) expedNames.push(r.name);
         var taches = hData.taches || [];
         if(typeof taches === 'string'){ taches = taches ? [taches] : []; }
         taches.forEach(function(t){ if(t&&t.trim()) tachesTexts.push(r.name+': '+t); });
       });
-      if(adminResult && adminResult.data){
-        var aHData = ((adminResult.data['d'+di]||{})['h'+hi]) || {};
-        if(aHData.exped){ expedNames.push(getMyName()); }
-      }
-      taskBody.push([hi===0?d:'', h, depiNames.join(', '), tachesTexts.join('\n'), expedNames.join(', ')]);
+      taskBody.push([hi===0?d:'', h, depiNames.join(', '), tachesTexts.join('\n')]);
     });
   });
   doc.autoTable({
     startY:y, margin:{left:margin,right:margin},
-    head:[['','','Dépiautage\ncommande','Tâches diverses','Expéditions']], body: taskBody,
+    head:[['','','Dépiautage\ncommande','Tâches diverses']], body: taskBody,
     theme:'grid', styles:{fontSize:6.5, cellPadding:3}, headStyles: pdfTableHead({fontSize:7})
   });
 
