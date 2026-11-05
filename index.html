@@ -609,6 +609,7 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
     <div class="logo">Iso<span>Prod</span><small>Production · ISOCOM</small></div>
     <div class="hdr-r">
       <div class="sdot" id="sdot"></div>
+      <button id="pole-help-btn" onclick="poleHelpToggle()" style="display:none;border:1.5px solid var(--brd);border-radius:8px;font-size:.74rem;font-weight:800;padding:5px 9px;margin-right:6px;cursor:pointer;white-space:nowrap;font-family:'Open Sans',sans-serif"></button>
       <select id="pole-sel" onchange="setViewPole(this.value)" style="display:none;background:var(--sur);color:var(--txt);border:1.5px solid var(--brd);border-radius:8px;font-size:.74rem;padding:4px 6px;margin-right:6px;max-width:112px" title="Pôle affiché">
         <option value="badges">🏷️ Badges</option>
         <option value="numerique">🖨️ Numérique</option>
@@ -2001,7 +2002,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.11.04-1705';
+var APP_VERSION = '2026.11.05-0946';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -2422,11 +2423,13 @@ function saveCachedPerms(uid, data){
   try { localStorage.setItem(PERMS_CACHE_PREFIX+uid, JSON.stringify(data)); } catch(e){}
 }
 
-function applyPermsValues(role, perms, machineType, pole){
+function applyPermsValues(role, perms, machineType, pole, numHelp){
   me_role = role || 'employee';
   me_perms = perms || {};
   me_machineType = machineType || 'semi';
   me_pole = (pole==='numerique' || pole==='tous') ? pole : 'badges';
+  me_numHelp = numHelp === true;
+  _viewPoleMem = '';   // nouvelle connexion : la vue « dépannage » d'une session précédente ne se garde pas
   isDir = iAm || (me_role === 'direction');
   computeViewPole();
 }
@@ -2436,12 +2439,16 @@ function applyPermsValues(role, perms, machineType, pole){
 // historique), 'numerique' ou 'tous'. viewPole = pôle actuellement affiché :
 // 'badges' | 'numerique' | 'tout'. Admin, direction et comptes « tous »
 // peuvent changer d'affichage avec le sélecteur de l'en-tête.
-var me_pole = 'badges', viewPole = 'badges';
+var me_pole = 'badges', viewPole = 'badges', me_numHelp = false;
 var POLE_VIEW_KEY = 'isoprod_view_pole';
 var _viewPoleMem = '';   // repli si le stockage du navigateur est indisponible
 function poleCanSwitch(){ return !!(iAm || isDir || me_pole === 'tous'); }
+// Producteur du pôle badges autorisé à dépanner au pôle numérique (users/{uid}/numHelp) : un bouton de l'en-tête
+// bascule entre Badges et Numérique ; la vue numérique n'est jamais mémorisée (retour à Badges au rechargement).
+function poleHelper(){ return !!(me_numHelp && me_pole === 'badges' && !poleCanSwitch()); }
 function computeViewPole(){
   var def = (me_pole === 'numerique') ? 'numerique' : (me_pole === 'tous' ? 'tout' : 'badges');
+  if(poleHelper()){ viewPole = (_viewPoleMem === 'numerique') ? 'numerique' : 'badges'; return; }
   if(!poleCanSwitch()){ viewPole = def; return; }
   var v = _viewPoleMem;
   if(!v){ try { v = localStorage.getItem(POLE_VIEW_KEY) || ''; } catch(e){} }
@@ -2601,17 +2608,33 @@ function applyPoleMenus(){
     sel.style.display = poleCanSwitch() ? '' : 'none';
     sel.value = viewPole;
   }
+  var hb = document.getElementById('pole-help-btn');
+  if(hb){
+    var hp = poleHelper(), inNum = (viewPole === 'numerique');
+    hb.style.display = hp ? '' : 'none';
+    hb.textContent = inNum ? '🏷️ Retour badges' : '🖨️ Numérique';
+    hb.style.background = inNum ? '#7c3aed' : 'var(--sur)';
+    hb.style.color = inNum ? '#fff' : 'var(--txt)';
+    hb.style.borderColor = inNum ? '#7c3aed' : 'var(--brd)';
+    hb.title = inNum ? 'Revenir au pôle badges' : 'Dépannage : produire au pôle numérique';
+  }
 }
 function refreshPoleUI(){
   try { stockApplyPole(); } catch(e){}
   try { applyTabPerms(); } catch(e){}
   applyPoleMenus();
 }
+function poleHelpToggle(){ setViewPole(viewPole === 'numerique' ? 'badges' : 'numerique'); }
 function setViewPole(v){
-  if(!poleCanSwitch()) return;
+  if(!poleCanSwitch() && !poleHelper()) return;
   if(v !== 'badges' && v !== 'numerique' && v !== 'tout') return;
-  _viewPoleMem = v;
-  try { localStorage.setItem(POLE_VIEW_KEY, v); } catch(e){}
+  if(poleHelper()){
+    if(v === 'tout') return;
+    _viewPoleMem = v;              // jamais enregistré sur l'appareil : au rechargement, retour en Badges
+  } else {
+    _viewPoleMem = v;
+    try { localStorage.setItem(POLE_VIEW_KEY, v); } catch(e){}
+  }
   computeViewPole();
   refreshPoleUI();
   try { if(curTab) switchTab(curTab); } catch(e){}
@@ -2693,7 +2716,7 @@ auth.onAuthStateChanged(function(u) {
     // sur cet appareil — pas d'attente réseau pour afficher l'app.
     var cached = getCachedPerms(u.uid);
     if(cached){
-      applyPermsValues(cached.role, cached.perms, cached.machineType, cached.pole);
+      applyPermsValues(cached.role, cached.perms, cached.machineType, cached.pole, cached.numHelp);
       permsLoaded = true;
       renderAfterPermsKnown();
     }
@@ -2713,7 +2736,7 @@ auth.onAuthStateChanged(function(u) {
       if(isPermDenied(err)) forceSignOutDisabled(u.uid, 'Accès refusé : compte désactivé ou introuvable. Contacte un administrateur.');
     });
     fbg('users/'+u.uid).then(function(snap){
-      var freshRole, freshPerms, freshMachineType, freshPole;
+      var freshRole, freshPerms, freshMachineType, freshPole, freshNumHelp = false;
       if(snap.exists()){
         var ud = snap.val();
         // Compte désactivé par un admin (voir askDisableUser) : accès
@@ -2727,6 +2750,7 @@ auth.onAuthStateChanged(function(u) {
         freshPerms = ud.perms || {};
         freshMachineType = ud.machineType || 'semi';
         freshPole = ud.pole || 'badges';
+        freshNumHelp = ud.numHelp === true;
         // Garde la fiche /users à jour : e-mail changé (Mon compte) et titre du compte admin
         try {
           var upd = {};
@@ -2750,14 +2774,15 @@ auth.onAuthStateChanged(function(u) {
         forceSignOutDisabled(u.uid, 'Compte introuvable. Contacte un administrateur.');
         return;
       }
-      saveCachedPerms(u.uid, {role:freshRole, perms:freshPerms, machineType:freshMachineType, pole:freshPole});
+      saveCachedPerms(u.uid, {role:freshRole, perms:freshPerms, machineType:freshMachineType, pole:freshPole, numHelp:freshNumHelp});
 
       var changed = !cached || cached.role !== freshRole ||
         JSON.stringify(cached.perms||{}) !== JSON.stringify(freshPerms) ||
         cached.machineType !== freshMachineType ||
-        (cached.pole || 'badges') !== freshPole;
+        (cached.pole || 'badges') !== freshPole ||
+        (cached.numHelp === true) !== freshNumHelp;
 
-      applyPermsValues(freshRole, freshPerms, freshMachineType, freshPole);
+      applyPermsValues(freshRole, freshPerms, freshMachineType, freshPole, freshNumHelp);
       permsLoaded = true;
 
       if(!cached || changed){
@@ -8953,6 +8978,10 @@ function openPermsPanel(uid){
         '<option value="numerique"'+(u.pole==='numerique'?' selected':'')+'>🖨️ Numérique</option>'+
         '<option value="tous"'+(u.pole==='tous'?' selected':'')+'>🔀 Tous (peut changer de pôle)</option>'+
       '</select>'+
+      '<label style="display:flex;align-items:center;gap:8px;margin:0 0 8px;cursor:pointer;font-size:.82rem" title="Pour un producteur du pôle badges : un bouton dans l\'en-tête lui permet de produire ponctuellement au pôle numérique">'+
+        '<input type="checkbox" id="perm-numhelp" '+(u.numHelp===true?'checked':'')+' style="width:16px;height:16px;accent-color:#7c3aed">'+
+        '🖨️ Peut dépanner au pôle numérique (bouton dans l\'en-tête)'+
+      '</label>'+
       '<label style="display:flex;align-items:center;gap:8px;margin-top:10px;cursor:pointer;font-size:.85rem">'+
         '<input type="checkbox" id="perm-is-producer" '+(u.isProducer!==false?'checked':'')+' style="width:16px;height:16px;accent-color:var(--acc)">'+
         'Apparaît dans les statistiques de production'+
@@ -8994,7 +9023,7 @@ function openPermsPanel(uid){
       var isProducerVal = isProducerEl ? isProducerEl.checked : (roleVal==='employee');
       var poleEl = document.getElementById('perm-pole');
       var poleVal = poleEl ? poleEl.value : 'badges';
-      fbu('users/'+permsUserId,{perms:Object.assign({},newPerms,nT),jobTitle:jobTitle||null,role:roleVal,isProducer:isProducerVal,pole:(poleVal==='numerique'||poleVal==='tous')?poleVal:null});
+      fbu('users/'+permsUserId,{perms:Object.assign({},newPerms,nT),jobTitle:jobTitle||null,role:roleVal,isProducer:isProducerVal,pole:(poleVal==='numerique'||poleVal==='tous')?poleVal:null,numHelp:(document.getElementById('perm-numhelp')&&document.getElementById('perm-numhelp').checked)?true:null});
       // Reset confirm button
       document.querySelector('#m-confirm .btn.bdan').textContent = 'Oui, confirmer';
       document.querySelector('#m-confirm .btn.bdan').style.background = 'var(--red)';
