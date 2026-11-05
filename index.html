@@ -825,6 +825,7 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
 </div>
     <div id="view-alertes" class="view"><div id="alist"></div></div>
     <div id="view-inventaire" class="view">
+      <div id="inv-pole-switch" style="display:none;gap:6px;margin-bottom:10px"><button class="mpole-btn active" id="invpole-badges" onclick="invSetPole('badges')">🏷️ Badges</button><button class="mpole-btn" id="invpole-numerique" onclick="invSetPole('numerique')">🖨️ Numérique</button></div>
       <div id="invc-box"></div>
       <div id="inv-list"></div>
       <div id="inv-hist-section" style="margin-top:18px">
@@ -2014,7 +2015,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.11.05-1057';
+var APP_VERSION = '2026.11.05-1105';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -2376,6 +2377,17 @@ function famOptionsHtml(sel){
 }
 // Les écrans d'inventaire / EBP ne concernent que les badges (jamais le stock numérique)
 function invCats(){ return ((S.allCats && S.allCats.length) ? S.allCats : (S.cats || [])).filter(function(c){ return catPole(c) === 'badges'; }); }
+// Inventaire (comptage, demandes « à vérifier ») : suit le pôle affiché ; admin / direction / « Tous » peuvent basculer sur place.
+// invCats() (badges) reste utilisé par les outils EBP propres aux badges (composants, Divers, références).
+var _invPoleSel = '';
+function invPole(){
+  if(poleCanSwitch() && _invPoleSel) return _invPoleSel;
+  return viewPole === 'numerique' ? 'numerique' : 'badges';
+}
+function invAllCats(){ return (S.allCats && S.allCats.length) ? S.allCats : (S.cats || []); }
+function invCatsCur(){ var p = invPole(); return invAllCats().filter(function(c){ return catPole(c) === p; }); }
+// Catégories des pôles visibles (pastille de l'onglet)
+function invCatsView(){ return invAllCats().filter(function(c){ return viewPole === 'tout' || catPole(c) === viewPole; }); }
 // Catégories / commandes / mouvements visibles selon la vue
 function catInView(cat){ return typeof viewPole === 'undefined' || viewPole === 'tout' || catPole(cat) === viewPole; }
 function orderInView(o){
@@ -2600,15 +2612,12 @@ function applyPoleMenus(){
   // Pôle numérique : maintenance et réunion propres au pôle ; pas de réimpression.
   var gs = document.getElementById('grp-stock');   // pas de classe « ao » : visible pour tous les pôles (stock numérique séparé par familles)
   if(gs) gs.style.display = '';
-  // L'inventaire (comptage, EBP) ne concerne que les badges
-  var si = document.getElementById('sub-inventaire');
-  if(si && num) si.style.display = 'none';
   var q8 = document.getElementById('quick-8054');   // raccourci du format MAG8054 : badges uniquement
   if(q8) q8.style.display = num ? 'none' : '';
   try { updateInventaireBadge(); } catch(e){}
   var rp = document.getElementById('sub-reprint');
   if(rp) rp.style.display = num ? 'none' : '';
-  if(num && (activeSubTab === 'reprint' || activeSubTab === 'inventaire')){
+  if(num && activeSubTab === 'reprint'){
     switchGroup('production');
   }
   var sel = document.getElementById('pole-sel');
@@ -2643,7 +2652,7 @@ function setViewPole(v){
     _viewPoleMem = v;
     try { localStorage.setItem(POLE_VIEW_KEY, v); } catch(e){}
   }
-  _maintPoleSel = ''; _mtgPoleSel = '';
+  _maintPoleSel = ''; _mtgPoleSel = ''; _invPoleSel = '';
   computeViewPole();
   refreshPoleUI();
   try { if(curTab) switchTab(curTab); } catch(e){}
@@ -6564,7 +6573,7 @@ function invComputeEcart(item, lines){
 
 function invFindRow(iid){
   var found = null;
-  invCats().some(function(cat){
+  invCatsCur().some(function(cat){
     return ['items','reserve_items'].some(function(dbp){
       var item = (cat[dbp]||[]).find(function(i){ return i.id===iid; });
       if(item){ found = {cat:cat, item:item, dbp:dbp, zone: dbp==='items'?'atelier':'reserve', zoneLabel: dbp==='items'?'🏭 Atelier':'🏢 Réserve'}; return true; }
@@ -6710,7 +6719,7 @@ function validateInventoryItem(cid, iid, dbp, zone){
 function invCleanStaleFlags(){
   if(!iAm) return;
   window._invStaleDone = window._invStaleDone || {};
-  invCats().forEach(function(cat){
+  invAllCats().forEach(function(cat){
     ['items','reserve_items'].forEach(function(dbp){
       (cat[dbp]||[]).forEach(function(item){
         if(item.linked || !item.needsInventoryCheck || window._invStaleDone[item.id]) return;
@@ -6724,10 +6733,12 @@ function invCleanStaleFlags(){
 function renderInventaire(){
   var el = document.getElementById('inv-list');
   if(!el) return;
+  invApplyPole();
+  invcPick();
   invcRender();
   invCleanStaleFlags();
   var rows = [];
-  invCats().forEach(function(cat){
+  invCatsCur().forEach(function(cat){
     ['items','reserve_items'].forEach(function(dbp){
       (cat[dbp]||[]).forEach(function(item){
         if(item.linked || !item.needsInventoryCheck) return;
@@ -6751,8 +6762,8 @@ function renderInventaire(){
 
 function updateInventaireBadge(){
   var n = 0;
-  // L'inventaire ne concerne que les badges : pastille masquée en vue numérique
-  if(typeof viewPole === 'undefined' || viewPole !== 'numerique') invCats().forEach(function(cat){
+  // Pastille : demandes d'inventaire des pôles visibles
+  invCatsView().forEach(function(cat){
     ['items','reserve_items'].forEach(function(dbp){
       (cat[dbp]||[]).forEach(function(item){ if(!item.linked && item.needsInventoryCheck) n++; });
     });
@@ -6780,16 +6791,36 @@ var invcBloc = null;          // cid du bloc ouvert à l'écran
 var invcEdit = null;          // {iid, cid, lines:[{ppc,qty}], ouverts:[n|''], vrac}
 var invcOptOpen = false;      // options admin (suppression) repliées par défaut
 var INVC_CLAIM_MS = 30*60*1000;
+// Une campagne ouverte par pôle (champ « pole » absent = badges) ; S_invc = celle du pôle affiché
+var _invcRaw = {}, _invcLastId = null;
+function invcPick(){
+  var p = invPole(), best = null;
+  Object.keys(_invcRaw).forEach(function(id){
+    var c = _invcRaw[id];
+    if(c && c.statut === 'ouvert' && (c.pole === 'numerique' ? 'numerique' : 'badges') === p && (!best || (c.creeLe||0) > (best.creeLe||0))) best = Object.assign({id:id}, c);
+  });
+  S_invc = best;
+  if(S_invc){ if(!S_invc.lignes) S_invc.lignes = {}; if(!S_invc.blocs) S_invc.blocs = {}; }
+  var nid = S_invc ? S_invc.id : null;
+  if(!S_invc || nid !== _invcLastId){ invcBloc = null; invcPane = null; }
+  _invcLastId = nid;
+}
+function invcPoleLabel(){ return (S_invc && S_invc.pole === 'numerique') ? '🖨️ Numérique' : '🏭 Atelier'; }
+function invcPoleWord(){ return (S_invc && S_invc.pole === 'numerique') ? 'Numérique' : 'Atelier'; }
+function invApplyPole(){
+  var p = invPole();
+  var sw = document.getElementById('inv-pole-switch'); if(sw) sw.style.display = poleCanSwitch() ? 'flex' : 'none';
+  ['badges', 'numerique'].forEach(function(k){ var b = document.getElementById('invpole-'+k); if(b) b.classList.toggle('active', k === p); });
+}
+function invSetPole(p){
+  if(!poleCanSwitch() || (p !== 'badges' && p !== 'numerique')) return;
+  _invPoleSel = p; invcEdit = null;
+  renderInventaire();
+}
 function startInvcListener(){
   db.ref('inventaires').on('value', function(snap){
-    var raw = snap.val() || {}, best = null;
-    Object.keys(raw).forEach(function(id){
-      var c = raw[id];
-      if(c && c.statut === 'ouvert' && (!best || (c.creeLe||0) > (best.creeLe||0))) best = Object.assign({id:id}, c);
-    });
-    S_invc = best;
-    if(S_invc){ if(!S_invc.lignes) S_invc.lignes = {}; if(!S_invc.blocs) S_invc.blocs = {}; }
-    else { invcBloc = null; invcPane = null; }
+    _invcRaw = snap.val() || {};
+    invcPick();
     if(curTab === 'inventaire') renderInventaire();
   });
 }
@@ -6807,11 +6838,11 @@ function invcCatCmp(a, b){
   }
   return String(a.name||'').localeCompare(String(b.name||''), 'fr', {numeric:true});
 }
-function invcSortedCats(){ return invCats().slice().sort(invcCatCmp); }
+function invcSortedCats(){ return invCatsCur().slice().sort(invcCatCmp); }
 function invcCatIdx(cat){ var l = invcSortedCats(); for(var i = 0; i < l.length; i++){ if(l[i].id === cat.id) return i; } return 999; }
 function invcItems(){
   var out = [];
-  invCats().forEach(function(cat){
+  invCatsCur().forEach(function(cat){
     (cat.items||[]).forEach(function(item){ if(!item.linked) out.push({cat:cat, item:item}); });
   });
   return out;
@@ -6856,7 +6887,7 @@ function invcRender(){
     if(list) list.style.display = ''; if(hist) hist.style.display = '';
     box.innerHTML = iAm
       ? '<div class="inv-card" style="text-align:center"><div style="font-family:Open Sans,sans-serif;font-weight:800;font-size:.95rem;margin-bottom:4px">📋 Inventaire complet</div>'+
-        '<div style="font-size:.78rem;color:var(--mut);margin-bottom:10px">Lance une campagne : toutes les fournitures de l\'Atelier sont à compter par l\'équipe, bloc par bloc, sans voir le stock théorique.</div>'+
+        '<div style="font-size:.78rem;color:var(--mut);margin-bottom:10px">Lance une campagne : toutes les fournitures '+(invPole()==='numerique' ? 'du pôle numérique' : 'de l\'Atelier')+' sont à compter par l\'équipe, bloc par bloc, sans voir le stock théorique.</div>'+
         '<button class="btn bpri" style="width:100%;margin-bottom:8px" onclick="invcStart(false)">🚀 Lancer le vrai inventaire</button>'+
         '<button class="btn bsec" style="width:100%" onclick="invcStart(true)">🧪 Lancer un essai (rien n\'est conservé)</button></div>'
       : '';
@@ -6879,7 +6910,7 @@ function invcRender(){
     admin = '<div style="margin-top:10px"><button class="btn bpri" style="width:100%;font-size:.84rem" onclick="invcPane=\'valid\';invcRender()">✅ Validation</button></div>';
   }
   var head = essaiBand + invcPhaseBar() +
-    '<div class="inv-card"><div style="font-family:Open Sans,sans-serif;font-weight:800;font-size:.95rem">📋 '+esc((S_invc.nom||'Inventaire').replace(/^ESSAI — /,''))+' · 🏭 Atelier</div>'+
+    '<div class="inv-card"><div style="font-family:Open Sans,sans-serif;font-weight:800;font-size:.95rem">📋 '+esc((S_invc.nom||'Inventaire').replace(/^ESSAI — /,''))+' · '+invcPoleLabel()+'</div>'+
     '<div style="font-size:.78rem;color:var(--mut);margin:4px 0 8px">'+done+' / '+tot+' fournitures comptées</div>'+
     '<div style="height:10px;background:var(--sur);border-radius:99px;overflow:hidden"><div style="height:100%;width:'+pct+'%;background:var(--grn)"></div></div>'+admin+'</div>';
   if(invcPane === 'ecarts' && iAm){ box.innerHTML = essaiBand + invcEcartsHtml() + invcOptHtml(); return; }
@@ -6949,10 +6980,12 @@ function invcStart(essai){
   document.getElementById('cf-title').textContent = (essai ? '🧪 Lancer un essai ?' : '🚀 Lancer « '+nom+' » ?');
   document.getElementById('cf-msg').textContent = essai
     ? 'Même fonctionnement que le vrai inventaire, pour s\'entraîner. Tu pourras le supprimer ensuite. Le stock de l\'app n\'est pas modifié.'
-    : 'Toutes les fournitures de l\'Atelier seront à compter. Le stock de l\'app n\'est pas modifié par le comptage.';
+    : 'Toutes les fournitures '+(invPole()==='numerique' ? 'du pôle numérique' : 'de l\'Atelier')+' seront à compter. Le stock de l\'app n\'est pas modifié par le comptage.';
   var cfBtn = document.querySelector('#m-confirm .btn.bdan'); if(cfBtn) cfBtn.textContent = 'Oui, lancer';
   cfCb = function(){
-    fbs('inventaires/'+gid(), {nom:nom, zone:'atelier', statut:'ouvert', essai:!!essai, creeLe:Date.now(), creePar:getMyName()});
+    var nc = {nom:nom, zone:'atelier', statut:'ouvert', essai:!!essai, creeLe:Date.now(), creePar:getMyName()};
+    if(invPole() === 'numerique') nc.pole = 'numerique';   // champ additif : absent = badges
+    fbs('inventaires/'+gid(), nc);
     toast(essai ? '🧪 Essai lancé' : '✅ Inventaire lancé');
   };
   om('m-confirm');
@@ -7073,7 +7106,7 @@ function invcEditRender(){
   }).join('');
   box.innerHTML =
     '<h3 style="margin-bottom:2px">'+esc(r.item.name)+'</h3>'+
-    '<div style="font-size:.76rem;color:var(--mut);margin-bottom:12px">'+esc(r.cat.name)+' · 🏭 Atelier</div>'+
+    '<div style="font-size:.76rem;color:var(--mut);margin-bottom:12px">'+esc(r.cat.name)+' · '+invcPoleLabel()+'</div>'+
     '<div style="font-size:.74rem;font-weight:800;color:var(--mut);text-transform:uppercase;letter-spacing:.05em;margin:4px 0 6px">📦 Partie stock</div>'+
     (pce ? '<div style="font-size:.8rem;font-weight:700;margin-bottom:4px">Pièces en stock</div>'+rows
       : '<div style="font-size:.8rem;font-weight:700;margin-bottom:4px">'+uCap(u)+'s fermés <span style="font-weight:400;color:var(--mut)">(nombre × quantité par '+u+')</span></div>'+rows+
@@ -7849,7 +7882,7 @@ function invcReportRows(){
   var rows = invcValidRows(); rows.sort(function(a,b){ return String(a.cat).localeCompare(String(b.cat)) || String(a.n).localeCompare(String(b.n)); });
   return rows;
 }
-function invcReportTitle(){ return (S_invc.nom||'Inventaire').replace(/^ESSAI — /,'')+(S_invc.essai?' (essai)':'')+' — Atelier'; }
+function invcReportTitle(){ return (S_invc.nom||'Inventaire').replace(/^ESSAI — /,'')+(S_invc.essai?' (essai)':'')+' — '+invcPoleWord(); }
 function invcReportPDF(){
   if(!(iAm || isDir) || !S_invc) return;
   var jsPDF = window.jspdf ? window.jspdf.jsPDF : null;
@@ -7916,7 +7949,7 @@ function invcSheetPDF(){
   var doc = new jsPDF({unit:'pt', format:'a4', orientation:'landscape'});
   var pageW = doc.internal.pageSize.getWidth(), margin = 30;
   var dateLabel = new Date().toLocaleDateString('fr-FR');
-  function head(){ return pdfHeader(doc, pageW, (S_invc && S_invc.nom || 'Inventaire')+' — Atelier', 'Date : '+dateLabel); }
+  function head(){ return pdfHeader(doc, pageW, (S_invc && S_invc.nom || 'Inventaire')+' — '+invcPoleWord(), 'Date : '+dateLabel); }
   var y = head();
   invcSortedCats().forEach(function(cat){
     var rows = (cat.items||[]).filter(function(i){ return !i.linked; }).slice().sort(function(a,b){ return a.name.localeCompare(b.name); });
