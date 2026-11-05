@@ -1083,10 +1083,10 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
   </div>
 
   <div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap">
+    <button id="dash-tab-recherche" onclick="dashSwitchSection('recherche')" class="maint-sub-btn" style="flex:1">🔍 Commandes</button>
     <button id="dash-tab-synthese" onclick="dashSwitchSection('synthese')" class="maint-sub-btn active" style="flex:1">📋 Synthèse</button>
     <button id="dash-tab-aujourdhui" onclick="dashSwitchSection('aujourdhui')" class="maint-sub-btn" style="flex:1">🏭 Aujourd'hui</button>
     <button id="dash-tab-capacite" onclick="dashSwitchSection('capacite')" class="maint-sub-btn" style="flex:1">⚡ Capacité</button>
-    <button id="dash-tab-recherche" onclick="dashSwitchSection('recherche')" class="maint-sub-btn" style="flex:1">🔍 Commandes</button>
     <button id="dash-tab-sav" onclick="dashSwitchSection('sav')" class="maint-sub-btn" style="flex:1">🛠 SAV</button>
   </div>
 
@@ -2015,7 +2015,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.11.05-1235';
+var APP_VERSION = '2026.11.05-1400';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
