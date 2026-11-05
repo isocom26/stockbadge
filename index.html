@@ -2015,7 +2015,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.11.05-1129';
+var APP_VERSION = '2026.11.05-1215';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -2530,6 +2530,26 @@ function polesSetCqFromNow(){
   fbu('settings/poleNumerique', {cqFrom: Date.now(), cqFromBy: getMyName()});
   toast('✅ Contrôle numérique exigé à partir de maintenant');
 }
+function polesSetCqFromDate(){
+  if(!iAm) return;
+  var inp = document.getElementById('admin-pole-cqdate');
+  var v = inp ? inp.value : '';
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(v)){ toast('⚠️ Choisis une date'); return; }
+  var d = new Date(v + 'T00:00:00');
+  if(isNaN(d.getTime())){ toast('⚠️ Date invalide'); return; }
+  if(!confirm('Exiger le contrôle qualité numérique pour les commandes créées à partir du '+d.toLocaleDateString('fr-FR')+' ?')) return;
+  fbu('settings/poleNumerique', {cqFrom: d.getTime(), cqFromBy: getMyName()});
+  toast('✅ Contrôle numérique exigé à partir du '+d.toLocaleDateString('fr-FR'));
+  // Met à jour l'état des pôles déjà enregistré sur les commandes mixtes en cours
+  setTimeout(function(){
+    fbg('commandes').then(function(snap){
+      var raw = snap.val() || {};
+      var list = Object.keys(raw).map(function(id){ return Object.assign({id:id}, raw[id]); })
+        .filter(function(c){ return c.status !== 'done' && cmdIsMixed(c); });
+      polesSyncMany(list);
+    });
+  }, 1200);
+}
 function renderPoleCfgAdmin(){
   var b = document.getElementById('admin-pole-block'); if(!b) return;
   b.style.display = iAm ? '' : 'none';
@@ -2538,7 +2558,10 @@ function renderPoleCfgAdmin(){
   st.innerHTML = '<span style="font-weight:800;color:'+(on?'var(--grn)':'var(--mut)')+'">'+(on?'● ACTIVÉE':'○ Désactivée (fonctionnement d\'avant)')+'</span> '+
     '<button class="btn '+(on?'bdano':'bpri')+'" style="flex:none;padding:7px 14px;margin-left:8px" onclick="polesSetCfg('+(on?'false':'true')+')">'+(on?'Désactiver':'Activer')+'</button>'+
     '<div style="font-size:.76rem;color:var(--mut);margin-top:8px">Contrôle qualité numérique exigé pour les commandes créées depuis le <b>'+new Date(poleCqFrom()).toLocaleDateString('fr-FR')+'</b>. '+
-    '<button class="btn" style="flex:none;padding:4px 10px;margin-left:6px" onclick="polesSetCqFromNow()">Mettre à aujourd\'hui</button></div>';
+    '<button class="btn" style="flex:none;padding:4px 10px;margin-left:6px" onclick="polesSetCqFromNow()">Mettre à aujourd\'hui</button>'+
+    '<div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px;align-items:center"><span>Ou choisir une date :</span>'+
+    '<input type="date" id="admin-pole-cqdate" value="'+(function(){ var d = new Date(poleCqFrom()); return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2); })()+'" style="background:var(--card);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);padding:5px 8px">'+
+    '<button class="btn" style="flex:none;padding:4px 10px" onclick="polesSetCqFromDate()">Appliquer</button></div></div>';
 }
 var POLE_ST_LABEL = {todo:'à produire', ongoing:'en production', produced:'à contrôler', checked:'contrôlé'};
 var POLE_LABEL = {badges:'🏷️ Badges', numerique:'🖨️ Numérique'};
@@ -2571,6 +2594,8 @@ function polesStateFrom(c, allLines){
     var produced = ls.length > 0 && ls.every(function(l){ return l.status === 'done'; }) && fm.every(function(f){ return done[f]; });
     var checked = produced && ls.every(function(l){ return l.cq === 'checked' || l.cq === 'archived'; });
     out[p] = checked ? 'checked' : produced ? 'produced' : ls.length ? 'ongoing' : 'todo';
+    // Commande créée avant la date d'exigence du contrôle numérique : pas de contrôle à attendre
+    if(p === 'numerique' && out[p] === 'produced' && !poleCqRequired(c)) out[p] = 'checked';
   });
   return out;
 }
@@ -2928,6 +2953,7 @@ function ecranAutoOpen(tries){
 // Pas de correctif technique invisible ici. tag = qui est concerné :
 //   'all' (tout le monde), 'admin' (admin/direction), 'maint' (maintenance), 'stock' (ajout de stock), 'reprint' (réimpressions)
 var NEWS = [
+  {n:47, d:'05/11/2026', tag:'all', t:'Pôle numérique : commandes partagées plus fiables', x:'Dépiautage : sur une commande partagée (badges + numérique), les formats de l\'autre pôle sont affichés en grisé dans un cadre, pour comparer avec le bon de commande (à l\'ajout et dans la liste). Admin › Pôle numérique : on peut choisir la date à partir de laquelle le contrôle qualité numérique est exigé. Une commande « Terminée » trop tôt alors que le numérique n\'était pas produit repasse « En cours », et le bandeau « Départ bloqué » ne réclame plus de contrôle pour les commandes plus anciennes que cette date.'},
   {n:46, d:'05/11/2026', tag:'admin', t:'🖨️ Pôle numérique : maintenance, réunion et inventaire', x:'Quand le pôle numérique est activé (Admin › Pôle numérique), il a ses propres onglets : Maintenance (presses, plotters et traceurs, imprimantes sublimation, machines diverses), Réunions (production de sublimation, stocks, parc machine, PDF séparé) et Inventaire (Sublimation, Roll up, Tote bags). L\'admin, la direction et les utilisateurs « Tous » basculent Badges / Numérique en haut de chaque onglet. Un producteur badges peut dépanner sur le numérique avec le droit « Dépannage numérique » (bouton dans l\'en-tête). Les commandes mixtes ne sont terminées qu\'une fois les deux pôles produits.'},
   {n:45, d:'05/11/2026', tag:'dashboard', t:'📥 Import des expéditions du soir', x:'Tableau de bord › Commandes › Importer les expéditions : on ajoute les fichiers EBP, Chronopost et Colissimo un par un (ou par glisser-déposer). Chaque colis est relié à sa commande, avec une proposition d\'après le nom du client quand la référence manque ; rien n\'est enregistré sans validation. Les colis sans commande vont dans « Colis à rattacher » (ou « hors production » pour la sous-traitance).'},
   {n:44, d:'03/11/2026', tag:'dashboard', t:'📮 Suivi d\'expédition : colis à confirmer', x:'Sur la fiche d\'une commande (Tableau de bord › Commandes), on peut ajouter un ou plusieurs colis (transporteur + n° de suivi). La commande passe « À confirmer » : les personnes concernées reçoivent un bandeau et une pastille « CONF » sur le Tableau de bord (et un nombre sur Commandes), puis cliquent « Confirmé » après avoir envoyé le mail. Les pastilles SAV sont désormais séparées (« SAV », et un nombre sur le sous-onglet SAV). Les droits se règlent dans Admin › Droits, la liste des transporteurs dans Admin › Réglages.'},
@@ -9154,6 +9180,30 @@ function cmdFixPoles(raw){
   });
 }
 
+// Pôle numérique activé : une commande « Terminée » dont la partie numérique n'est pas produite
+// (ex. terminée quand le réglage était coupé) repasse « En cours ». Seul l'admin écrit, une fois par commande et par session,
+// uniquement pour les commandes soumises au contrôle numérique (créées depuis la date d'exigence).
+var _numReopenSeen = {};
+function cmdReopenNumPending(raw){
+  if(!iAm || !poleCfgOn() || typeof qtyRulesOn !== 'function' || !qtyRulesOn()) return;
+  Object.keys(raw||{}).forEach(function(id){
+    var c = raw[id];
+    if(!c || c.status !== 'done' || _numReopenSeen[id]) return;
+    if(c.cloture || !poleCqRequired(c)) return;
+    var cc = Object.assign({id:id}, c);
+    if(!qtyHasNumFmt(cc)) return;
+    _numReopenSeen[id] = 1;
+    qtyLoadLines(cc).then(function(all){
+      var sn = qtyCommandeState(cc, all, {reprints:S_rp, pole:'numerique'});
+      if(sn.formats.length && !sn.canBeDone){
+        fbg('commandes/'+id+'/status').then(function(sn2){
+          if(sn2.val() === 'done') fbu('commandes/'+id, {status:'in_progress', reopenedNum:Date.now()});
+        });
+      }
+    });
+  });
+}
+
 function startCmdIndexListener(){
   db.ref('commandes').on('value', function(snap){
     var raw = snap.val() || {};
@@ -9165,6 +9215,7 @@ function startCmdIndexListener(){
     });
     S_cmdIndex = {byId:byId, bySiteCmd:bySiteCmd, idBySiteCmd:idBySiteCmd};
     cmdFixPoles(raw);
+    try { cmdReopenNumPending(raw); } catch(e){}
     if(typeof savAlertsUpdate==='function') savAlertsUpdate();
     if(typeof suiviAlertsUpdate==='function') suiviAlertsUpdate();
     if(curTab==='reprint') renderReprint();
@@ -15978,7 +16029,12 @@ function depShowParsed(r, el){
       (nFix>1 ? '<button onclick="depFixAllFormats()" style="display:block;width:100%;margin-top:8px;padding:8px;border-radius:8px;border:none;background:#f59e0b;color:#000;font-weight:800;font-size:.82rem;cursor:pointer">✏️ Tout corriger ('+nFix+')</button>' : '')+
       '</div>';
   }
+  // Commande partagée (badges + numérique) : les formats de l'autre pôle sont mis à part, grisés, pour comparer au bon de commande
+  var depOthKind = viewPole === 'badges' ? 'num' : (viewPole === 'numerique' ? 'ok' : null);
+  var depShared = checks.some(function(c){ return c.kind==='ok'; }) && checks.some(function(c){ return c.kind==='num'; });
+  var depOtherRows = [];
   html += r.formats.map(function(f, i){
+    if(depShared && depOthKind && checks[i].kind === depOthKind){ depOtherRows.push(f); return ''; }
     var c = checks[i], tag = '', fix = '', col = '';
     if(c.kind==='num') tag = ' <span style="font-size:.68rem;color:var(--mut);font-weight:600">· pôle numérique</span>';
     else if(c.kind==='pres') tag = ' <span style="font-size:.68rem;color:var(--mut);font-weight:600">· présentoir</span>';
@@ -15993,6 +16049,7 @@ function depShowParsed(r, el){
     return '<div style="padding:5px 0;border-top:1px solid var(--brd);font-size:.82rem">'+
       '<div style="display:flex;justify-content:space-between"><strong style="'+col+'">'+esc(f.format)+tag+'</strong><span style="color:var(--acc)">'+f.qty+' pcs</span></div>'+fix+'</div>';
   }).join('');
+  if(depOtherRows.length) html += depOtherPoleBox(depOtherRows, depOthKind === 'num' ? POLE_LABEL.numerique : POLE_LABEL.badges);
   html += '<div style="margin-top:10px">'+
     '<label style="font-size:.78rem;color:var(--mut);display:block;margin-bottom:4px">🚚 Date de départ *</label>'+
     '<input type="date" id="dep-scan-date-depart" value="'+esc(keepDate)+'" style="width:100%;background:var(--card);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.88rem;padding:8px 10px;outline:none;box-sizing:border-box;color-scheme:light">'+
@@ -18103,6 +18160,22 @@ function cmpUrgentFirst(a, b){
   return (b.createdAt||0) - (a.createdAt||0);
 }
 
+// Commande partagée (badges + numérique) vue depuis un seul pôle : les formats de l'autre pôle, grisés dans un cadre,
+// pour comparer avec le bon de commande. rows = [{format, qty}], label = nom de l'autre pôle.
+function depOtherPoleBox(rows, label){
+  if(!rows || !rows.length) return '';
+  return '<div style="margin-top:8px;padding:6px 10px;border:1.5px dashed var(--brd);border-radius:10px;background:rgba(120,120,120,.07);opacity:.8">'+
+    '<div style="font-size:.7rem;font-weight:800;color:var(--mut);margin-bottom:2px">'+label+' — autre pôle (pour vérifier le bon de commande)</div>'+
+    rows.map(function(f){
+      return '<div style="display:flex;justify-content:space-between;padding:3px 0;font-size:.8rem;color:var(--mut)"><span>'+esc(f.format)+'</span><span>'+f.qty+' pcs</span></div>';
+    }).join('')+'</div>';
+}
+function depOtherPoleOf(c){
+  if(viewPole === 'tout' || !cmdIsMixed(c)) return '';
+  var other = viewPole === 'numerique' ? 'badges' : 'numerique';
+  var rows = (c.formats||[]).filter(function(f){ return f && (f.pole||'badges') === other; });
+  return depOtherPoleBox(rows, POLE_LABEL[other]);
+}
 function renderDepCmdList(){
   var el = document.getElementById('dep-cmd-list');
   if(!el) return;
@@ -18177,6 +18250,7 @@ function renderDepCmdList(){
           status+
         '</div>'+
         formatsHtml+
+        depOtherPoleOf(c)+
         ((poleCfgOn() && c.pStat && cmdIsMixed(c)) ? polesBannerHtml(c.pStat) : '')+
         esupCardHtml(c)+
         '<div style="display:flex;gap:6px;margin-top:10px">'+
