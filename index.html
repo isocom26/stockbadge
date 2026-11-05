@@ -2015,7 +2015,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.11.05-1520';
+var APP_VERSION = '2026.11.05-1640';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -2953,6 +2953,7 @@ function ecranAutoOpen(tries){
 // Pas de correctif technique invisible ici. tag = qui est concerné :
 //   'all' (tout le monde), 'admin' (admin/direction), 'maint' (maintenance), 'stock' (ajout de stock), 'reprint' (réimpressions)
 var NEWS = [
+  {n:51, d:'05/11/2026', tag:'admin', t:'Droits : nouveau panneau par onglets + modèles', x:'Dans Admin › Droits, la fiche d\'un compte affiche maintenant la liste des onglets principaux : on coche un onglet pour voir ses sous-onglets, puis on coche un sous-onglet pour voir les droits qui le concernent. Rôle, pôle et « Peut dépanner » restent en haut. Les droits déjà donnés sont conservés tels quels. Nouveaux modèles en un clic (Opérateur, Chef d\'équipe, Pôle numérique, Direction, Consultation) pour préremplir un nouveau compte.'},
   {n:50, d:'05/11/2026', tag:'all', t:'Maintenance : catégories de machines modifiables', x:'Dans Maintenance, le bouton « Catégories de machines » permet d\'ajouter, renommer, réordonner ou retirer des catégories (badges et numérique). Les catégories de base (Automatiques, Semi-auto, Manuelles, Plateaux) se renomment mais ne se retirent pas, et une catégorie qui contient encore des machines ne peut pas être retirée. Réservé à l\'admin, à la direction et aux personnes qui ont la nouvelle case « Peut gérer les catégories de machines » (Admin › Droits). Côté numérique : Presses, Presses Sublimation, Plotters, Imprimantes, Machines diverses.'},
   {n:49, d:'05/11/2026', tag:'all', t:'Tableau de bord : nouveaux noms de statuts', x:'Dans le Tableau de bord (tableau Commandes, filtre, fiche commande), la colonne « Situation » devient « Statut », « Attente fabrication » devient « Attente production » et « En cours » devient « Production en cours ».'},
   {n:48, d:'05/11/2026', tag:'all', t:'« Rapport » devient « Ma production »', x:'L\'onglet Rapport s\'appelle maintenant « Ma production » (mêmes fonctions), et les messages qui le citent aussi. Dans le Tableau de bord, l\'administrateur apparaît sous le nom « ALEX » pour tout le monde. Le Tableau de bord s\'ouvre aussi sur « Commandes » en premier.'},
@@ -3282,6 +3283,100 @@ function esc(s){
 
 var TABS_PERMS=[{key:'production'},{key:'commandes'},{key:'reception'},{key:'maintenance'},{key:'meeting'},{key:'stats'},{key:'dashboard'},{key:'admin'},{key:'journal'},{key:'inventaire'}];
 var TABS_LABELS={'production':'🏭 Production (onglet entier, avec Recherche)','commandes':'🛒 Commandes','reception':'📬 Réception','stats':'📊 Statistiques','reprint':'🖨️ Réimpressions','maintenance':'🔩 Maintenance','meeting':'📅 Réunion','qualite':'🔍 Contrôle Qualité','dashboard':'📈 Tableau de bord','admin':'🔧 Admin','journal':'📋 Journal des stocks','inventaire':'📋 Inventaire (comptage)'};
+// ── ARBRE DES DROITS : onglet principal → sous-onglets → droits d'action ──
+// Stockage (tout est additif, rien n'est migré) :
+//   perms.tabs_<onglet>  : accès à l'onglet principal (existant)
+//   perms.sub_<id>       : accès à un sous-onglet (nouveau, optionnel)
+//   perms.<action>       : droits d'action à plat (existant : PERMS_LIST)
+// Quand un champ n'existe pas, on retombe sur l'ancien comportement (def / legacy).
+var RIGHTS_TREE = [
+  {key:'production', label:'🏭 Production', def:function(){return true;}, subs:[
+    {id:'report',     btn:'sub-report',     label:'📋 Ma production',  actions:['production']},
+    {id:'depiautage', btn:'sub-depiautage', label:'✂️ Dépiautage',     actions:[]},
+    {id:'reprint',    btn:'sub-reprint',    label:'🖨️ Réimpressions',  actions:['reprint']},
+    {id:'qualite',    btn:'sub-qualite',    label:'🔍 Contrôle qualité', actions:[]},
+    {id:'search',     btn:'sub-search',     label:'🔍 Recherche',      actions:[]}
+  ]},
+  {key:'dashboard', label:'📈 Tableau de bord', def:function(P,d){return d;}, subs:[
+    {id:'dash_recherche',  btn:'dash-tab-recherche',  label:'🔍 Commandes',  actions:['suiviSaisie','suiviConf']},
+    {id:'dash_synthese',   btn:'dash-tab-synthese',   label:'📋 Synthèse',   actions:[]},
+    {id:'dash_aujourdhui', btn:'dash-tab-aujourdhui', label:'🏭 Aujourd\'hui', actions:[]},
+    {id:'dash_capacite',   btn:'dash-tab-capacite',   label:'⚡ Capacité',   actions:[]},
+    {id:'dash_sav',        btn:'dash-tab-sav',        label:'🛠 SAV',        actions:['sav','savAlert']}
+  ]},
+  {key:'stock', label:'📦 Stock', def:function(){return true;}, subs:[
+    {id:'atelier',  btn:'sub-atelier',  label:'🏭 Atelier',  actions:['addStock']},
+    {id:'reserve',  btn:'sub-reserve',  label:'🏢 Réserve',  actions:[]},
+    {id:'alertes',  btn:'sub-alertes',  label:'⚠️ Alertes',  actions:[]},
+    {id:'commandes', legacy:'commandes', btn:'sub-commandes', label:'🛒 Commandes', def:function(P,d){return d||!!P.orders;}, actions:['orders']},
+    {id:'reception', legacy:'reception', btn:'sub-reception', label:'📬 Réception', def:function(P,d){return d||!!P.reception;}, actions:['reception']},
+    {id:'inventaire', legacy:'inventaire', btn:'sub-inventaire', label:'📋 Inventaire', def:function(P,d){return d;}, actions:[]},
+    {id:'journal', legacy:'journal', btn:'sub-journal', label:'📋 Journal des stocks', def:function(P,d){return d;}, actions:[]}
+  ]},
+  {key:'maintenance', label:'🔩 Maintenance', def:function(P,d){return d||!!P.maintenance;}, subs:[], actions:['maintenance','machCats','maintNotif']},
+  {key:'meeting', label:'📅 Réunions', def:function(P,d){return d;}, subs:[]},
+  {key:'stats',   label:'📊 Statistiques', def:function(P,d){return d||!!P.stats;}, subs:[]},
+  {key:'espace',  label:'📋 Mon Espace', def:function(P,d){return d;}, subs:[]},
+  {key:'admin',   label:'🔧 Admin', def:function(P,d){return d;}, subs:[
+    {id:'admin_droits',        btn:'sub-admin-droits',        label:'👥 Droits',        actions:[]},
+    {id:'admin_interventions', btn:'sub-admin-interventions', label:'🛠️ Interventions', actions:[]},
+    {id:'admin_reglages',      btn:'sub-admin-reglages',      label:'⚙️ Réglages',      actions:[]}
+  ]}
+];
+var RIGHTS_GENERAL = ['ecranAtelier'];
+function rtTopOn(P, dir, top){
+  P = P || {};
+  var v = P['tabs_'+top.key];
+  if(v === true) return true;
+  if(v === false) return false;
+  return !!top.def(P, dir);
+}
+function rtSubOn(P, dir, sub){
+  P = P || {};
+  var v = P['sub_'+sub.id];
+  if(v === true || v === false) return v;
+  if(sub.legacy){
+    var t = P['tabs_'+sub.legacy];
+    if(t === true || t === false) return t;
+  }
+  return sub.def ? !!sub.def(P, dir) : true;
+}
+function rtFindSub(id){
+  for(var i=0;i<RIGHTS_TREE.length;i++){
+    var s = RIGHTS_TREE[i].subs || [];
+    for(var j=0;j<s.length;j++) if(s[j].id === id) return s[j];
+  }
+  return null;
+}
+// Le sous-onglet du Tableau de bord est-il autorisé pour moi ? (k = 'recherche' | 'synthese' | 'aujourdhui' | 'capacite' | 'sav')
+function dashSubAllowed(k){
+  if(iAm) return true;
+  var s = rtFindSub('dash_'+k);
+  return s ? rtSubOn(me_perms, isDir, s) : true;
+}
+// Modèles de droits (pré-remplissent le panneau ; l'admin vérifie puis enregistre)
+var RIGHTS_TEMPLATES = {
+  operateur: {label:'👷 Opérateur', desc:'Production + Stock (consultation). Remplit Ma production.', role:'employee', isProducer:true,
+    tops:['production','stock'],
+    subs:['report','depiautage','reprint','qualite','search','atelier','reserve','alertes'],
+    actions:['production']},
+  chef: {label:'🧑‍🔧 Chef d\'équipe', desc:'Production, Stock complet, Tableau de bord, Maintenance.', role:'employee', isProducer:true,
+    tops:['production','stock','dashboard','maintenance','meeting'],
+    subs:['report','depiautage','reprint','qualite','search','atelier','reserve','alertes','commandes','reception','inventaire','dash_recherche','dash_synthese','dash_aujourdhui','dash_capacite','dash_sav'],
+    actions:['production','addStock','reprint','orders','reception','maintenance','maintNotif','sav','suiviSaisie']},
+  numerique: {label:'🖨️ Pôle numérique', desc:'Autonome au pôle numérique (machines, réimpressions, commandes).', role:'employee', pole:'numerique', isProducer:true,
+    tops:['production','stock','dashboard','maintenance'],
+    subs:['report','depiautage','reprint','qualite','search','atelier','reserve','alertes','commandes','reception','dash_recherche','dash_synthese','dash_sav'],
+    actions:['production','addStock','reprint','orders','reception','maintenance','machCats','sav','suiviSaisie']},
+  direction: {label:'👔 Direction', desc:'Accès complet sauf Admin et Ma production.', role:'direction', isProducer:false,
+    tops:['production','stock','dashboard','maintenance','meeting','stats','espace'],
+    subs:['depiautage','reprint','qualite','search','atelier','reserve','alertes','commandes','reception','inventaire','journal','dash_recherche','dash_synthese','dash_aujourdhui','dash_capacite','dash_sav'],
+    actions:['addStock','maintenance','machCats','reprint','orders','reception','sav','maintNotif','savAlert','suiviSaisie','suiviConf','ecranAtelier']},
+  lecture: {label:'👁️ Consultation', desc:'Lecture seule : recherche, stock, tableau de bord (Commandes, Synthèse).', role:'employee', isProducer:false,
+    tops:['production','stock','dashboard'],
+    subs:['search','atelier','reserve','alertes','dash_recherche','dash_synthese'],
+    actions:[]}
+};
 function applyTabPerms(){
   // Admin : tout visible
   if(iAm){
@@ -9043,6 +9138,107 @@ var PERMS_LIST = [
   {key:'ecranAtelier', label:'📺 Voit le bouton « Écran atelier » (affichage TV) — admin et direction l\'ont toujours'},
 ];
 
+// ── Panneau Droits : arbre onglets → sous-onglets → droits ──
+function rightsPermLabel(key){
+  for(var i=0;i<PERMS_LIST.length;i++) if(PERMS_LIST[i].key === key) return PERMS_LIST[i].label;
+  return key;
+}
+function rightsActionRow(key, perms, indent){
+  return '<label style="display:flex;align-items:center;gap:10px;padding:6px 0 6px '+indent+'px;cursor:pointer">'+
+    '<input type="checkbox" id="perm-'+key+'" '+(perms[key] ? 'checked' : '')+' style="width:18px;height:18px;accent-color:var(--grn);flex-shrink:0">'+
+    '<span style="font-size:.82rem">'+rightsPermLabel(key)+'</span></label>';
+}
+function rightsTreeHtml(u, perms){
+  var dir = (u.role === 'direction');
+  var h = '<div style="margin-top:12px">'+
+    '<div style="font-weight:700;font-size:.78rem;color:var(--mut);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Modèles de droits</div>'+
+    '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:4px">'+
+    Object.keys(RIGHTS_TEMPLATES).map(function(k){
+      var t = RIGHTS_TEMPLATES[k];
+      return '<button type="button" class="btn bsec" style="padding:6px 10px;font-size:.78rem" title="'+esc(t.desc)+'" onclick="rightsApplyTemplate(\''+k+'\')">'+t.label+'</button>';
+    }).join('')+'</div>'+
+    '<div style="font-size:.72rem;color:var(--mut);margin-bottom:8px">Un modèle pré-remplit les cases ci-dessous (rôle compris) : vérifie, ajuste si besoin, puis enregistre.</div>'+
+    '<div style="font-weight:700;font-size:.78rem;color:var(--mut);text-transform:uppercase;letter-spacing:.05em;margin:12px 0 6px;padding-top:10px;border-top:2px solid var(--brd)">Accès et droits</div>';
+  RIGHTS_TREE.forEach(function(top){
+    var tOn = rtTopOn(perms, dir, top);
+    h += '<div style="border-bottom:1px solid var(--brd);padding:6px 0">'+
+      '<label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:4px 0">'+
+      '<input type="checkbox" id="rt-'+top.key+'" '+(tOn ? 'checked' : '')+' onchange="rightsRefresh()" style="width:20px;height:20px;accent-color:#3b82f6;flex-shrink:0">'+
+      '<span style="font-size:.92rem;font-weight:700">'+top.label+'</span></label>'+
+      '<div id="rtb-'+top.key+'" style="margin-left:14px;border-left:2px solid var(--brd);padding-left:10px;display:'+(tOn ? '' : 'none')+'">';
+    (top.subs || []).forEach(function(sub){
+      var sOn = rtSubOn(perms, dir, sub);
+      h += '<div style="padding:2px 0">'+
+        '<label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:4px 0">'+
+        '<input type="checkbox" id="rs-'+sub.id+'" '+(sOn ? 'checked' : '')+' onchange="rightsRefresh()" style="width:18px;height:18px;accent-color:#3b82f6;flex-shrink:0">'+
+        '<span style="font-size:.86rem;font-weight:600">'+sub.label+'</span></label>';
+      if((sub.actions || []).length){
+        h += '<div id="rsb-'+sub.id+'" style="margin-left:14px;border-left:2px solid var(--brd);padding-left:8px;display:'+(sOn ? '' : 'none')+'">'+
+          sub.actions.map(function(a){ return rightsActionRow(a, perms, 0); }).join('')+'</div>';
+      }
+      h += '</div>';
+    });
+    if((top.actions || []).length){
+      h += top.actions.map(function(a){ return rightsActionRow(a, perms, 0); }).join('');
+    }
+    h += '</div></div>';
+  });
+  h += '<div style="padding:8px 0"><div style="font-weight:700;font-size:.78rem;color:var(--mut);text-transform:uppercase;letter-spacing:.05em;margin:4px 0">Général</div>'+
+    RIGHTS_GENERAL.map(function(a){ return rightsActionRow(a, perms, 0); }).join('')+'</div>';
+  h += '</div>';
+  return h;
+}
+// Affiche/masque les niveaux selon les cases cochées
+function rightsRefresh(){
+  RIGHTS_TREE.forEach(function(top){
+    var t = document.getElementById('rt-'+top.key), tb = document.getElementById('rtb-'+top.key);
+    if(tb && t) tb.style.display = t.checked ? '' : 'none';
+    (top.subs || []).forEach(function(sub){
+      var s = document.getElementById('rs-'+sub.id), sb = document.getElementById('rsb-'+sub.id);
+      if(sb && s) sb.style.display = s.checked ? '' : 'none';
+    });
+  });
+}
+// Lit l'arbre : une case décochée retire aussi les droits d'action qu'elle contient
+function rightsTreeCollect(old){
+  var P = Object.assign({}, old || {});
+  function chk(id){ var e = document.getElementById(id); return e ? !!e.checked : null; }
+  RIGHTS_TREE.forEach(function(top){
+    var tOn = chk('rt-'+top.key);
+    if(tOn === null) return;
+    P['tabs_'+top.key] = tOn;
+    (top.subs || []).forEach(function(sub){
+      var sOn = chk('rs-'+sub.id);
+      if(sOn === null) return;
+      P['sub_'+sub.id] = sOn;
+      if(sub.legacy) P['tabs_'+sub.legacy] = sOn;
+      (sub.actions || []).forEach(function(a){ var c = chk('perm-'+a); if(c !== null) P[a] = !!(c && tOn && sOn); });
+    });
+    (top.actions || []).forEach(function(a){ var c = chk('perm-'+a); if(c !== null) P[a] = !!(c && tOn); });
+  });
+  RIGHTS_GENERAL.forEach(function(a){ var c = chk('perm-'+a); if(c !== null) P[a] = c; });
+  return P;
+}
+function rightsApplyTemplate(k){
+  var t = RIGHTS_TEMPLATES[k];
+  if(!t) return;
+  function setc(id, v){ var e = document.getElementById(id); if(e) e.checked = !!v; }
+  RIGHTS_TREE.forEach(function(top){
+    setc('rt-'+top.key, t.tops.indexOf(top.key) >= 0);
+    (top.subs || []).forEach(function(sub){
+      setc('rs-'+sub.id, t.subs.indexOf(sub.id) >= 0);
+      (sub.actions || []).forEach(function(a){ setc('perm-'+a, t.actions.indexOf(a) >= 0); });
+    });
+    (top.actions || []).forEach(function(a){ setc('perm-'+a, t.actions.indexOf(a) >= 0); });
+  });
+  RIGHTS_GENERAL.forEach(function(a){ setc('perm-'+a, t.actions.indexOf(a) >= 0); });
+  var r = document.getElementById('perm-role'); if(r) r.value = t.role;
+  if(t.pole){ var p = document.getElementById('perm-pole'); if(p) p.value = t.pole; }
+  setc('perm-is-producer', t.isProducer);
+  rightsRefresh();
+  toast('Modèle « '+t.label+' » appliqué — vérifie puis enregistre');
+}
+
 function openPermsPanel(uid){
   permsUserId = uid;
   fbg('users/'+uid).then(function(snap){
@@ -9076,41 +9272,21 @@ function openPermsPanel(uid){
       '<label style="font-size:.78rem;color:var(--mut);display:block;margin-bottom:4px">Poste / Titre</label>'+
       '<input id="perm-jobtitle" type="text" value="'+curJob+'" placeholder="ex: Imprimeur, Technicien..." style="width:100%;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.88rem;padding:9px 12px;outline:none">'+
       '</div>'+
-      PERMS_LIST.map(function(p){
-        var checked = perms[p.key] ? 'checked' : '';
-        return '<label style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--brd);cursor:pointer">'+
-          '<input type="checkbox" id="perm-'+p.key+'" '+checked+' style="width:20px;height:20px;accent-color:var(--grn);flex-shrink:0">'+
-          '<span style="font-size:.88rem">'+p.label+'</span></label>';
-      }).join('')+'<div style="margin-top:14px;padding-top:12px;border-top:2px solid var(--brd)"><div style="font-family:Open Sans,sans-serif;font-weight:700;font-size:0.81rem;color:var(--mut);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Onglets visibles</div>'+
-      TABS_PERMS.map(function(t){
-        var perm=perms['tabs_'+t.key];
-        var defV=(u.role==='direction');
-        var chk=(perm===true||(perm===undefined&&(defV||t.key==='production')))?'checked':'';
-        return '<label style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--brd);cursor:pointer">'
-          +'<input type="checkbox" id="tab-perm-'+t.key+'" '+chk+' style="width:20px;height:20px;accent-color:#3b82f6;flex-shrink:0">'
-          +'<span style="font-size:.85rem">'+(TABS_LABELS[t.key]||t.key)+'</span></label>';
-      }).join('')+
-      '</div>'+
+      rightsTreeHtml(u, perms)+
       '</div>';
     document.querySelector('#m-confirm .btn.bdan').textContent = '💾 Enregistrer';
     document.querySelector('#m-confirm .btn.bdan').style.background = 'var(--grn)';
     cfCb = function(){
-      var newPerms = {};
-      PERMS_LIST.forEach(function(p){
-        var el = document.getElementById('perm-'+p.key);
-        if(el) newPerms[p.key] = el.checked;
-      });
+      var treePerms = rightsTreeCollect(perms);
       var jt = document.getElementById('perm-jobtitle');
       var jobTitle = jt ? jt.value.trim() : '';
       var newRole = document.getElementById('perm-role');
       var roleVal = newRole ? newRole.value : 'employee';
-      var nT={};
-      TABS_PERMS.forEach(function(t){var el=document.getElementById('tab-perm-'+t.key);if(el)nT['tabs_'+t.key]=el.checked;});
       var isProducerEl = document.getElementById('perm-is-producer');
       var isProducerVal = isProducerEl ? isProducerEl.checked : (roleVal==='employee');
       var poleEl = document.getElementById('perm-pole');
       var poleVal = poleEl ? poleEl.value : 'badges';
-      fbu('users/'+permsUserId,{perms:Object.assign({},newPerms,nT),jobTitle:jobTitle||null,role:roleVal,isProducer:isProducerVal,pole:(poleVal==='numerique'||poleVal==='tous')?poleVal:null,numHelp:(document.getElementById('perm-numhelp')&&document.getElementById('perm-numhelp').checked)?true:null});
+      fbu('users/'+permsUserId,{perms:treePerms,jobTitle:jobTitle||null,role:roleVal,isProducer:isProducerVal,pole:(poleVal==='numerique'||poleVal==='tous')?poleVal:null,numHelp:(document.getElementById('perm-numhelp')&&document.getElementById('perm-numhelp').checked)?true:null});
       // Reset confirm button
       document.querySelector('#m-confirm .btn.bdan').textContent = 'Oui, confirmer';
       document.querySelector('#m-confirm .btn.bdan').style.background = 'var(--red)';
@@ -15361,32 +15537,56 @@ function prodGroupAllowed(){
 // Si l'utilisateur n'a pas le droit Production alors que c'est le groupe affiché, on l'envoie sur le premier groupe auquel il a droit
 // (Tableau de bord s'il y a droit, sinon Stock). Renvoie true si une redirection a eu lieu.
 function redirectIfProductionHidden(){
-  var pb = document.getElementById('grp-production');
   var allowed = prodGroupAllowed();
+  var pb = document.getElementById('grp-production');
   if(pb) pb.style.display = allowed ? '' : 'none';
-  if(allowed || activeGroup !== 'production') return false;
-  var target = null;
-  document.querySelectorAll('.tab-group-btn').forEach(function(b){
-    if(!target && b.id !== 'grp-production' && b.style.display !== 'none') target = b.id.replace('grp-','');
-  });
-  switchGroup(target || 'stock');
-  return true;
-}
-function applyTabPermsGroups(){
-  if(iAm){
-    document.querySelectorAll('.tab-group-btn.ao,.tab-sub-btn.ao').forEach(function(el){ el.style.display=''; });
-    return;
+  // Groupe affiché devenu interdit → premier groupe autorisé
+  var gb = document.getElementById('grp-'+activeGroup);
+  if(gb && gb.style.display === 'none'){
+    var target = null;
+    document.querySelectorAll('.tab-group-btn').forEach(function(b){
+      if(!target && b.style.display !== 'none') target = b.id.replace('grp-','');
+    });
+    switchGroup(target || 'stock');
+    return true;
   }
-  var actionFallback = {reprint:'reprint',maintenance:'maintenance',commandes:'orders',reception:'reception',qualite:'production',depiautage:'production',stats:'stats'};
-  document.querySelectorAll('.tab-group-btn.ao,.tab-sub-btn.ao').forEach(function(el){
-    var oc = el.getAttribute('onclick')||'';
-    var m = oc.match(/'(\w+)'/);
-    if(!m) return;
-    var key = m[1];
-    var perm = me_perms ? me_perms['tabs_'+key] : undefined;
-    var ak = actionFallback[key];
-    var visible = (perm===true) ? true : (perm===false) ? false : (isDir||!!(ak&&me_perms&&me_perms[ak]));
-    el.style.display = visible ? '' : 'none';
+  // Sous-onglet affiché devenu interdit → premier sous-onglet autorisé du groupe
+  var bar = document.getElementById('sub-bar-'+activeGroup);
+  if(bar && bar.style.display !== 'none'){
+    var act = bar.querySelector('.tab-sub-btn.active');
+    if(act && act.style.display === 'none'){
+      var first = null;
+      bar.querySelectorAll('.tab-sub-btn').forEach(function(b){ if(!first && b.style.display !== 'none') first = b; });
+      if(first){
+        var m = (first.getAttribute('onclick')||'').match(/'(\w+)'/);
+        if(m){ switchSubTab(m[1], first); return true; }
+      }
+    }
+  }
+  return false;
+}
+// Applique l'arbre des droits aux boutons de groupes, sous-onglets et sections du Tableau de bord
+function applyTabPermsGroups(){
+  RIGHTS_TREE.forEach(function(top){
+    var gb = document.getElementById('grp-'+top.key);
+    var topOn = iAm || rtTopOn(me_perms, isDir, top);
+    if(gb) gb.style.display = topOn ? '' : 'none';
+    (top.subs||[]).forEach(function(sub){
+      if(sub.btn.indexOf('dash-tab-') === 0) return; // géré par dashApplyRights (pôle numérique)
+      var sb = document.getElementById(sub.btn);
+      if(sb) sb.style.display = (iAm || rtSubOn(me_perms, isDir, sub)) ? '' : 'none';
+    });
+  });
+  try { dashApplyRights(); } catch(e){}
+}
+// Boutons de sections du Tableau de bord : droits + règle du pôle numérique (pas d'Aujourd'hui/Capacité)
+function dashApplyRights(){
+  var numV = (viewPole === 'numerique');
+  ['recherche','synthese','aujourdhui','capacite','sav'].forEach(function(k){
+    var tb = document.getElementById('dash-tab-'+k);
+    if(!tb) return;
+    var hide = !dashSubAllowed(k) || (numV && (k === 'aujourdhui' || k === 'capacite'));
+    tb.style.display = hide ? 'none' : '';
   });
 }
 
@@ -21946,8 +22146,17 @@ function openDashboardTab(){
 function dashSwitchSection(name){
   // Pôle numérique : pas de « Aujourd'hui » ni « Capacité » (postes et capacité badges)
   var numV = (viewPole === 'numerique');
-  ['aujourdhui','capacite'].forEach(function(k){ var tb = document.getElementById('dash-tab-'+k); if(tb) tb.style.display = numV ? 'none' : ''; });
+  dashApplyRights();
   if(numV && (name === 'aujourdhui' || name === 'capacite')) name = 'synthese';
+  // Section interdite par les droits → première section autorisée
+  if(!dashSubAllowed(name) || (numV && (name === 'aujourdhui' || name === 'capacite'))){
+    var okName = null;
+    ['recherche','synthese','sav','aujourdhui','capacite'].forEach(function(k){
+      if(okName) return;
+      if(dashSubAllowed(k) && !(numV && (k === 'aujourdhui' || k === 'capacite'))) okName = k;
+    });
+    name = okName || name;
+  }
   ['synthese','aujourdhui','capacite','recherche','sav'].forEach(function(k){
     var panel = document.getElementById('dash-panel-'+k);
     var btn = document.getElementById('dash-tab-'+k);
