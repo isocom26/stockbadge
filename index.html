@@ -2015,7 +2015,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.11.05-1105';
+var APP_VERSION = '2026.11.05-1115';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -2926,6 +2926,8 @@ function ecranAutoOpen(tries){
 // Pas de correctif technique invisible ici. tag = qui est concerné :
 //   'all' (tout le monde), 'admin' (admin/direction), 'maint' (maintenance), 'stock' (ajout de stock), 'reprint' (réimpressions)
 var NEWS = [
+  {n:46, d:'05/11/2026', tag:'admin', t:'🖨️ Pôle numérique : maintenance, réunion et inventaire', x:'Quand le pôle numérique est activé (Admin › Pôle numérique), il a ses propres onglets : Maintenance (presses, plotters et traceurs, imprimantes sublimation, machines diverses), Réunions (production de sublimation, stocks, parc machine, PDF séparé) et Inventaire (Sublimation, Roll up, Tote bags). L\'admin, la direction et les utilisateurs « Tous » basculent Badges / Numérique en haut de chaque onglet. Un producteur badges peut dépanner sur le numérique avec le droit « Dépannage numérique » (bouton dans l\'en-tête). Les commandes mixtes ne sont terminées qu\'une fois les deux pôles produits.'},
+  {n:45, d:'05/11/2026', tag:'dashboard', t:'📥 Import des expéditions du soir', x:'Tableau de bord › Commandes › Importer les expéditions : on ajoute les fichiers EBP, Chronopost et Colissimo un par un (ou par glisser-déposer). Chaque colis est relié à sa commande, avec une proposition d\'après le nom du client quand la référence manque ; rien n\'est enregistré sans validation. Les colis sans commande vont dans « Colis à rattacher » (ou « hors production » pour la sous-traitance).'},
   {n:44, d:'03/11/2026', tag:'dashboard', t:'📮 Suivi d\'expédition : colis à confirmer', x:'Sur la fiche d\'une commande (Tableau de bord › Commandes), on peut ajouter un ou plusieurs colis (transporteur + n° de suivi). La commande passe « À confirmer » : les personnes concernées reçoivent un bandeau et une pastille « CONF » sur le Tableau de bord (et un nombre sur Commandes), puis cliquent « Confirmé » après avoir envoyé le mail. Les pastilles SAV sont désormais séparées (« SAV », et un nombre sur le sous-onglet SAV). Les droits se règlent dans Admin › Droits, la liste des transporteurs dans Admin › Réglages.'},
   {n:43, d:'28/10/2026', tag:'all', t:'Stock : références ISOCOM et fournisseur', x:'Chaque fourniture peut maintenant afficher sa référence ISOCOM, son fournisseur et sa référence fournisseur sous son nom. L\'admin les renseigne avec le crayon ✏️ du composant.'},
   {n:39, d:'28/10/2026', tag:'dashboard', t:'Stats : les pièces produites en table seule sont comptées', x:'Les pièces des formats produits uniquement en table (gamme « Table seule », ex. porte-clés) entrent maintenant dans le total produit, les stats par format, site, semaine et producteur. Les repassages semi-auto vers table restent comptés une seule fois. Sous « Répartition par machine », la table indique « dont X pcs repassées ».'},
