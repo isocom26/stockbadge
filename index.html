@@ -646,7 +646,7 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
   <button class="tab-sub-btn ao" id="sub-journal" style="display:none" onclick="switchSubTab('journal',this)">📋 Journal</button>
 </div>
 <div class="tab-sub-bar" id="sub-bar-production">
-  <button class="tab-sub-btn active" id="sub-report" onclick="switchSubTab('report',this)">📋 Rapport</button>
+  <button class="tab-sub-btn active" id="sub-report" onclick="switchSubTab('report',this)">📋 Ma production</button>
   <button class="tab-sub-btn" id="sub-depiautage" onclick="switchSubTab('depiautage',this)">✂️ Dépiautage</button>
   <button class="tab-sub-btn" id="sub-reprint" onclick="switchSubTab('reprint',this)">🖨️ Réimp.</button>
   <button class="tab-sub-btn" id="sub-qualite" onclick="switchSubTab('qualite',this)">🔍 Contrôle Qualité</button>
@@ -1375,8 +1375,8 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
 
   <!-- Règles de quantité (interrupteur) -->
   <div id="admin-qty-block" style="background:var(--card);border:1.5px solid var(--brd);border-radius:14px;padding:14px;margin-bottom:16px">
-    <div style="font-family:Open Sans,sans-serif;font-weight:800;font-size:0.95rem;margin-bottom:6px">📏 Règles de quantité (Rapport)</div>
-    <div style="font-size:.78rem;color:var(--mut);margin-bottom:10px">Activées : on choisit la commande dans la liste, la quantité se saisit en appuyant sur « Terminer » et ne peut pas dépasser le reste à produire ; une commande n'est « Terminée » que si tous ses formats sont à 100 %, sans ligne en cours ni réimpression ouverte. Désactivées : le Rapport fonctionne comme avant. Interrupteur de sécurité, effet immédiat pour tout le monde.</div>
+    <div style="font-family:Open Sans,sans-serif;font-weight:800;font-size:0.95rem;margin-bottom:6px">📏 Règles de quantité (Ma production)</div>
+    <div style="font-size:.78rem;color:var(--mut);margin-bottom:10px">Activées : on choisit la commande dans la liste, la quantité se saisit en appuyant sur « Terminer » et ne peut pas dépasser le reste à produire ; une commande n'est « Terminée » que si tous ses formats sont à 100 %, sans ligne en cours ni réimpression ouverte. Désactivées : Ma production fonctionne comme avant. Interrupteur de sécurité, effet immédiat pour tout le monde.</div>
     <div id="admin-qty-state"></div>
   </div>
 
@@ -1400,7 +1400,7 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
 
   <div id="admin-esup-block" style="background:var(--card);border:1.5px solid var(--brd);border-radius:14px;padding:14px;margin-bottom:16px">
     <div style="font-family:Open Sans,sans-serif;font-weight:800;font-size:0.95rem;margin-bottom:6px">📦 Étapes supplémentaires</div>
-    <div style="font-size:.78rem;color:var(--mut);margin-bottom:10px">Actions faites en plus de la fabrication (mise sur cartonnette, sachet…). Elles se demandent par commande dans Dépiautage, se saisissent dans le Rapport, et ne sont jamais comptées dans la production. Une étape désactivée n'est plus proposée mais reste lisible sur les commandes qui l'utilisent déjà.</div>
+    <div style="font-size:.78rem;color:var(--mut);margin-bottom:10px">Actions faites en plus de la fabrication (mise sur cartonnette, sachet…). Elles se demandent par commande dans Dépiautage, se saisissent dans Ma production, et ne sont jamais comptées dans la production. Une étape désactivée n'est plus proposée mais reste lisible sur les commandes qui l'utilisent déjà.</div>
     <div id="admin-esup-list"></div>
     <div style="display:flex;gap:8px;margin-top:10px">
       <input type="text" id="admin-esup-inp" placeholder="Nouvelle étape (ex. Étiquetage)" maxlength="40" style="flex:1;min-width:0;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.85rem;padding:8px 10px;outline:none">
@@ -2015,7 +2015,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.11.05-1400';
+var APP_VERSION = '2026.11.05-1420';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -2953,6 +2953,7 @@ function ecranAutoOpen(tries){
 // Pas de correctif technique invisible ici. tag = qui est concerné :
 //   'all' (tout le monde), 'admin' (admin/direction), 'maint' (maintenance), 'stock' (ajout de stock), 'reprint' (réimpressions)
 var NEWS = [
+  {n:48, d:'05/11/2026', tag:'all', t:'« Rapport » devient « Ma production »', x:'L\'onglet Rapport s\'appelle maintenant « Ma production » (mêmes fonctions), et les messages qui le citent aussi. Dans le Tableau de bord, l\'administrateur apparaît sous le nom « ALEX » pour tout le monde. Le Tableau de bord s\'ouvre aussi sur « Commandes » en premier.'},
   {n:47, d:'05/11/2026', tag:'all', t:'Pôle numérique : commandes partagées plus fiables', x:'Dépiautage : sur une commande partagée (badges + numérique), les formats de l\'autre pôle sont affichés en grisé dans un cadre, pour comparer avec le bon de commande (à l\'ajout et dans la liste). Admin › Pôle numérique : on peut choisir la date à partir de laquelle le contrôle qualité numérique est exigé. Une commande « Terminée » trop tôt alors que le numérique n\'était pas produit repasse « En cours », et le bandeau « Départ bloqué » ne réclame plus de contrôle pour les commandes plus anciennes que cette date.'},
   {n:46, d:'05/11/2026', tag:'admin', t:'🖨️ Pôle numérique : maintenance, réunion et inventaire', x:'Quand le pôle numérique est activé (Admin › Pôle numérique), il a ses propres onglets : Maintenance (presses, plotters et traceurs, imprimantes sublimation, machines diverses), Réunions (production de sublimation, stocks, parc machine, PDF séparé) et Inventaire (Sublimation, Roll up, Tote bags). L\'admin, la direction et les utilisateurs « Tous » basculent Badges / Numérique en haut de chaque onglet. Un producteur badges peut dépanner sur le numérique avec le droit « Dépannage numérique » (bouton dans l\'en-tête). Les commandes mixtes ne sont terminées qu\'une fois les deux pôles produits.'},
   {n:45, d:'05/11/2026', tag:'dashboard', t:'📥 Import des expéditions du soir', x:'Tableau de bord › Commandes › Importer les expéditions : on ajoute les fichiers EBP, Chronopost et Colissimo un par un (ou par glisser-déposer). Chaque colis est relié à sa commande, avec une proposition d\'après le nom du client quand la référence manque ; rien n\'est enregistré sans validation. Les colis sans commande vont dans « Colis à rattacher » (ou « hors production » pour la sous-traitance).'},
@@ -3310,6 +3311,13 @@ function applyTabPerms(){
 }
 
 
+// Nom affiché d'un collaborateur : l'administrateur apparaît « ALEX » pour tout le monde (sa fiche porte le nom « Admin »)
+function userDispName(u, uid){
+  u = u || {};
+  if(me && uid && uid === me.uid && iAm) return getMyName();
+  if(u.role === 'admin' || (typeof isAdminEmail === 'function' && isAdminEmail(u.email))) return 'ALEX';
+  return u.name || u.email || uid || '?';
+}
 function getMyName(){
   if(iAm) return 'ALEX';
   return me ? (me.displayName || me.email.split('@')[0]) : '—';
@@ -6026,7 +6034,7 @@ function doSearchCommands(q, el){
       var u = users[uid];
       if(u.role === 'admin' || isAdminEmail(u.email)){
         promises.push(fbg('reports_admin/'+uid).then(function(snap){
-          return {uid:uid+'_adm', name:(me&&uid===me.uid?getMyName():(u.name||u.email||'Admin')), data:snap.val()||{}};
+          return {uid:uid+'_adm', name:userDispName(u, uid), data:snap.val()||{}};
         }));
       }
     });
@@ -9023,7 +9031,7 @@ var PERMS_LIST = [
   {key:'reprint',     label:'🖨️ Peut valider les réimpressions'},
   {key:'orders',      label:'🛒 Peut créer des commandes'},
   {key:'reception',   label:'📬 Peut valider les réceptions'},
-  {key:'production',  label:'📋 Remplit le rapport hebdomadaire (production)'},
+  {key:'production',  label:'📋 Remplit Ma production (rapport hebdomadaire)'},
   {key:'sav',         label:'🛠 Peut déclarer un SAV (Tableau de bord)'},
   {key:'maintNotif',  label:'🔔 Reçoit les notifications de maintenance (rappels à faire, 1 message groupé par jour)'},
   {key:'savAlert',   label:'🔔 Reçoit les alertes SAV (bandeau + pastille quand un SAV est déclaré) — admin les reçoit toujours'},
@@ -10842,7 +10850,7 @@ function openReportTab(){
   if(!canFillReport()){
     document.getElementById('rpt-emp-select-wrap').innerHTML = '';
     document.getElementById('rpt-days').innerHTML =
-      '<div class="empty"><div class="e">🔒</div><p>Vous n\'avez pas le droit de remplir le rapport de production.<br>Contactez l\'admin si besoin.</p></div>';
+      '<div class="empty"><div class="e">🔒</div><p>Vous n\'avez pas le droit de remplir Ma production.<br>Contactez l\'admin si besoin.</p></div>';
     document.getElementById('rpt-totals').innerHTML = '';
     document.querySelector('.rpt-nav').style.display = 'none';
     return;
@@ -11359,7 +11367,7 @@ function rptMarkLineDone(wk, di, hi, sec, btn, fullLi){
               return {uid:auid+'_adm', name:aname,
                       path:'reports_admin/'+auid, data:snap.val()||{}};
             }));
-          })(uid, (me&&uid===me.uid?getMyName():(u.name||u.email||'Admin')));
+          })(uid, userDispName(u, uid));
         }
       });
 
@@ -14631,7 +14639,7 @@ function renderQualite(){
       var u = users[uid];
       if(u.role === 'admin' || isAdminEmail(u.email)){
         promises.push(fbg('reports_admin/'+uid).then(function(snap){
-          return {uid:uid+'_adm', name:(me&&uid===me.uid?getMyName():(u.name||u.email||'Admin')), data:snap.val()||{}};
+          return {uid:uid+'_adm', name:userDispName(u, uid), data:snap.val()||{}};
         }));
       }
     });
@@ -17115,7 +17123,7 @@ function esupOpenActivate(cmdId, key){
   if(!Array.isArray(fmts)) fmts = Object.keys(fmts).map(function(i){ return fmts[i]; });
   fmts = fmts.filter(function(f){ return f && (!f.pole||f.pole==='badges') && (parseInt(f.qty)||0)>0; });
   if(!fmts.length){ toast('Cette commande n\'a pas de format badges quantifié', 1); return; }
-  var html = '<div style="font-size:.84rem;color:var(--mut);margin-bottom:10px">Cette commande demande : <strong style="color:var(--txt)">'+esc(esupInfo(key).label)+'</strong>. Le producteur pourra la saisir dans son rapport.</div>';
+  var html = '<div style="font-size:.84rem;color:var(--mut);margin-bottom:10px">Cette commande demande : <strong style="color:var(--txt)">'+esc(esupInfo(key).label)+'</strong>. Le producteur pourra la saisir dans Ma production.</div>';
   if(fmts.length > 1){
     html += '<div style="font-size:.78rem;font-weight:800;margin-bottom:4px">Formats concernés</div>'+
       fmts.map(function(f,i){
@@ -18982,7 +18990,7 @@ function loadStatsNum(){
   fbg('users').then(function(us){
     var users = us.val() || {}, ps = [];
     Object.keys(users).forEach(function(uid){
-      var u = users[uid] || {}, nm = u.name || u.email || '?';
+      var u = users[uid] || {}, nm = userDispName(u, uid);
       ps.push(fbgRange('reports/'+uid, qFrom, '9999-99-99').then(function(s){ return {name:nm, data:s.val()||{}}; }));
       if(u.role === 'admin' || isAdminEmail(u.email)) ps.push(fbgRange('reports_admin/'+uid, qFrom, '9999-99-99').then(function(s){ return {name:nm, data:s.val()||{}}; }));
     });
@@ -19165,7 +19173,7 @@ function loadStats(){
                 var fmt = (l.format||'').trim().toUpperCase();
                 var site = (l.site||'').trim().toUpperCase();
                 // Détail conservé pour le clic sur une barre du graphique "Production par jour"
-                (dayLines[dayKey] = dayLines[dayKey] || []).push({who:(u.name||u.email||'?'), admin:(u.role==='admin'), site:site, cmd:(l.cmd||''), format:fmt, qty:qty, sec:sec, hi:hi, startedAt:(l.startedAt||null), doneAt:(l.doneAt||null)});
+                (dayLines[dayKey] = dayLines[dayKey] || []).push({who:userDispName(u, r.uid), admin:(u.role==='admin'), site:site, cmd:(l.cmd||''), format:fmt, qty:qty, sec:sec, hi:hi, startedAt:(l.startedAt||null), doneAt:(l.doneAt||null)});
 
                 // CQ
                 var cq = l.cq||'pending';
@@ -21471,14 +21479,14 @@ function dashFetchAllReports(users){
   var reportPromises = [];
   Object.keys(users).forEach(function(uid){
     reportPromises.push(fbg('reports/'+uid).then(function(snap){
-      return {name: users[uid].name||users[uid].email||uid, data: snap.val()||{}, source:'reports'};
+      return {name: userDispName(users[uid], uid), data: snap.val()||{}, source:'reports'};
     }));
   });
   Object.keys(users).forEach(function(uid){
     var u = users[uid];
     if(u.role === 'admin' || isAdminEmail(u.email)){
       reportPromises.push(fbg('reports_admin/'+uid).then(function(snap){
-        return {name: (me&&uid===me.uid?getMyName():(u.name||u.email||'Admin')), data: snap.val()||{}, source:'reports_admin'};
+        return {name: userDispName(u, uid), data: snap.val()||{}, source:'reports_admin'};
       }));
     }
   });
