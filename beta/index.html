@@ -468,6 +468,8 @@ body.dash-commandes-wide main{max-width:1500px}
 .maint-sub-btn{padding:7px 14px;border-radius:8px;border:1.5px solid var(--brd);background:none;color:var(--mut);font-family:Open Sans,sans-serif;font-weight:700;font-size:0.84rem;cursor:pointer;white-space:nowrap;transition:all .15s}
 .maint-sub-btn.active{background:var(--acc);color:#000;border-color:var(--acc)}
 .maint-sub-btn:hover:not(.active){background:var(--card);color:var(--txt)}
+.mpole-btn{flex:1;padding:7px 10px;border-radius:8px;border:1.5px solid var(--brd);background:none;color:var(--mut);font-family:Open Sans,sans-serif;font-weight:700;font-size:.82rem;cursor:pointer}
+.mpole-btn.active{background:var(--acc);color:#000;border-color:var(--acc)}
 .scan-planche-btn{width:100%;padding:9px;border-radius:8px;border:1.5px dashed var(--acc);background:rgba(217,119,6,.08);color:var(--acc);font-family:Open Sans,sans-serif;font-weight:700;font-size:0.84rem;cursor:pointer;margin-bottom:10px;transition:all .15s}
 .scan-planche-btn:hover{background:rgba(217,119,6,.18)}
 .scan-result-card{background:var(--card);border:1.5px solid var(--brd);border-radius:10px;padding:12px;margin-bottom:8px}
@@ -922,6 +924,11 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
   <button class="btn bsuc" style="width:100%;margin-top:16px" onclick="mtgExportPDF()">📥 Télécharger le PDF de la réunion</button>
 </div>
 <div id="view-maintenance" class="view">
+  <!-- Pôle affiché (admin / direction / comptes « Tous » seulement) -->
+  <div id="maint-pole-switch" style="display:none;gap:6px;margin-bottom:10px">
+    <button class="mpole-btn active" id="mpole-badges" onclick="maintSetPole('badges')">🏷️ Badges</button>
+    <button class="mpole-btn" id="mpole-numerique" onclick="maintSetPole('numerique')">🖨️ Numérique</button>
+  </div>
   <!-- Sous-onglets Maintenance -->
   <div style="display:flex;gap:6px;margin-bottom:14px;overflow-x:auto;padding-bottom:4px">
     <button class="maint-sub-btn active" id="msub-auto" onclick="switchMaintSub('auto',this)">⚙️ Automatiques</button>
@@ -929,6 +936,10 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
     <button class="maint-sub-btn" id="msub-manual" onclick="switchMaintSub('manual',this)">🪑 Manuelles</button>
     <button class="maint-sub-btn" id="msub-plateaux" onclick="switchMaintSub('plateaux',this)">🔩 Plateaux</button>
     <button class="maint-sub-btn" id="msub-divers" onclick="switchMaintSub('divers',this)">🧰 Machines diverses</button>
+    <button class="maint-sub-btn" id="msub-presse" style="display:none" onclick="switchMaintSub('presse',this)">♨️ Presses</button>
+    <button class="maint-sub-btn" id="msub-plotter" style="display:none" onclick="switchMaintSub('plotter',this)">📐 Plotters et traceurs</button>
+    <button class="maint-sub-btn" id="msub-imprimante" style="display:none" onclick="switchMaintSub('imprimante',this)">🖨️ Imprimantes sublimation</button>
+    <button class="maint-sub-btn" id="msub-num_divers" style="display:none" onclick="switchMaintSub('num_divers',this)">🧰 Machines diverses</button>
   </div>
   <!-- Bouton intervention groupée -->
   <div id="maint-group-block" style="background:var(--card);border:1.5px solid var(--brd);border-radius:14px;padding:14px;margin-bottom:14px;display:none">
@@ -2002,7 +2013,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.11.05-0946';
+var APP_VERSION = '2026.11.05-1018';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -2585,8 +2596,8 @@ function polesSync(cmdId){
 function applyPoleMenus(){
   try { stockApplyPole(); } catch(e){}   // catégories/commandes de stock selon le pôle affiché (aussi au démarrage)
   var num = (viewPole === 'numerique');
-  // Pôle numérique : pas de maintenance, réunion, réimpression.
-  ['grp-maintenance','grp-meeting'].forEach(function(id){
+  // Pôle numérique : maintenance propre au pôle ; pas de réunion (pour l'instant) ni de réimpression.
+  ['grp-meeting'].forEach(function(id){
     var el = document.getElementById(id);
     if(el && num) el.style.display = 'none';   // (re)montrés par applyTabPerms selon les droits
   });
@@ -2600,7 +2611,7 @@ function applyPoleMenus(){
   try { updateInventaireBadge(); } catch(e){}
   var rp = document.getElementById('sub-reprint');
   if(rp) rp.style.display = num ? 'none' : '';
-  if(num && (['maintenance','meeting'].indexOf(activeGroup) >= 0 || activeSubTab === 'reprint' || activeSubTab === 'inventaire')){
+  if(num && (['meeting'].indexOf(activeGroup) >= 0 || activeSubTab === 'reprint' || activeSubTab === 'inventaire')){
     switchGroup('production');
   }
   var sel = document.getElementById('pole-sel');
@@ -2635,6 +2646,7 @@ function setViewPole(v){
     _viewPoleMem = v;
     try { localStorage.setItem(POLE_VIEW_KEY, v); } catch(e){}
   }
+  _maintPoleSel = '';
   computeViewPole();
   refreshPoleUI();
   try { if(curTab) switchTab(curTab); } catch(e){}
@@ -12259,7 +12271,7 @@ function mtgNotOrderedAlertsText(){
   return lines.join('\n');
 }
 
-function mtgMachineWeekSummary(machinesRaw, forPdf){
+function mtgMachineWeekSummary(machinesRaw, forPdf, pole){
   var wkStart = mtgWeekStart.getTime();
   var wkEnd = new Date(mtgWeekStart); wkEnd.setDate(wkEnd.getDate()+5); // through end of Friday
   wkEnd = wkEnd.getTime();
@@ -12269,6 +12281,7 @@ function mtgMachineWeekSummary(machinesRaw, forPdf){
   var lines = [];
   Object.keys(machinesRaw).forEach(function(mid){
     var m = machinesRaw[mid];
+    if(machPole(m) !== (pole || 'badges')) return;
     var interventions = m.interventions || {};
     var weekIvs = Object.keys(interventions)
       .map(function(k){ return interventions[k]; })
@@ -12530,7 +12543,36 @@ var MACH_TYPES = {
   semi:    {label:'Semi-auto',     icon:'🔧'},
   manual:  {label:'Manuelles',     icon:'🪑'},
   divers:  {label:'Machines diverses', icon:'🧰'},
+  // Pôle numérique (le pôle d'une machine se déduit de son type : les machines badges existantes ne changent pas)
+  presse:      {label:'Presses (mugs, shooters, textile, casquettes)', icon:'♨️', pole:'numerique'},
+  plotter:     {label:'Plotters et traceurs', icon:'📐', pole:'numerique'},
+  imprimante:  {label:'Imprimantes sublimation', icon:'🖨️', pole:'numerique'},
+  num_divers:  {label:'Machines diverses (numérique)', icon:'🧰', pole:'numerique'},
 };
+var MAINT_SUBS = {badges:['auto','semi','manual','plateaux','divers'], numerique:['presse','plotter','imprimante','num_divers']};
+function machPole(m){ var t = MACH_TYPES[(m && m.type) || 'semi']; return (t && t.pole) || 'badges'; }
+// Pôle affiché dans l'onglet Maintenance : suit la vue du pôle ; admin / direction / « Tous » peuvent basculer sur place
+var _maintPoleSel = '';
+function maintPole(){
+  if(poleCanSwitch() && _maintPoleSel) return _maintPoleSel;
+  return viewPole === 'numerique' ? 'numerique' : 'badges';
+}
+function maintApplyPole(){
+  var p = maintPole();
+  Object.keys(MAINT_SUBS).forEach(function(k){
+    MAINT_SUBS[k].forEach(function(sub){ var b = document.getElementById('msub-'+sub); if(b) b.style.display = (k === p) ? '' : 'none'; });
+  });
+  if(MAINT_SUBS[p].indexOf(curMaintSub) < 0) curMaintSub = MAINT_SUBS[p][0];
+  var sw = document.getElementById('maint-pole-switch'); if(sw) sw.style.display = poleCanSwitch() ? 'flex' : 'none';
+  ['badges', 'numerique'].forEach(function(k){ var b = document.getElementById('mpole-'+k); if(b) b.classList.toggle('active', k === p); });
+}
+function maintSetPole(p){
+  if(!poleCanSwitch() || (p !== 'badges' && p !== 'numerique')) return;
+  _maintPoleSel = p;
+  maintApplyPole();
+  closeGroupInterv();
+  switchMaintSub(curMaintSub, null);
+}
 
 var INTERV_STATUSES = {
   ok:                    {label:'En service',                    cls:'maint-ok',      color:'var(--grn)'},
@@ -12590,7 +12632,7 @@ function renderMaintList(){
   }
 
   if(!filtered.length){
-    el.innerHTML += '<div class="empty"><div class="e">🔩</div><p>'+(curMaintSub==='divers'?'Aucune machine diverse (sécheur, compresseur…).':'Aucune machine '+(MACH_TYPES[curMaintSub]||{label:''}).label+'.')+'<br>'+(can?'Appuyez sur <strong>+</strong> pour en ajouter.':'')+'</p></div>';
+    el.innerHTML += '<div class="empty"><div class="e">🔩</div><p>'+(curMaintSub==='divers'?'Aucune machine diverse (sécheur, compresseur…).':(curMaintSub==='num_divers'?'Aucune machine diverse.':'Aucune machine '+(MACH_TYPES[curMaintSub]||{label:''}).label+'.'))+'<br>'+(can?'Appuyez sur <strong>+</strong> pour en ajouter.':'')+'</p></div>';
     return;
   }
 
@@ -12835,10 +12877,11 @@ function openEditMach(){
     '<input type="text" id="edit-mach-name" value="'+esc(m.name)+'" style="width:100%;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.88rem;padding:9px;outline:none;margin-top:4px;box-sizing:border-box"></div>'+
     '<div class="ff" style="margin-bottom:8px"><label>Type de machine</label>'+
     '<select id="edit-mach-type" style="width:100%;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.88rem;padding:9px;outline:none;margin-top:4px">'+
+      (machPole(m) === 'numerique' ? machNumTypeOptions(m.type) :
       '<option value="auto"'+(m.type==='auto'?' selected':'')+'>⚙️ Automatique</option>'+
       '<option value="semi"'+(m.type==='semi'?' selected':'')+'>🔧 Semi-automatique</option>'+
       '<option value="manual"'+(m.type==='manual'?' selected':'')+'>🪑 Manuelle</option>'+
-      '<option value="divers"'+(m.type==='divers'?' selected':'')+'>🧰 Machine diverse</option>'+
+      '<option value="divers"'+(m.type==='divers'?' selected':'')+'>🧰 Machine diverse</option>')+
     '</select></div>'+
     '<div class="ff" style="margin-bottom:8px"><label>N° de série fabricant</label>'+
     '<input type="text" id="edit-mach-serial" value="'+(m.serialNumber||'')+'" placeholder="Ex: SN-2024-00123" style="width:100%;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.88rem;padding:9px;outline:none;margin-top:4px;box-sizing:border-box"></div>'+
@@ -12877,19 +12920,28 @@ function getMach(mid){ return S_mach.find(function(m){ return m.id===mid; })||nu
 
 // Devine la machine de l'appli correspondant à une machine de l'Excel (renvoie un id ou '')
 // Lignes pas encore importées (une ligne déjà présente sous son identifiant dans une machine est écartée)
+// Options de type des machines du pôle numérique (sélection : type courant ou sous-onglet affiché)
+function machNumTypeOptions(sel){
+  return MAINT_SUBS.numerique.map(function(k){
+    var t = MACH_TYPES[k];
+    return '<option value="'+k+'"'+(k === sel ? ' selected' : '')+'>'+t.icon+' '+t.label+'</option>';
+  }).join('');
+}
 // ── Créer machine (bouton FAB) ──
 function openCreateMach(){
-  document.getElementById('cf-title').textContent = '🔧 Nouvelle machine';
+  var numNew = (maintPole() === 'numerique');
+  document.getElementById('cf-title').textContent = numNew ? '🔧 Nouvelle machine (numérique)' : '🔧 Nouvelle machine';
   document.getElementById('cf-msg').innerHTML =
     '<div style="text-align:left">'+
     '<div class="ff" style="margin-bottom:8px"><label>Nom *</label>'+
     '<input type="text" id="new-mach-name" placeholder="Ex: Machine N°1" style="width:100%;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.88rem;padding:9px;outline:none;margin-top:4px;box-sizing:border-box"></div>'+
     '<div class="ff" style="margin-bottom:8px"><label>Type *</label>'+
     '<select id="new-mach-type" style="width:100%;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.88rem;padding:9px;outline:none;margin-top:4px">'+
+      (numNew ? machNumTypeOptions(curMaintSub) :
       '<option value="auto">⚙️ Automatique</option>'+
       '<option value="semi">🔧 Semi-automatique</option>'+
       '<option value="manual">🪑 Manuelle</option>'+
-      '<option value="divers">🧰 Machine diverse (sécheur, compresseur…)</option>'+
+      '<option value="divers">🧰 Machine diverse (sécheur, compresseur…)</option>')+
     '</select></div>'+
     '<div class="ff" style="margin-bottom:8px"><label>N° de série fabricant</label>'+
     '<input type="text" id="new-mach-serial" placeholder="Ex: SN-2024-00123" style="width:100%;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.88rem;padding:9px;outline:none;margin-top:4px;box-sizing:border-box"></div>'+
@@ -13892,10 +13944,32 @@ function countPlateauxDue(){
 function updateMaintBadge(){
   updateMaintBadgeAll();
 }
+// Nombre de rappels / pannes par sous-onglet (tous pôles) ; le total de l'onglet et les notifications ne comptent que les pôles visibles
+function maintCountsAll(){
+  return {
+    auto:     countMachDue('auto'),
+    semi:     countMachDue('semi'),
+    manual:   countMachDue('manual'),
+    plateaux: countPlateauxDue(),
+    divers:   countMachDue('divers'),
+    presse:      countMachDue('presse'),
+    plotter:     countMachDue('plotter'),
+    imprimante:  countMachDue('imprimante'),
+    num_divers:  countMachDue('num_divers')
+  };
+}
+function maintVisibleCounts(all){
+  all = all || maintCountsAll();
+  var keys = (viewPole === 'numerique' ? [] : MAINT_SUBS.badges).concat(viewPole === 'badges' ? [] : MAINT_SUBS.numerique), out = {};
+  keys.forEach(function(k){ out[k] = all[k] || 0; });
+  return out;
+}
 
+var _platBadgeTried = false;
 function updateMaintBadgeAll(){
   // Si S_plateaux pas encore chargé, recharger depuis Firebase
-  if(!S_plateaux.length){
+  if(!S_plateaux.length && !_platBadgeTried){
+    _platBadgeTried = true;   // un seul essai : sans plateau en base, on ne reboucle pas indéfiniment
     fbg('plateaux').then(function(snap){
       var raw = snap.val()||{};
       S_plateaux = Object.keys(raw).map(function(id){ return Object.assign({id:id},raw[id]); });
@@ -13903,15 +13977,9 @@ function updateMaintBadgeAll(){
     });
     return;
   }
-  var counts = {
-    auto:     countMachDue('auto'),
-    semi:     countMachDue('semi'),
-    manual:   countMachDue('manual'),
-    plateaux: countPlateauxDue(),
-    divers:   countMachDue('divers')
-  };
-  var total = counts.auto + counts.semi + counts.manual + counts.plateaux + counts.divers;
-  maintNotifCheck({semi:counts.semi, auto:counts.auto, manual:counts.manual, plateaux:counts.plateaux, divers:counts.divers});
+  var counts = maintCountsAll(), vis = maintVisibleCounts(counts);
+  var total = Object.keys(vis).reduce(function(a, k){ return a + vis[k]; }, 0);
+  maintNotifCheck(vis);
 
   // Badge sur l'onglet Maintenance
   var btn = document.getElementById('grp-maintenance');
@@ -13926,7 +13994,8 @@ function updateMaintBadgeAll(){
   }
 
   // Badges sur les sous-onglets
-  [['auto','⚙️ Automatiques'],['semi','🔧 Semi-auto'],['manual','🪑 Manuelles'],['plateaux','🔩 Plateaux'],['divers','🧰 Machines diverses']].forEach(function(row){
+  [['auto','⚙️ Automatiques'],['semi','🔧 Semi-auto'],['manual','🪑 Manuelles'],['plateaux','🔩 Plateaux'],['divers','🧰 Machines diverses'],
+   ['presse','♨️ Presses'],['plotter','📐 Plotters et traceurs'],['imprimante','🖨️ Imprimantes sublimation'],['num_divers','🧰 Machines diverses']].forEach(function(row){
     var subBtn = document.getElementById('msub-'+row[0]);
     if(!subBtn) return;
     var c = counts[row[0]];
@@ -13944,9 +14013,7 @@ var MAINT_NOTIF_HOUR = 8;
 function maintNotifEnabled(){
   return !!(me && permsLoaded && me_perms && me_perms.maintNotif === true);
 }
-function maintNotifCounts(){
-  return {semi:countMachDue('semi'), auto:countMachDue('auto'), manual:countMachDue('manual'), plateaux:countPlateauxDue(), divers:countMachDue('divers')};
-}
+function maintNotifCounts(){ return maintVisibleCounts(); }
 function maintNotifText(c){
   var parts = [];
   if(c.semi) parts.push(c.semi+' semi-auto');
@@ -13954,6 +14021,10 @@ function maintNotifText(c){
   if(c.manual) parts.push(c.manual+' manuelle'+(c.manual>1?'s':''));
   if(c.plateaux) parts.push(c.plateaux+' plateau'+(c.plateaux>1?'x':''));
   if(c.divers) parts.push(c.divers+' divers');
+  if(c.presse) parts.push(c.presse+' presse'+(c.presse>1?'s':''));
+  if(c.plotter) parts.push(c.plotter+' plotter'+(c.plotter>1?'s':''));
+  if(c.imprimante) parts.push(c.imprimante+' imprimante'+(c.imprimante>1?'s':''));
+  if(c.num_divers) parts.push(c.num_divers+' divers (numérique)');
   return parts.join(' · ');
 }
 function maintNotifCheck(counts){
@@ -13963,7 +14034,7 @@ function maintNotifCheck(counts){
     var now = new Date();
     if(now.getHours() < MAINT_NOTIF_HOUR) return;
     counts = counts || maintNotifCounts();
-    var total = (counts.semi||0)+(counts.auto||0)+(counts.manual||0)+(counts.plateaux||0)+(counts.divers||0);
+    var total = Object.keys(counts).reduce(function(a, k){ return a + (counts[k]||0); }, 0);
     var day = now.getFullYear()+'-'+('0'+(now.getMonth()+1)).slice(-2)+'-'+('0'+now.getDate()).slice(-2);
     var key = 'sb_maint_notif_'+me.uid, st = null;
     try{ st = JSON.parse(localStorage.getItem(key)||'null'); }catch(e){}
@@ -14002,6 +14073,7 @@ function maintNotifAsk(){
 
 // ── openMaintTab ──
 function openMaintTab(){
+  maintApplyPole();
   switchMaintSub(curMaintSub, document.getElementById('msub-'+curMaintSub));
 }
 function canAddStock(){
@@ -17224,7 +17296,7 @@ function ecranRender(){
   side += '<div class="ec-panel"><div class="ec-ph"><span>🚚 Départs</span><small>aujourd\'hui · '+ecranDateLabel(P.nextKey)+'</small></div>'+
     '<div class="ec-mini"><span>Aujourd\'hui : <b>'+P.depT.length+'</b></span><span>'+ecranDateLabel(P.nextKey)+' : <b>'+P.depN.length+'</b></span></div>'+
     mini(P.depT, function(c){ return '<div class="ec-mini"><span>'+ecranCmdName(c)+'</span><span>'+P.qtyOf(c).toLocaleString('fr-FR')+'</span></div>'; }, '', 3)+'</div>';
-  var X = ecranExtraPure(S.cats, S.orders, S_mach, ALERT_SEEN, now);
+  var X = ecranExtraPure(S.cats, S.orders, S_mach.filter(function(m){ return machPole(m) === 'badges'; }), ALERT_SEEN, now);
   var etapesSorted = P.etapes.slice().sort(function(a,b){ return (a.cmd.dateDepart||'9999')<(b.cmd.dateDepart||'9999')?-1:(a.cmd.dateDepart||'9999')>(b.cmd.dateDepart||'9999')?1:0; });
   side += '<div class="ec-panel grow"><div class="ec-ph"><span>📦 Étapes en attente</span><small>'+P.etapes.length+'</small></div><div class="ec-list">'+
     mini(etapesSorted, function(e){ return '<div class="ec-mini"><span>'+esupInfo(e.key).icon+' '+ecranCmdName(e.cmd)+'</span><span>'+e.fait.toLocaleString('fr-FR')+' / '+e.total.toLocaleString('fr-FR')+'</span></div>'; }, 'Rien en attente ✅', 4)+
