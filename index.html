@@ -2015,7 +2015,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.11.05-1215';
+var APP_VERSION = '2026.11.05-1222';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -8397,8 +8397,8 @@ function suiviRowLinksHtml(c){
     var u = suiviTrackUrl(k.transp, k.num);
     return '<div style="line-height:1.25">'+
       '<div style="font-size:.66rem;font-weight:700;color:var(--mut)">'+esc(k.transp||'—')+'</div>'+
-      (u ? '<a href="'+esc(u)+'" target="_blank" rel="noopener noreferrer" title="Ouvrir le suivi chez le transporteur" style="font-size:.72rem;font-family:monospace;color:var(--blu);text-decoration:underline;word-break:break-all">'+esc(k.num||'')+'</a>'
-         : '<span style="font-size:.72rem;font-family:monospace;color:var(--txt);word-break:break-all">'+esc(k.num||'')+'</span>')+
+      (u ? '<a href="'+esc(u)+'" target="_blank" rel="noopener noreferrer" title="Ouvrir le suivi chez le transporteur" style="font-size:.72rem;font-family:monospace;color:var(--blu);text-decoration:underline;white-space:nowrap">'+esc(k.num||'')+'</a>'
+         : '<span style="font-size:.72rem;font-family:monospace;color:var(--txt);white-space:nowrap">'+esc(k.num||'')+'</span>')+
     '</div>';
   });
   if(list.length > 3) out.push('<div style="font-size:.66rem;color:var(--mut)">+'+(list.length-3)+' autre(s)</div>');
