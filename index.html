@@ -932,17 +932,8 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
     <button class="mpole-btn" id="mpole-numerique" onclick="maintSetPole('numerique')">🖨️ Numérique</button>
   </div>
   <!-- Sous-onglets Maintenance -->
-  <div style="display:flex;gap:6px;margin-bottom:14px;overflow-x:auto;padding-bottom:4px">
-    <button class="maint-sub-btn active" id="msub-auto" onclick="switchMaintSub('auto',this)">⚙️ Automatiques</button>
-    <button class="maint-sub-btn" id="msub-semi" onclick="switchMaintSub('semi',this)">🔧 Semi-auto</button>
-    <button class="maint-sub-btn" id="msub-manual" onclick="switchMaintSub('manual',this)">🪑 Manuelles</button>
-    <button class="maint-sub-btn" id="msub-plateaux" onclick="switchMaintSub('plateaux',this)">🔩 Plateaux</button>
-    <button class="maint-sub-btn" id="msub-divers" onclick="switchMaintSub('divers',this)">🧰 Machines diverses</button>
-    <button class="maint-sub-btn" id="msub-presse" style="display:none" onclick="switchMaintSub('presse',this)">♨️ Presses</button>
-    <button class="maint-sub-btn" id="msub-plotter" style="display:none" onclick="switchMaintSub('plotter',this)">📐 Plotters et traceurs</button>
-    <button class="maint-sub-btn" id="msub-imprimante" style="display:none" onclick="switchMaintSub('imprimante',this)">🖨️ Imprimantes sublimation</button>
-    <button class="maint-sub-btn" id="msub-num_divers" style="display:none" onclick="switchMaintSub('num_divers',this)">🧰 Machines diverses</button>
-  </div>
+  <div id="maint-subs" style="display:flex;gap:6px;margin-bottom:14px;overflow-x:auto;padding-bottom:4px"></div>
+  <div id="maint-cats-wrap" style="display:none;margin-bottom:12px"><button class="btn bsec" style="font-size:.78rem;padding:6px 12px" onclick="openMachCats()">🗂️ Catégories de machines</button></div>
   <!-- Bouton intervention groupée -->
   <div id="maint-group-block" style="background:var(--card);border:1.5px solid var(--brd);border-radius:14px;padding:14px;margin-bottom:14px;display:none">
     <div style="font-family:Open Sans,sans-serif;font-weight:800;font-size:0.95rem;margin-bottom:10px">⚡ Intervention groupée</div>
@@ -1503,6 +1494,15 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
   </div>
 </div>
 
+<div class="mover" id="m-machcats" onclick="cm('m-machcats')">
+  <div class="modal" onclick="event.stopPropagation()" style="max-height:88vh;overflow-y:auto;max-width:560px">
+    <div class="dh"></div>
+    <h3 style="text-align:center">🗂️ Catégories de machines</h3>
+    <div style="font-size:.74rem;color:var(--mut);text-align:center;margin-bottom:12px">Renomme, réordonne, ajoute ou retire des catégories. Les machines gardent leur catégorie ; une catégorie qui contient encore des machines ne peut pas être retirée. 🔒 = catégorie de base (renommable, pas retirable).</div>
+    <div id="machcats-body"></div>
+    <button class="btn bsec" style="width:100%;margin-top:6px" onclick="cm('m-machcats')">Fermer</button>
+  </div>
+</div>
 <div class="mover" id="m-suivi-import" onclick="cm('m-suivi-import')">
   <div class="modal" onclick="event.stopPropagation()" style="max-height:88vh;overflow-y:auto;max-width:760px">
     <div class="dh"></div>
@@ -2015,7 +2015,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.11.05-1432';
+var APP_VERSION = '2026.11.05-1520';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -2754,7 +2754,7 @@ auth.onAuthStateChanged(function(u) {
     document.getElementById('abadge').style.display = (iAm||isDir) ? 'inline' : 'none';
     document.getElementById('abadge').textContent = iAm ? 'Admin' : 'Direction';
     saveQuickProfile(u.email, u.displayName);
-    if (!inited) { inited = true; startDB(); startMachListener(); startRpListener(); startCmdIndexListener(); startCustomFormatsListener(); startInvcListener(); startCompListener(); startGammesListener(); startEtapesSupListener(); startTranspListener(); startOrphListener(); startQtyRulesListener(); startPoleCfgListener(); startAlertSeenListener(); }
+    if (!inited) { inited = true; startDB(); startMachListener(); startRpListener(); startCmdIndexListener(); startCustomFormatsListener(); startInvcListener(); startCompListener(); startGammesListener(); startEtapesSupListener(); startTranspListener(); startOrphListener(); startQtyRulesListener(); startPoleCfgListener(); startMachCatsListener(); startAlertSeenListener(); }
     if (location.hash === '#ecran') setTimeout(function(){ ecranAutoOpen(0); }, 400);
 
     // Rendu immédiat depuis le cache local, si on a déjà vu cet utilisateur
@@ -2953,6 +2953,7 @@ function ecranAutoOpen(tries){
 // Pas de correctif technique invisible ici. tag = qui est concerné :
 //   'all' (tout le monde), 'admin' (admin/direction), 'maint' (maintenance), 'stock' (ajout de stock), 'reprint' (réimpressions)
 var NEWS = [
+  {n:50, d:'05/11/2026', tag:'all', t:'Maintenance : catégories de machines modifiables', x:'Dans Maintenance, le bouton « Catégories de machines » permet d\'ajouter, renommer, réordonner ou retirer des catégories (badges et numérique). Les catégories de base (Automatiques, Semi-auto, Manuelles, Plateaux) se renomment mais ne se retirent pas, et une catégorie qui contient encore des machines ne peut pas être retirée. Réservé à l\'admin, à la direction et aux personnes qui ont la nouvelle case « Peut gérer les catégories de machines » (Admin › Droits). Côté numérique : Presses, Presses Sublimation, Plotters, Imprimantes, Machines diverses.'},
   {n:49, d:'05/11/2026', tag:'all', t:'Tableau de bord : nouveaux noms de statuts', x:'Dans le Tableau de bord (tableau Commandes, filtre, fiche commande), la colonne « Situation » devient « Statut », « Attente fabrication » devient « Attente production » et « En cours » devient « Production en cours ».'},
   {n:48, d:'05/11/2026', tag:'all', t:'« Rapport » devient « Ma production »', x:'L\'onglet Rapport s\'appelle maintenant « Ma production » (mêmes fonctions), et les messages qui le citent aussi. Dans le Tableau de bord, l\'administrateur apparaît sous le nom « ALEX » pour tout le monde. Le Tableau de bord s\'ouvre aussi sur « Commandes » en premier.'},
   {n:47, d:'05/11/2026', tag:'all', t:'Pôle numérique : commandes partagées plus fiables', x:'Dépiautage : sur une commande partagée (badges + numérique), les formats de l\'autre pôle sont affichés en grisé dans un cadre, pour comparer avec le bon de commande (à l\'ajout et dans la liste). Admin › Pôle numérique : on peut choisir la date à partir de laquelle le contrôle qualité numérique est exigé. Une commande « Terminée » trop tôt alors que le numérique n\'était pas produit repasse « En cours », et le bandeau « Départ bloqué » ne réclame plus de contrôle pour les commandes plus anciennes que cette date.'},
@@ -9029,6 +9030,7 @@ var permsUserId = null;
 var PERMS_LIST = [
   {key:'addStock',    label:'➕ Peut ajouter des cartons / sachets en stock'},
   {key:'maintenance', label:'🔩 Peut gérer la maintenance'},
+  {key:'machCats',    label:'🗂️ Peut gérer les catégories de machines (Maintenance) — admin et direction l\'ont toujours'},
   {key:'reprint',     label:'🖨️ Peut valider les réimpressions'},
   {key:'orders',      label:'🛒 Peut créer des commandes'},
   {key:'reception',   label:'📬 Peut valider les réceptions'},
@@ -12878,19 +12880,66 @@ var curMaintSub = 'auto'; // sous-onglet actif
 var curMachId = null;
 var curPlateauId = null;
 
-var MACH_TYPES = {
-  auto:    {label:'Automatiques',  icon:'⚙️'},
-  semi:    {label:'Semi-auto',     icon:'🔧'},
-  manual:  {label:'Manuelles',     icon:'🪑'},
-  divers:  {label:'Machines diverses', icon:'🧰'},
+// Catégories de machines : base dans le code + réglages enregistrés (settings/machCats/{pôle}/{clé} : label, icon, order, hidden, custom).
+// Le type d'une machine (machine.type) ne change jamais : renommer une catégorie ne touche que son libellé.
+var MACH_BASE = {
+  auto:       {label:'Automatiques',      icon:'⚙️'},
+  semi:       {label:'Semi-auto',         icon:'🔧'},
+  manual:     {label:'Manuelles',         icon:'🪑'},
+  divers:     {label:'Machines diverses', icon:'🧰'},
   // Pôle numérique (le pôle d'une machine se déduit de son type : les machines badges existantes ne changent pas)
-  presse:      {label:'Presses (mugs, shooters, textile, casquettes)', icon:'♨️', pole:'numerique'},
-  plotter:     {label:'Plotters et traceurs', icon:'📐', pole:'numerique'},
-  imprimante:  {label:'Imprimantes sublimation', icon:'🖨️', pole:'numerique'},
-  num_divers:  {label:'Machines diverses (numérique)', icon:'🧰', pole:'numerique'},
+  presse:     {label:'Presses',             icon:'♨️', pole:'numerique'},
+  presse_sub: {label:'Presses Sublimation', icon:'🔥', pole:'numerique'},
+  plotter:    {label:'Plotters',            icon:'📐', pole:'numerique'},
+  imprimante: {label:'Imprimantes',         icon:'🖨️', pole:'numerique'},
+  num_divers: {label:'Machines diverses',   icon:'🧰', pole:'numerique'}
 };
-var MAINT_SUBS = {badges:['auto','semi','manual','plateaux','divers'], numerique:['presse','plotter','imprimante','num_divers']};
+var MACH_BASE_ORDER = {badges:['auto','semi','manual','plateaux','divers'], numerique:['presse','presse_sub','plotter','imprimante','num_divers']};
+// Catégories de base qui ne peuvent pas être retirées (elles servent à la capacité, aux plateaux et au parc machine)
+var MACH_CORE = {auto:1, semi:1, manual:1, plateaux:1};
+// Libellés historiques des listes de choix (conservés tant que la catégorie n'est pas renommée)
+var MACH_OPT_LEGACY = {auto:'⚙️ Automatique', semi:'🔧 Semi-automatique', manual:'🪑 Manuelle', divers:'🧰 Machine diverse'};
+var S_machCats = {};
+var MACH_TYPES = {};
+var MACH_CATS = {badges:[], numerique:[]};
+var MAINT_SUBS = {badges:[], numerique:[]};
+function machCatsRebuild(){
+  var cfg = S_machCats || {};
+  Object.keys(MACH_TYPES).forEach(function(k){ delete MACH_TYPES[k]; });
+  ['badges','numerique'].forEach(function(pole){
+    var pc = cfg[pole] || {}, items = [], hid = [];
+    MACH_BASE_ORDER[pole].forEach(function(k, i){
+      var b = (k === 'plateaux') ? {label:'Plateaux', icon:'🔩'} : MACH_BASE[k], c = pc[k] || {};
+      var it = {key:k, label:String(c.label || b.label), icon:String(c.icon || b.icon), order:(typeof c.order === 'number' ? c.order : i*10), base:true, core:!!MACH_CORE[k], renamed:!!c.label};
+      if(c.hidden === true && !MACH_CORE[k]) hid.push(it); else items.push(it);
+    });
+    Object.keys(pc).forEach(function(k){
+      var c = pc[k];
+      if(!c || c.custom !== true || MACH_BASE[k] || k === 'plateaux') return;
+      items.push({key:k, label:String(c.label || 'Catégorie'), icon:String(c.icon || '🔧'), order:(typeof c.order === 'number' ? c.order : 900), base:false, core:false, renamed:true});
+    });
+    items.sort(function(a, b){ return a.order - b.order; });
+    MACH_CATS[pole] = items;
+    MACH_CATS[pole + '_hidden'] = hid;
+    MAINT_SUBS[pole] = items.map(function(it){ return it.key; });
+    items.concat(hid).forEach(function(it){
+      if(it.key === 'plateaux') return;
+      var t = {label:it.label, icon:it.icon};
+      if(pole === 'numerique') t.pole = 'numerique';
+      MACH_TYPES[it.key] = t;
+    });
+  });
+}
+machCatsRebuild();
 function machPole(m){ var t = MACH_TYPES[(m && m.type) || 'semi']; return (t && t.pole) || 'badges'; }
+// Choix de catégorie dans les fiches machine (toutes les catégories du pôle, sauf « Plateaux »)
+function machTypeOptions(pole, sel){
+  return (MACH_CATS[pole] || []).filter(function(it){ return it.key !== 'plateaux'; }).map(function(it){
+    var txt = (!it.renamed && MACH_OPT_LEGACY[it.key]) ? MACH_OPT_LEGACY[it.key] : (it.icon + ' ' + it.label);
+    return '<option value="'+esc(it.key)+'"'+(it.key === sel ? ' selected' : '')+'>'+esc(txt)+'</option>';
+  }).join('');
+}
+function canMachCats(){ return !!(iAm || isDir || (me_perms && me_perms.machCats)); }
 // Pôle affiché dans l'onglet Maintenance : suit la vue du pôle ; admin / direction / « Tous » peuvent basculer sur place
 var _maintPoleSel = '';
 function maintPole(){
@@ -12898,6 +12947,8 @@ function maintPole(){
   return viewPole === 'numerique' ? 'numerique' : 'badges';
 }
 function maintApplyPole(){
+  machCatsRenderTabs();
+  var cw = document.getElementById('maint-cats-wrap'); if(cw) cw.style.display = canMachCats() ? '' : 'none';
   var p = maintPole();
   Object.keys(MAINT_SUBS).forEach(function(k){
     MAINT_SUBS[k].forEach(function(sub){ var b = document.getElementById('msub-'+sub); if(b) b.style.display = (k === p) ? '' : 'none'; });
@@ -13217,11 +13268,7 @@ function openEditMach(){
     '<input type="text" id="edit-mach-name" value="'+esc(m.name)+'" style="width:100%;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.88rem;padding:9px;outline:none;margin-top:4px;box-sizing:border-box"></div>'+
     '<div class="ff" style="margin-bottom:8px"><label>Type de machine</label>'+
     '<select id="edit-mach-type" style="width:100%;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.88rem;padding:9px;outline:none;margin-top:4px">'+
-      (machPole(m) === 'numerique' ? machNumTypeOptions(m.type) :
-      '<option value="auto"'+(m.type==='auto'?' selected':'')+'>⚙️ Automatique</option>'+
-      '<option value="semi"'+(m.type==='semi'?' selected':'')+'>🔧 Semi-automatique</option>'+
-      '<option value="manual"'+(m.type==='manual'?' selected':'')+'>🪑 Manuelle</option>'+
-      '<option value="divers"'+(m.type==='divers'?' selected':'')+'>🧰 Machine diverse</option>')+
+      machTypeOptions(machPole(m), m.type)+
     '</select></div>'+
     '<div class="ff" style="margin-bottom:8px"><label>N° de série fabricant</label>'+
     '<input type="text" id="edit-mach-serial" value="'+(m.serialNumber||'')+'" placeholder="Ex: SN-2024-00123" style="width:100%;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.88rem;padding:9px;outline:none;margin-top:4px;box-sizing:border-box"></div>'+
@@ -13261,12 +13308,7 @@ function getMach(mid){ return S_mach.find(function(m){ return m.id===mid; })||nu
 // Devine la machine de l'appli correspondant à une machine de l'Excel (renvoie un id ou '')
 // Lignes pas encore importées (une ligne déjà présente sous son identifiant dans une machine est écartée)
 // Options de type des machines du pôle numérique (sélection : type courant ou sous-onglet affiché)
-function machNumTypeOptions(sel){
-  return MAINT_SUBS.numerique.map(function(k){
-    var t = MACH_TYPES[k];
-    return '<option value="'+k+'"'+(k === sel ? ' selected' : '')+'>'+t.icon+' '+t.label+'</option>';
-  }).join('');
-}
+function machNumTypeOptions(sel){ return machTypeOptions('numerique', sel); }
 // ── Créer machine (bouton FAB) ──
 function openCreateMach(){
   var numNew = (maintPole() === 'numerique');
@@ -13277,11 +13319,8 @@ function openCreateMach(){
     '<input type="text" id="new-mach-name" placeholder="Ex: Machine N°1" style="width:100%;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.88rem;padding:9px;outline:none;margin-top:4px;box-sizing:border-box"></div>'+
     '<div class="ff" style="margin-bottom:8px"><label>Type *</label>'+
     '<select id="new-mach-type" style="width:100%;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.88rem;padding:9px;outline:none;margin-top:4px">'+
-      (numNew ? machNumTypeOptions(curMaintSub) :
-      '<option value="auto">⚙️ Automatique</option>'+
-      '<option value="semi">🔧 Semi-automatique</option>'+
-      '<option value="manual">🪑 Manuelle</option>'+
-      '<option value="divers">🧰 Machine diverse (sécheur, compresseur…)</option>')+
+      (numNew ? machTypeOptions('numerique', curMaintSub) :
+      machTypeOptions('badges', '').replace('🧰 Machine diverse<', '🧰 Machine diverse (sécheur, compresseur…)<'))+
     '</select></div>'+
     '<div class="ff" style="margin-bottom:8px"><label>N° de série fabricant</label>'+
     '<input type="text" id="new-mach-serial" placeholder="Ex: SN-2024-00123" style="width:100%;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.88rem;padding:9px;outline:none;margin-top:4px;box-sizing:border-box"></div>'+
@@ -14286,17 +14325,11 @@ function updateMaintBadge(){
 }
 // Nombre de rappels / pannes par sous-onglet (tous pôles) ; le total de l'onglet et les notifications ne comptent que les pôles visibles
 function maintCountsAll(){
-  return {
-    auto:     countMachDue('auto'),
-    semi:     countMachDue('semi'),
-    manual:   countMachDue('manual'),
-    plateaux: countPlateauxDue(),
-    divers:   countMachDue('divers'),
-    presse:      countMachDue('presse'),
-    plotter:     countMachDue('plotter'),
-    imprimante:  countMachDue('imprimante'),
-    num_divers:  countMachDue('num_divers')
-  };
+  var out = {};
+  MACH_CATS.badges.concat(MACH_CATS.numerique).forEach(function(it){
+    out[it.key] = (it.key === 'plateaux') ? countPlateauxDue() : countMachDue(it.key);
+  });
+  return out;
 }
 function maintVisibleCounts(all){
   all = all || maintCountsAll();
@@ -14334,12 +14367,11 @@ function updateMaintBadgeAll(){
   }
 
   // Badges sur les sous-onglets
-  [['auto','⚙️ Automatiques'],['semi','🔧 Semi-auto'],['manual','🪑 Manuelles'],['plateaux','🔩 Plateaux'],['divers','🧰 Machines diverses'],
-   ['presse','♨️ Presses'],['plotter','📐 Plotters et traceurs'],['imprimante','🖨️ Imprimantes sublimation'],['num_divers','🧰 Machines diverses']].forEach(function(row){
+  MACH_CATS.badges.concat(MACH_CATS.numerique).map(function(it){ return [it.key, it.icon+' '+it.label]; }).forEach(function(row){
     var subBtn = document.getElementById('msub-'+row[0]);
     if(!subBtn) return;
     var c = counts[row[0]];
-    subBtn.innerHTML = row[1] + (c>0
+    subBtn.innerHTML = esc(row[1]) + (c>0
       ? ' <span style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:var(--red);color:#fff;font-size:.6rem;font-weight:800;margin-left:3px">'+c+'</span>'
       : '');
   });
@@ -14365,6 +14397,10 @@ function maintNotifText(c){
   if(c.plotter) parts.push(c.plotter+' plotter'+(c.plotter>1?'s':''));
   if(c.imprimante) parts.push(c.imprimante+' imprimante'+(c.imprimante>1?'s':''));
   if(c.num_divers) parts.push(c.num_divers+' divers (numérique)');
+  Object.keys(c).forEach(function(k){
+    if(['semi','auto','manual','plateaux','divers','presse','plotter','imprimante','num_divers'].indexOf(k) >= 0 || !c[k] || !MACH_TYPES[k]) return;
+    parts.push(c[k]+' '+String(MACH_TYPES[k].label).toLowerCase());
+  });
   return parts.join(' · ');
 }
 function maintNotifCheck(counts){
@@ -14412,6 +14448,114 @@ function maintNotifAsk(){
 }
 
 // ── openMaintTab ──
+// ── Catégories de machines : sous-onglets dynamiques + écran de gestion ──
+function machCatsRenderTabs(){
+  var box = document.getElementById('maint-subs'); if(!box) return;
+  var cur = (typeof curMaintSub === 'string') ? curMaintSub : '';
+  var all = MACH_CATS.badges.map(function(it){ return {it:it, pole:'badges'}; }).concat(MACH_CATS.numerique.map(function(it){ return {it:it, pole:'numerique'}; }));
+  var p = (typeof maintPole === 'function') ? maintPole() : 'badges';
+  box.innerHTML = all.map(function(x){
+    return '<button class="maint-sub-btn'+(x.it.key === cur ? ' active' : '')+'" id="msub-'+esc(x.it.key)+'"'+(x.pole === p ? '' : ' style="display:none"')+' onclick="switchMaintSub(\''+esc(x.it.key)+'\',this)">'+esc(x.it.icon+' '+x.it.label)+'</button>';
+  }).join('');
+  try { if(typeof updateMaintBadgeAll === 'function' && S_mach) updateMaintBadgeAll(); } catch(e){}
+}
+function startMachCatsListener(){
+  db.ref('settings/machCats').on('value', function(snap){
+    S_machCats = snap.val() || {};
+    machCatsRebuild();
+    machCatsRenderTabs();
+    if(typeof maintApplyPole === 'function') maintApplyPole();
+    if(document.getElementById('m-machcats') && document.getElementById('m-machcats').classList.contains('open')) renderMachCats();
+    try { if(curTab === 'maintenance') renderMaintList(); } catch(e){}
+  });
+}
+function machCatCount(key){ return (S_mach || []).filter(function(m){ return (m.type || 'semi') === key; }).length; }
+function openMachCats(){
+  if(!canMachCats()){ toast('Accès non autorisé', 1); return; }
+  renderMachCats();
+  om('m-machcats');
+}
+function renderMachCats(){
+  var el = document.getElementById('machcats-body'); if(!el) return;
+  var poles = [['numerique','🖨️ Pôle numérique'], ['badges','🏷️ Pôle badges']];
+  var cur = maintPole();
+  poles.sort(function(a, b){ return a[0] === cur ? -1 : (b[0] === cur ? 1 : 0); });
+  el.innerHTML = poles.map(function(pp){
+    var pole = pp[0], list = MACH_CATS[pole], hid = MACH_CATS[pole+'_hidden'] || [];
+    var rows = list.map(function(it, i){
+      var n = it.key === 'plateaux' ? 0 : machCatCount(it.key);
+      return '<div style="display:flex;gap:6px;align-items:center;padding:6px 0;border-top:1px solid var(--brd)">'+
+        '<input type="text" value="'+esc(it.icon)+'" maxlength="4" style="width:44px;text-align:center;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);padding:6px" onchange="machCatField(\''+pole+'\',\''+esc(it.key)+'\',\'icon\',this.value)">'+
+        '<input type="text" value="'+esc(it.label)+'" maxlength="40" style="flex:1;min-width:0;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);padding:6px 8px" onchange="machCatField(\''+pole+'\',\''+esc(it.key)+'\',\'label\',this.value)">'+
+        (it.key === 'plateaux' ? '' : '<span style="font-size:.7rem;color:var(--mut);white-space:nowrap">'+n+' machine'+(n>1?'s':'')+'</span>')+
+        '<button class="btn bsec" style="flex:none;padding:4px 8px" '+(i === 0 ? 'disabled' : '')+' onclick="machCatMove(\''+pole+'\',\''+esc(it.key)+'\',-1)">↑</button>'+
+        '<button class="btn bsec" style="flex:none;padding:4px 8px" '+(i === list.length-1 ? 'disabled' : '')+' onclick="machCatMove(\''+pole+'\',\''+esc(it.key)+'\',1)">↓</button>'+
+        (it.core ? '<span title="Catégorie de base : elle peut être renommée mais pas retirée" style="width:34px;text-align:center">🔒</span>' : '<button class="btn bdano" style="flex:none;padding:4px 8px" onclick="machCatDel(\''+pole+'\',\''+esc(it.key)+'\')">🗑</button>')+
+      '</div>';
+    }).join('');
+    var restore = hid.length ? '<div style="font-size:.74rem;color:var(--mut);margin-top:8px">Catégories retirées : '+hid.map(function(it){
+      return '<button class="btn bsec" style="flex:none;padding:3px 8px;margin:2px" onclick="machCatRestore(\''+pole+'\',\''+esc(it.key)+'\')">↩ '+esc(it.icon+' '+it.label)+'</button>';
+    }).join('')+'</div>' : '';
+    return '<div style="margin-bottom:18px"><div style="font-family:Open Sans,sans-serif;font-weight:800;margin-bottom:4px">'+pp[1]+'</div>'+rows+
+      '<div style="display:flex;gap:6px;align-items:center;margin-top:8px"><input type="text" id="machcat-new-icon-'+pole+'" value="🔧" maxlength="4" style="width:44px;text-align:center;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);padding:6px">'+
+      '<input type="text" id="machcat-new-'+pole+'" placeholder="Nouvelle catégorie" maxlength="40" style="flex:1;min-width:0;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);padding:6px 8px">'+
+      '<button class="btn bpri" style="flex:none;padding:6px 12px" onclick="machCatAdd(\''+pole+'\')">➕ Ajouter</button></div>'+restore+'</div>';
+  }).join('');
+}
+// Écrit un réglage de catégorie : copie locale tout de suite, puis Firebase
+function machCatWrite(pole, key, obj){
+  if(!canMachCats()) return;
+  S_machCats = S_machCats || {};
+  S_machCats[pole] = S_machCats[pole] || {};
+  S_machCats[pole][key] = Object.assign({}, S_machCats[pole][key] || {}, obj);
+  machCatsRebuild(); machCatsRenderTabs(); maintApplyPole(); renderMachCats();
+  try { if(curTab === 'maintenance') renderMaintList(); } catch(e){}
+  var o = Object.assign({}, obj, {by:getMyName(), at:Date.now()});
+  return fbu('settings/machCats/'+pole+'/'+key, o);
+}
+function machCatField(pole, key, field, val){
+  val = String(val == null ? '' : val).trim();
+  if(!val){ toast(field === 'label' ? 'Le nom ne peut pas être vide' : 'Choisis un symbole', 1); renderMachCats(); return; }
+  var dup = (MACH_CATS[pole] || []).some(function(it){ return it.key !== key && field === 'label' && it.label.toLowerCase() === val.toLowerCase(); });
+  if(dup){ toast('Ce nom existe déjà dans ce pôle', 1); renderMachCats(); return; }
+  var o = {}; o[field] = val;
+  machCatWrite(pole, key, o);
+  toast('✅ Catégorie enregistrée');
+}
+function machCatMove(pole, key, dir){
+  var list = (MACH_CATS[pole] || []).slice(), i = list.findIndex(function(it){ return it.key === key; }), j = i + dir;
+  if(i < 0 || j < 0 || j >= list.length) return;
+  var t = list[i]; list[i] = list[j]; list[j] = t;
+  list.forEach(function(it, n){ machCatWrite(pole, it.key, {order: n*10}); });
+}
+function machCatAdd(pole){
+  var inp = document.getElementById('machcat-new-'+pole), ic = document.getElementById('machcat-new-icon-'+pole);
+  var label = inp ? inp.value.trim() : '', icon = (ic && ic.value.trim()) || '🔧';
+  if(!label){ toast('Saisis le nom de la catégorie', 1); return; }
+  var all = (MACH_CATS[pole] || []).concat(MACH_CATS[pole+'_hidden'] || []);
+  if(all.some(function(it){ return it.label.toLowerCase() === label.toLowerCase(); })){ toast('Ce nom existe déjà dans ce pôle', 1); return; }
+  var key = 'c'+gid().replace(/[^A-Za-z0-9]/g, '');
+  var order = (MACH_CATS[pole] || []).reduce(function(m, it){ return Math.max(m, it.order); }, 0) + 10;
+  machCatWrite(pole, key, {label:label, icon:icon, order:order, custom:true});
+  toast('✅ Catégorie ajoutée');
+}
+function machCatDel(pole, key){
+  var it = (MACH_CATS[pole] || []).find(function(x){ return x.key === key; });
+  if(!it) return;
+  if(it.core){ toast('Catégorie de base : elle ne peut pas être retirée', 1); return; }
+  var n = machCatCount(key);
+  if(n > 0){ toast((n>1 ? 'Déplace d\'abord les '+n+' machines' : 'Déplace d\'abord la machine')+' vers une autre catégorie', 1); return; }
+  if(!confirm('Retirer la catégorie « '+it.label+' » ?')) return;
+  if(it.base){ machCatWrite(pole, key, {hidden:true}); }
+  else {
+    if(S_machCats[pole]) delete S_machCats[pole][key];
+    machCatsRebuild(); machCatsRenderTabs(); maintApplyPole(); renderMachCats();
+    fbd('settings/machCats/'+pole+'/'+key);
+  }
+  toast('🗑 Catégorie retirée');
+}
+function machCatRestore(pole, key){ machCatWrite(pole, key, {hidden:false}); toast('✅ Catégorie rétablie'); }
+
 function openMaintTab(){
   maintApplyPole();
   switchMaintSub(curMaintSub, document.getElementById('msub-'+curMaintSub));
