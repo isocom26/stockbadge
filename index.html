@@ -2015,7 +2015,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.11.06-0950';
+var APP_VERSION = '2026.11.06-1005';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -2953,6 +2953,7 @@ function ecranAutoOpen(tries){
 // Pas de correctif technique invisible ici. tag = qui est concerné :
 //   'all' (tout le monde), 'admin' (admin/direction), 'maint' (maintenance), 'stock' (ajout de stock), 'reprint' (réimpressions)
 var NEWS = [
+  {n:54, d:'06/11/2026', tag:'all', t:'Import des expéditions : nouvel export EBP « Vue production »', x:'L\'import reconnaît maintenant le nouvel export EBP (colonnes « N° document » et « Numéro de commande du client »). L\'ancien format reste lu.'},
   {n:53, d:'06/11/2026', tag:'all', t:'Import des expéditions : vraie date d\'expédition', x:'L\'import lit la date dans le bordereau Chronopost (en-tête) et dans le nom du fichier ColiShip, et l\'affiche dans « Expédié le ». Pour corriger des colis déjà importés avec la date du jour, recharge simplement le fichier : l\'import propose de corriger leur date.'},
   {n:52, d:'05/11/2026', tag:'all', t:'Tableau de bord : colonnes réorganisées + « Expédié le »', x:'Dans le tableau Commandes : Formats, Qté, Par, Créé le, Départ prévu, Depuis, Expédié le, Suivi. « Expédié le » affiche la date d\'enregistrement du colis (import des exports ou saisie manuelle), colis par colis si les dates diffèrent.'},
   {n:51, d:'05/11/2026', tag:'admin', t:'Droits : nouveau panneau par onglets + modèles', x:'Dans Admin › Droits, la fiche d\'un compte affiche maintenant la liste des onglets principaux : on coche un onglet pour voir ses sous-onglets, puis on coche un sous-onglet pour voir les droits qui le concernent. Rôle, pôle et « Peut dépanner » restent en haut. Les droits déjà donnés sont conservés tels quels. Nouveaux modèles en un clic (Opérateur, Chef d\'équipe, Pôle numérique, Direction, Consultation) pour préremplir un nouveau compte.'},
@@ -8697,9 +8698,9 @@ function simpParseEbpRows(aoa){
     var r = aoa[i] || [], b = -1, f = -1, c = -1, t = -1;
     r.forEach(function(v, j){
       var s = simpNorm(v);
-      if(/(^|\s)du bl$|^n.{0,3}bl$|numero du bl/.test(s) && b < 0) b = j;
-      if(/ref.*cmd/.test(s) && f < 0) f = j;
-      if(s === 'client' && c < 0) c = j;
+      if(/(^|\s)du bl$|^n.{0,3}bl$|numero du bl|^n.{0,3}document$/.test(s) && b < 0) b = j;   // « N° document » = nouvel export EBP « Vue production »
+      if((/ref.*cmd/.test(s) || /^numero de commande du client/.test(s)) && f < 0) f = j;
+      if((s === 'client' || s === 'nom du client') && c < 0) c = j;
       if(/transporteur/.test(s) && t < 0) t = j;
     });
     if(b >= 0 && f >= 0){ hi = i; iBl = b; iRef = f; iCli = c; iTr = t; break; }
@@ -8916,7 +8917,7 @@ function simpHandleFiles(files){
             var b = simpParseColissimo(text), db = simpDateColissimo(f.name);
             if(db) b.forEach(function(x){ x.shipAt = db; });
             SIMP.srcs.coli = {carrier:b, info:{ok:b.length > 0, txt:'Colissimo : '+b.length+' colis ('+f.name+')'+(db ? ' · expédiés le '+new Date(db).toLocaleDateString('fr-FR') : '')}};
-          } else if(/du bl/.test(head) || /cmd\. isocom/.test(head)){
+          } else if(/du bl/.test(head) || /cmd\. isocom/.test(head) || (/n.{0,3}document/.test(head) && /commande du client/.test(head))){
             var lines = text.split(/\r?\n/), sep = (lines[0]||'').indexOf(';') >= 0 ? ';' : ((lines[0]||'').indexOf('\t') >= 0 ? '\t' : ',');
             simpAddEbp(f.name, simpParseEbpRows(lines.map(function(l){ return simpSplit(l, sep); })));
           } else SIMP.errs.push({ok:false, txt:f.name+' : format non reconnu'});
