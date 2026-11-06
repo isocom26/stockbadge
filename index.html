@@ -2015,7 +2015,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.11.06-1130';
+var APP_VERSION = '2026.11.06-1200';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -2953,6 +2953,7 @@ function ecranAutoOpen(tries){
 // Pas de correctif technique invisible ici. tag = qui est concerné :
 //   'all' (tout le monde), 'admin' (admin/direction), 'maint' (maintenance), 'stock' (ajout de stock), 'reprint' (réimpressions)
 var NEWS = [
+  {n:56, d:'06/11/2026', tag:'all', t:'Fiche commande : emport / autre mode + date d\'expédition', x:'Sur la fiche d\'une commande, nouveau bouton « 🚶 Emport / autre mode (sans colis) » (emport, livraison par nos soins, enlèvement par le transporteur du client, autre) avec sa date, et un champ « Date d\'expédition » à l\'ajout d\'un colis à la main. La date s\'affiche dans « Expédié le » du tableau.'},
   {n:55, d:'06/11/2026', tag:'admin', t:'Import des expéditions : import historique (une seule fois)', x:'Un fichier « regroupé » par transporteur (date, n° colis, BL, destinataire) est reconnu et active le mode « Import historique » : seuls les colis rattachés à une commande sont enregistrés (avec leur vraie date d\'expédition, déjà confirmés), les autres sont ignorés. L\'import quotidien reste inchangé.'},
   {n:54, d:'06/11/2026', tag:'all', t:'Import des expéditions : nouvel export EBP « Vue production »', x:'L\'import reconnaît maintenant le nouvel export EBP (colonnes « N° document » et « Numéro de commande du client »). L\'ancien format reste lu. Les colis ColiShip sans BL sont retrouvés par le nom du destinataire (colonne « Nom (adresse) (livraison) ») : nom identique et unique = coché d\'office, nom approchant = proposé à vérifier. Les anciens exports ColiShip (sans ligne d\'en-tête, colis DPD compris) sont reconnus.'},
   {n:53, d:'06/11/2026', tag:'all', t:'Import des expéditions : vraie date d\'expédition', x:'L\'import lit la date dans le bordereau Chronopost (en-tête) et dans le nom du fichier ColiShip, et l\'affiche dans « Expédié le ». Pour corriger des colis déjà importés avec la date du jour, recharge simplement le fichier : l\'import propose de corriger leur date.'},
@@ -8509,7 +8510,10 @@ function suiviShipDatesHtml(c){
     if(!seen[key]){ seen[key] = {n:0, t:d.toLocaleDateString('fr-FR')}; order.push(key); }
     seen[key].n++;
   });
-  if(!order.length) return '<span style="color:var(--mut)">—</span>';
+  if(!order.length){
+    var lvd = c && c.livraison && c.livraison.mode ? (c.livraison.shipAt || c.livraison.at) : 0;
+    return lvd ? '<span style="color:var(--txt)">'+new Date(lvd).toLocaleDateString('fr-FR')+'</span>' : '<span style="color:var(--mut)">—</span>';
+  }
   if(order.length === 1) return '<span style="color:var(--txt)">'+seen[order[0]].t+'</span>';
   return '<div style="display:flex;flex-direction:column;gap:4px">'+order.map(function(k){
     return '<div style="line-height:1.25">'+seen[k].t+' <span style="font-size:.66rem;color:var(--mut)">('+seen[k].n+' colis)</span></div>';
@@ -8554,19 +8558,68 @@ function dashSuiviBlockHtml(c){
   var blKeys = (c.bls && typeof c.bls === 'object') ? Object.keys(c.bls) : [];
   if(blKeys.length) html += '<div style="margin-top:8px;padding:6px 10px;border:1.5px dashed var(--brd);border-radius:10px;background:rgba(120,120,120,.07);font-size:.74rem;color:var(--mut)">'+
     '📄 BL mémorisé'+(blKeys.length>1?'s':'')+' : <span style="font-family:monospace;white-space:nowrap">'+blKeys.map(esc).join('</span>, <span style="font-family:monospace;white-space:nowrap">')+'</span></div>';
+  // Emport / autre mode (sans colis) : affiché ici, saisissable à la main ou issu de l'import EBP
+  if(c.livraison && c.livraison.mode){
+    var lv = c.livraison;
+    html += '<div style="margin-top:8px;padding:8px 10px;border:1.5px solid var(--brd);border-radius:10px;font-size:.8rem;display:flex;gap:8px;align-items:center">'+
+      '<div style="flex:1;min-width:0">🚶 <strong>'+esc(lv.mode)+'</strong>'+(lv.note ? ' · '+esc(lv.note) : '')+
+      '<div style="font-size:.7rem;color:var(--mut)">le '+new Date(lv.shipAt || lv.at || Date.now()).toLocaleDateString('fr-FR')+(lv.byName ? ' · '+esc(lv.byName) : '')+(lv.bl ? ' · '+esc(lv.bl) : '')+'</div></div>'+
+      (canSuiviSaisie() ? '<button onclick="suiviDeleteLivraison(\''+c.id+'\')" title="Retirer" style="background:none;border:1px solid var(--brd);border-radius:8px;color:var(--mut);padding:4px 8px;cursor:pointer">🗑️</button>' : '')+'</div>';
+  }
   if(pend.length && canSuiviConf()){
     html += '<button onclick="suiviConfirm(\''+c.id+'\')" style="width:100%;margin-top:8px;padding:9px;border-radius:10px;border:none;background:var(--grn);color:#fff;font-family:Open Sans,sans-serif;font-weight:800;font-size:.84rem;cursor:pointer">✅ Confirmé (mail envoyé)</button>';
   }
   if(canSuiviSaisie()){
     var opts = transpCatalogue(false).map(function(t){ return '<option value="'+esc(t.label)+'">'+esc(t.label)+'</option>'; }).join('');
     html += '<button id="dash-suivi-open-btn" onclick="dashSuiviOpenForm()" style="width:100%;margin-top:8px;padding:9px;border-radius:10px;border:1.5px dashed var(--acc);background:none;color:var(--acc);font-family:Open Sans,sans-serif;font-weight:800;font-size:.84rem;cursor:pointer">+ Ajouter un colis</button>'+
+      (c.livraison && c.livraison.mode ? '' : '<button id="dash-liv-open-btn" onclick="dashLivOpenForm()" style="width:100%;margin-top:8px;padding:9px;border-radius:10px;border:1.5px dashed var(--brd);background:none;color:var(--mut);font-family:Open Sans,sans-serif;font-weight:800;font-size:.84rem;cursor:pointer">🚶 Emport / autre mode (sans colis)</button>')+
+      '<div id="dash-liv-form" style="display:none;margin-top:8px">'+
+        '<select id="dash-liv-mode" style="width:100%;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.85rem;padding:8px;margin-bottom:8px">'+
+          ['Emport','Livraison par nos soins','Enlèvement par le transporteur du client','Autre'].map(function(m){ return '<option value="'+esc(m)+'">'+esc(m)+'</option>'; }).join('')+'</select>'+
+        '<input type="text" id="dash-liv-note" maxlength="80" placeholder="Précision (facultatif)" autocomplete="off" style="width:100%;box-sizing:border-box;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.9rem;padding:9px;margin-bottom:8px">'+
+        '<label style="display:block;font-size:.74rem;color:var(--mut);margin-bottom:4px">Date de remise / départ</label>'+
+        '<input type="date" id="dash-liv-date" value="'+suiviTodayIso()+'" max="'+suiviTodayIso()+'" style="width:100%;box-sizing:border-box;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.9rem;padding:9px;margin-bottom:8px">'+
+        '<button onclick="dashLivSubmit(\''+c.id+'\')" style="width:100%;padding:10px;border-radius:10px;border:none;background:var(--acc);color:#000;font-family:Open Sans,sans-serif;font-weight:800;font-size:.86rem;cursor:pointer">Valider</button>'+
+      '</div>'+
       '<div id="dash-suivi-form" style="display:none;margin-top:8px">'+
         '<select id="dash-suivi-transp" style="width:100%;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.85rem;padding:8px;margin-bottom:8px">'+opts+'</select>'+
         '<input type="text" id="dash-suivi-num" maxlength="40" placeholder="N° de suivi" autocomplete="off" style="width:100%;box-sizing:border-box;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.9rem;padding:9px;margin-bottom:8px">'+
+        '<label style="display:block;font-size:.74rem;color:var(--mut);margin-bottom:4px">Date d\'expédition</label>'+
+        '<input type="date" id="dash-suivi-date" value="'+suiviTodayIso()+'" max="'+suiviTodayIso()+'" style="width:100%;box-sizing:border-box;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.9rem;padding:9px;margin-bottom:8px">'+
         '<button onclick="dashSuiviSubmit(\''+c.id+'\')" style="width:100%;padding:10px;border-radius:10px;border:none;background:var(--acc);color:#000;font-family:Open Sans,sans-serif;font-weight:800;font-size:.86rem;cursor:pointer">Valider</button>'+
       '</div>';
   }
   return html + '</div>';
+}
+function suiviTodayIso(){ var d = new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+// Date saisie (aaaa-mm-jj) → midi local ; vide ou future → aujourd'hui
+function suiviReadDate(id){
+  var el = document.getElementById(id), m = el && /^(\d{4})-(\d{2})-(\d{2})$/.exec(el.value||'');
+  var t = m ? simpMkDate(m[1], m[2], m[3]) : null;
+  return (t && t <= Date.now() + 43200000) ? t : Date.now();
+}
+function dashLivOpenForm(){
+  var f = document.getElementById('dash-liv-form'), b = document.getElementById('dash-liv-open-btn');
+  if(f) f.style.display = '';
+  if(b) b.style.display = 'none';
+}
+function dashLivSubmit(cmdId){
+  if(!canSuiviSaisie()) return;
+  var mEl = document.getElementById('dash-liv-mode'), nEl = document.getElementById('dash-liv-note');
+  var mode = mEl ? mEl.value : '', note = nEl ? nEl.value.trim() : '';
+  if(!mode){ toast('Choisis un mode', 1); return; }
+  if(mode === 'Autre' && !note){ toast('Précise le mode (ex. coursier, navette…)', 1); return; }
+  var entry = {mode:mode, at:Date.now(), shipAt:suiviReadDate('dash-liv-date'), byName:getMyName(), src:'manuel'};
+  if(note) entry.note = note;
+  if(me && me.uid) entry.byUid = me.uid;
+  fbs('commandes/'+cmdId+'/livraison', entry)
+    .then(function(){ toast('✅ '+mode+' enregistré'); dashSuiviRefreshAll(cmdId); })
+    .catch(function(){ toast('Erreur d\'enregistrement', 1); });
+}
+function suiviDeleteLivraison(cmdId){
+  if(!canSuiviSaisie()) return;
+  if(!confirm('Retirer le mode de livraison de cette commande ?')) return;
+  fbd('commandes/'+cmdId+'/livraison').then(function(){ dashSuiviRefreshAll(cmdId); }).catch(function(){ toast('Erreur de suppression', 1); });
 }
 function dashSuiviOpenForm(){
   var f = document.getElementById('dash-suivi-form'), b = document.getElementById('dash-suivi-open-btn');
@@ -8588,7 +8641,7 @@ function dashSuiviSubmit(cmdId){
   var transp = tEl ? tEl.value : '', num = nEl ? nEl.value.trim() : '';
   if(!num){ toast('Saisis le n° de suivi', 1); return; }
   if(!transp){ toast('Choisis un transporteur', 1); return; }
-  var entry = {transp:transp, num:num, at:Date.now(), byName:getMyName()};
+  var entry = {transp:transp, num:num, at:Date.now(), shipAt:suiviReadDate('dash-suivi-date'), byName:getMyName()};
   if(me && me.uid) entry.byUid = me.uid;
   fbs('commandes/'+cmdId+'/colis/'+gid(), entry)
     .then(function(){ toast('✅ Colis ajouté — à confirmer'); dashSuiviRefreshAll(cmdId); })
