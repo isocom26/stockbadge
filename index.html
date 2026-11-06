@@ -2019,7 +2019,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.11.06-1930';
+var APP_VERSION = '2026.11.06-2000';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -9072,12 +9072,14 @@ function simpBuild(){
     if(c && !(c.bls && c.bls[bl])) SIMP.blLinks.push({bl:bl, orderId:c.id});
   });
   // Emports / autres modes : lignes EBP sans fichier transporteur
-  SIMP.emports = [];
+  // Un emport n'est enregistré que si la commande est terminée : tant qu'elle n'est pas prête, il n'y a rien à « remettre » au client
+  SIMP.emports = []; SIMP.empWait = 0;
   Object.keys(SIMP.ebp).forEach(function(bl){
     var e = SIMP.ebp[bl];
     if(!e.mode || simpIsCarrierMode(e.mode) || inFiles[bl]) return;
     var c = simpFindExact(e.ref); if(!c) return;
     if(c.livraison || colisList(c).length) return;
+    if(c.status !== 'done'){ SIMP.empWait++; return; }
     SIMP.emports.push({bl:bl, mode:e.mode, orderId:c.id, client:e.client, on:!SIMP.hist});
   });
 }
@@ -9190,6 +9192,7 @@ function simpRender(){
     });
     h += '</tbody></table></div>';
   }
+  if(SIMP.empWait) h += '<div style="font-size:.74rem;color:var(--mut);margin-top:10px">🚶 '+SIMP.empWait+' emport(s) / autre(s) mode(s) ignoré(s) : la commande n\'est pas encore terminée (ils seront proposés à un prochain import, une fois prête).</div>';
   if(SIMP.emports.length){
     h += '<div style="margin-top:10px;font-weight:800;font-size:.82rem">🚶 Emports et autres modes (sans colis)</div>';
     var by = (S_cmdIndex && S_cmdIndex.byId) || {};
@@ -9218,7 +9221,30 @@ function simpRender(){
     : '<div style="display:flex;gap:8px;margin-bottom:10px">'+tb('orph', '📎 Colis à rattacher', nO, false)+tb('hp', '🏭 Hors production', nH, false)+'</div>';
   if(SIMP.view === 'orph'){ el.innerHTML = top+simpOrphHtml(); return; }
   if(SIMP.view === 'hp'){ el.innerHTML = top+simpHpHtml(); return; }
-  el.innerHTML = top+(h || '<div style="font-size:.8rem;color:var(--mut)">Choisis les fichiers du soir : export EBP, bordereau Chronopost et export ColiShip. Rien n\'est enregistré avant ta validation.</div>');
+  el.innerHTML = top+(h || '<div style="font-size:.8rem;color:var(--mut)">Choisis les fichiers du soir : export EBP, bordereau Chronopost et export ColiShip. Rien n\'est enregistré avant ta validation.</div>')+simpCleanHtml();
+}
+// Emports posés par l'import (BL renseigné, pas de vraie date) sur des commandes qui ne sont PAS terminées : à retirer
+function simpEmpToClean(){
+  var by = (S_cmdIndex && S_cmdIndex.byId) || {}, out = [];
+  Object.keys(by).forEach(function(id){
+    var c = by[id], l = c && c.livraison;
+    if(l && l.mode && l.bl && !l.shipAt && !l.note && c.status !== 'done' && !colisList(c).length) out.push(id);
+  });
+  return out;
+}
+function simpCleanHtml(){
+  if(!canSuiviSaisie()) return '';
+  var n = simpEmpToClean().length; if(!n) return '';
+  return '<div style="margin-top:12px;padding:10px;border:1.5px solid var(--acc);border-radius:10px;font-size:.78rem">⚠️ <strong>'+n+' commande(s) non terminée(s)</strong> sont marquées « Emport / autre mode » par un import précédent, alors qu\'elles ne sont pas prêtes.'+
+    '<button class="btn bsec" style="width:100%;margin-top:8px" onclick="simpEmpClean()">Retirer ces '+n+' emport(s) à tort</button></div>';
+}
+function simpEmpClean(){
+  if(!canSuiviSaisie()) return;
+  var ids = simpEmpToClean(); if(!ids.length) return;
+  if(!confirm('Retirer le mode « Emport / autre mode » de '+ids.length+' commande(s) non terminée(s) ?\n(Les emports saisis à la main ne sont pas touchés.)')) return;
+  Promise.all(ids.map(function(id){ return fbd('commandes/'+id+'/livraison'); }))
+    .then(function(){ toast('✅ '+ids.length+' emport(s) retiré(s)'); simpRender(); })
+    .catch(function(){ toast('Erreur de suppression', 1); });
 }
 function simpHistToggle(v){ SIMP.hist = !!v; simpBuild(); simpRender(); }
 function simpHp(i){ var r = SIMP.rows[i]; if(!r) return; r.hp = !r.hp; if(r.hp) r.on = false; simpRender(); }
