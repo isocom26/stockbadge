@@ -631,6 +631,7 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
   <button class="tab-group-btn" id="grp-stock" onclick="switchGroup('stock')">📦 Stock<span id="inv-badge-grp" class="tab-badge" style="display:none">0</span></button>
   <button class="tab-group-btn ao" id="grp-maintenance" style="display:none" onclick="switchGroup('maintenance')">🔩 Maintenance</button>
   <button class="tab-group-btn ao" id="grp-meeting" style="display:none" onclick="switchGroup('meeting')">📅 Réunions</button>
+  <button class="tab-group-btn ao" id="grp-planning" style="display:none" onclick="switchGroup('planning')">🗓️ Planning</button>
   <button class="tab-group-btn ao" id="grp-stats" style="display:none" onclick="switchGroup('stats')">📊 Statistiques</button>
   <button class="tab-group-btn ao" id="grp-espace" style="display:none" onclick="switchGroup('espace')">📋 Mon Espace</button>
   <button class="tab-group-btn ao" id="grp-admin" style="display:none" onclick="switchGroup('admin')">🔧 Admin</button>
@@ -776,16 +777,6 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
   </div>
 </div>
 
-<!-- MODAL EXCEPTION D'ABSENCE PONCTUELLE (tableau de bord > Capacité) -->
-<div class="mover" id="m-dash-absence" onclick="cm('m-dash-absence')">
-  <div class="cmod" onclick="event.stopPropagation()" style="max-height:85vh;overflow-y:auto">
-    <div class="dh" style="margin:0 auto 16px"></div>
-    <h3 id="dash-absence-title" style="font-family:Open Sans,sans-serif;font-weight:800;margin-bottom:6px">✎ Absences du jour</h3>
-    <p style="color:var(--mut);font-size:.8rem;margin-bottom:12px">Ajuste la présence pour cette date précise uniquement — le profil habituel de chacun n'est pas modifié.</p>
-    <div id="dash-absence-list"></div>
-  </div>
-</div>
-
 <!-- MODAL DÉTAIL COMMANDE (tableau de bord > Commandes) -->
 <div class="mover" id="m-dash-depart" onclick="cm('m-dash-depart')">
   <div class="cmod" onclick="event.stopPropagation()">
@@ -901,6 +892,24 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
   <div id="rpt-days"></div>
   <div id="rpt-totals"></div>
 </div>
+<div id="view-planning" class="view">
+  <div class="rpt-nav" style="margin-bottom:10px">
+    <button class="rpt-nav-btn" onclick="planChangeWeek(-1)">←</button>
+    <div class="rpt-nav-label" id="plan-week-label">—</div>
+    <button class="rpt-nav-btn" onclick="planChangeWeek(1)">→</button>
+  </div>
+  <div style="text-align:center;margin-bottom:10px"><button type="button" onclick="planToday()" style="padding:5px 12px;border-radius:8px;border:1px solid var(--brd);background:none;color:var(--txt);font-size:.76rem;cursor:pointer">Aujourd'hui</button></div>
+  <div id="plan-body"></div>
+</div>
+
+<div class="mover" id="m-plan" onclick="cm('m-plan')">
+  <div class="cmod" onclick="event.stopPropagation()" style="max-height:88vh;overflow-y:auto">
+    <div class="dh" style="margin:0 auto 16px"></div>
+    <h3 id="plan-modal-title" style="font-family:Open Sans,sans-serif;font-weight:800;margin-bottom:10px">Planning</h3>
+    <div id="plan-modal-body"></div>
+  </div>
+</div>
+
 <div id="view-meeting" class="view">
   <div id="mtg-pole-switch" style="display:none;gap:6px;margin-bottom:10px"><button class="mpole-btn active" id="mtgpole-badges" onclick="mtgSetPole('badges')">🏷️ Badges</button><button class="mpole-btn" id="mtgpole-numerique" onclick="mtgSetPole('numerique')">🖨️ Numérique</button></div>
   <div class="rpt-nav" style="flex-direction:column;gap:8px">
@@ -1188,12 +1197,6 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
     <button class="btn bpri" style="width:100%;margin-top:4px" onclick="openAddUserModal()">+ Créer un compte collaborateur</button>
   </div>
 
-  <!-- Absences récurrentes -->
-  <div style="background:var(--card);border:1.5px solid var(--brd);border-radius:14px;padding:14px;margin-bottom:16px">
-    <div style="font-family:Open Sans,sans-serif;font-weight:800;font-size:0.95rem;margin-bottom:6px">🧑‍🤝‍🧑 Absences récurrentes</div>
-    <div style="font-size:.78rem;color:var(--mut);margin-bottom:10px">Profil hebdomadaire habituel de chaque producteur (ex : absent tous les mercredis). Utilisé automatiquement pour calculer la capacité réelle jour par jour dans Tableau de bord → Capacité. Enregistré directement à chaque changement.</div>
-    <div id="dash-set-absences" style="overflow-x:auto"></div>
-  </div>
 </div>
 
 <div id="view-admin_interventions" class="view">
@@ -2016,7 +2019,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.11.06-1630';
+var APP_VERSION = '2026.11.06-1800';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -2755,7 +2758,7 @@ auth.onAuthStateChanged(function(u) {
     document.getElementById('abadge').style.display = (iAm||isDir) ? 'inline' : 'none';
     document.getElementById('abadge').textContent = iAm ? 'Admin' : 'Direction';
     saveQuickProfile(u.email, u.displayName);
-    if (!inited) { inited = true; startDB(); startMachListener(); startRpListener(); startCmdIndexListener(); startCustomFormatsListener(); startInvcListener(); startCompListener(); startGammesListener(); startEtapesSupListener(); startTranspListener(); startOrphListener(); startQtyRulesListener(); startPoleCfgListener(); startMachCatsListener(); startAlertSeenListener(); }
+    if (!inited) { inited = true; startDB(); startMachListener(); startRpListener(); startCmdIndexListener(); startCustomFormatsListener(); startInvcListener(); startCompListener(); startGammesListener(); startEtapesSupListener(); startTranspListener(); startOrphListener(); startQtyRulesListener(); startPoleCfgListener(); startMachCatsListener(); startPlanListener(); startAlertSeenListener(); }
     if (location.hash === '#ecran') setTimeout(function(){ ecranAutoOpen(0); }, 400);
 
     // Rendu immédiat depuis le cache local, si on a déjà vu cet utilisateur
@@ -2954,6 +2957,7 @@ function ecranAutoOpen(tries){
 // Pas de correctif technique invisible ici. tag = qui est concerné :
 //   'all' (tout le monde), 'admin' (admin/direction), 'maint' (maintenance), 'stock' (ajout de stock), 'reprint' (réimpressions)
 var NEWS = [
+  {n:59, d:'06/11/2026', tag:'all', t:'Nouvel onglet Planning', x:'Petit agenda de l\'équipe : semaine par semaine, absences, congés par producteur (en période), fermetures, et événements (réunions, infos…). Visible par tous ; la modification se donne dans Admin › Droits (« Peut modifier le Planning »). Les absences récurrentes quittent Admin et la saisie des absences du jour quitte Capacité : tout se fait maintenant dans Planning. Capacité et statistiques de délais tiennent compte des congés et fermetures.'},
   {n:58, d:'06/11/2026', tag:'all', t:'Statistiques : respect des délais', x:'Nouveau bloc dans Statistiques : % de commandes parties à l\'heure (par rapport au départ prévu), délai de production en jours ouvrés (moyenne, médiane, max), détail par site, évolution par mois et liste des commandes en retard. Jours ouvrés = hors week-ends, jours fériés et fermeture annuelle.'},
   {n:57, d:'06/11/2026', tag:'admin', t:'Import des expéditions : rapprochement par nom nettement amélioré', x:'Les colis Colissimo sans BL sont mieux retrouvés : noms avec chiffres (MHRE89) ou numéro de SIRET collé, BL déjà utilisés écartés, BL trop anciens/récents écartés d\'après la date d\'expédition. Quand un client a autant de commandes que de colis, ils sont proposés dans l\'ordre (à vérifier avant de cocher).'},
   {n:56, d:'06/11/2026', tag:'all', t:'Fiche commande : emport / autre mode + date d\'expédition', x:'Sur la fiche d\'une commande, nouveau bouton « 🚶 Emport / autre mode (sans colis) » (emport, livraison par nos soins, enlèvement par le transporteur du client, autre) avec sa date, et un champ « Date d\'expédition » à l\'ajout d\'un colis à la main. La date s\'affiche dans « Expédié le » du tableau.'},
@@ -3323,6 +3327,7 @@ var RIGHTS_TREE = [
   ]},
   {key:'maintenance', label:'🔩 Maintenance', def:function(P,d){return d||!!P.maintenance;}, subs:[], actions:['maintenance','machCats','maintNotif']},
   {key:'meeting', label:'📅 Réunions', def:function(P,d){return d;}, subs:[]},
+  {key:'planning', label:'🗓️ Planning', def:function(){return true;}, subs:[], actions:['planningEdit']},
   {key:'stats',   label:'📊 Statistiques', def:function(P,d){return d||!!P.stats;}, subs:[]},
   {key:'espace',  label:'📋 Mon Espace', def:function(P,d){return d;}, subs:[]},
   {key:'admin',   label:'🔧 Admin', def:function(P,d){return d;}, subs:[
@@ -3365,23 +3370,23 @@ function dashSubAllowed(k){
 // Modèles de droits (pré-remplissent le panneau ; l'admin vérifie puis enregistre)
 var RIGHTS_TEMPLATES = {
   operateur: {label:'👷 Opérateur', desc:'Production + Stock (consultation). Remplit Ma production.', role:'employee', isProducer:true,
-    tops:['production','stock'],
+    tops:['production','stock','planning'],
     subs:['report','depiautage','reprint','qualite','search','atelier','reserve','alertes'],
     actions:['production']},
   chef: {label:'🧑‍🔧 Chef d\'équipe', desc:'Production, Stock complet, Tableau de bord, Maintenance.', role:'employee', isProducer:true,
-    tops:['production','stock','dashboard','maintenance','meeting'],
+    tops:['production','stock','dashboard','maintenance','meeting','planning'],
     subs:['report','depiautage','reprint','qualite','search','atelier','reserve','alertes','commandes','reception','inventaire','dash_recherche','dash_synthese','dash_aujourdhui','dash_capacite','dash_sav'],
     actions:['production','addStock','reprint','orders','reception','maintenance','maintNotif','sav','suiviSaisie']},
   numerique: {label:'🖨️ Pôle numérique', desc:'Autonome au pôle numérique (machines, réimpressions, commandes).', role:'employee', pole:'numerique', isProducer:true,
-    tops:['production','stock','dashboard','maintenance'],
+    tops:['production','stock','dashboard','maintenance','planning'],
     subs:['report','depiautage','reprint','qualite','search','atelier','reserve','alertes','commandes','reception','dash_recherche','dash_synthese','dash_sav'],
     actions:['production','addStock','reprint','orders','reception','maintenance','machCats','sav','suiviSaisie']},
   direction: {label:'👔 Direction', desc:'Accès complet sauf Admin et Ma production.', role:'direction', isProducer:false,
-    tops:['production','stock','dashboard','maintenance','meeting','stats','espace'],
+    tops:['production','stock','dashboard','maintenance','meeting','planning','stats','espace'],
     subs:['depiautage','reprint','qualite','search','atelier','reserve','alertes','commandes','reception','inventaire','journal','dash_recherche','dash_synthese','dash_aujourdhui','dash_capacite','dash_sav'],
-    actions:['addStock','maintenance','machCats','reprint','orders','reception','sav','maintNotif','savAlert','suiviSaisie','suiviConf','ecranAtelier']},
+    actions:['addStock','maintenance','machCats','reprint','orders','reception','sav','maintNotif','savAlert','suiviSaisie','suiviConf','ecranAtelier','planningEdit']},
   lecture: {label:'👁️ Consultation', desc:'Lecture seule : recherche, stock, tableau de bord (Commandes, Synthèse).', role:'employee', isProducer:false,
-    tops:['production','stock','dashboard'],
+    tops:['production','stock','dashboard','planning'],
     subs:['search','atelier','reserve','alertes','dash_recherche','dash_synthese'],
     actions:[]}
 };
@@ -3673,6 +3678,7 @@ function switchTab(name) {
   if (name==='reprint') renderReprint();
   if (name==='report' && permsLoaded) openReportTab();
   if (name==='meeting') openMeetingTab();
+  if (name==='planning') openPlanningTab();
   if (name==='depiautage') openDepiautageTab();
   if (name==='stats') openStatsTab();
   if (name==='dashboard' && permsLoaded){ openDashboardTab(); dashSwitchSection('recherche'); } // ouverture directe sur « Commandes »
@@ -9392,6 +9398,7 @@ var PERMS_LIST = [
   {key:'savAlert',   label:'🔔 Reçoit les alertes SAV (bandeau + pastille quand un SAV est déclaré) — admin les reçoit toujours'},
   {key:'suiviSaisie', label:'📮 Peut saisir les suivis d\'expédition (colis, n° de suivi) — admin et direction l\'ont toujours'},
   {key:'suiviConf',  label:'✅ Confirme les expéditions et reçoit l\'alerte « à confirmer » (bandeau + pastille CONF) — admin et direction l\'ont toujours'},
+  {key:'planningEdit', label:'✏️ Peut modifier le Planning (absences, congés, fermetures, agenda) — admin l\'a toujours ; sans ce droit, le Planning est en consultation'},
   {key:'ecranAtelier', label:'📺 Voit le bouton « Écran atelier » (affichage TV) — admin et direction l\'ont toujours'},
 ];
 
@@ -15711,7 +15718,7 @@ var TAB_GROUP_MAP = {
   search:'production',
   depiautage:'production',
   report:'production', reprint:'production', qualite:'production',
-  maintenance:'maintenance', meeting:'meeting', stats:'stats',
+  maintenance:'maintenance', meeting:'meeting', planning:'planning', stats:'stats',
   admin_droits:'admin', admin_interventions:'admin', admin_reglages:'admin',
   dashboard:'dashboard'
 };
@@ -15719,7 +15726,7 @@ var TAB_GROUP_MAP = {
 function switchGroup(group){
   activeGroup = group;
   // Groupes directs (pas de sous-barre)
-  var directGroups = ['maintenance','meeting','stats','espace','dashboard'];
+  var directGroups = ['maintenance','meeting','planning','stats','espace','dashboard'];
   // Mettre à jour les boutons de groupe
   document.querySelectorAll('.tab-group-btn').forEach(function(b){
     b.classList.toggle('active', b.id === 'grp-'+group);
@@ -19616,33 +19623,12 @@ function statsApplyPoleUi(){
 
 // ══════════════════════════════════════════════════
 // ── Statistique « Respect des délais » : délais de production et départ à l'heure ──
-// Jours ouvrés = ni samedi, ni dimanche, ni jour férié, ni fermeture annuelle (à compléter ci-dessous chaque année).
+// Jours ouvrés = ni samedi, ni dimanche, ni jour férié, ni fermeture (à saisir dans l'onglet Planning).
 // Aucune donnée n'est écrite : tout est calculé à partir des commandes (créée le, départ prévu, 1re expédition).
 // ══════════════════════════════════════════════════
-var DELAI_FERMETURES = [['2026-12-21','2026-12-24']];   // fermetures annuelles (bornes incluses)
-var _delaiHolCache = {};
 function delaiKey(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
-function delaiPaques(y){
-  var a = y%19, b = Math.floor(y/100), c = y%100, d = Math.floor(b/4), e = b%4, f = Math.floor((b+8)/25), g = Math.floor((b-f+1)/3),
-      h = (19*a+b-d-g+15)%30, i = Math.floor(c/4), k = c%4, l = (32+2*e+2*i-h-k)%7, m = Math.floor((a+11*h+22*l)/451),
-      mo = Math.floor((h+l-7*m+114)/31), da = ((h+l-7*m+114)%31)+1;
-  return new Date(y, mo-1, da);
-}
-function delaiFeries(y){
-  if(_delaiHolCache[y]) return _delaiHolCache[y];
-  var set = {}, add = function(d){ set[delaiKey(d)] = 1; };
-  ['01-01','05-01','05-08','07-14','08-15','11-01','11-11','12-25'].forEach(function(md){ set[y+'-'+md] = 1; });
-  var p = delaiPaques(y);
-  [1, 39, 50].forEach(function(n){ add(new Date(p.getFullYear(), p.getMonth(), p.getDate()+n)); });   // lundi de Pâques, Ascension, lundi de Pentecôte
-  return (_delaiHolCache[y] = set);
-}
-function delaiOuvre(d){
-  var w = d.getDay(); if(w === 0 || w === 6) return false;
-  var k = delaiKey(d);
-  if(delaiFeries(d.getFullYear())[k]) return false;
-  for(var i = 0; i < DELAI_FERMETURES.length; i++) if(k >= DELAI_FERMETURES[i][0] && k <= DELAI_FERMETURES[i][1]) return false;
-  return true;
-}
+// Jour ouvré = comme partout dans l'appli : ni week-end, ni férié, ni fermeture saisie dans l'onglet Planning
+function delaiOuvre(d){ return dashIsWorkingDay(d); }
 // Nombre de jours ouvrés dans l'intervalle ]a, b] (a et b en 'YYYY-MM-DD') ; négatif si b est avant a
 function delaiJoursOuvres(a, b){
   if(a === b) return 0;
@@ -21894,6 +21880,7 @@ function dashIsHoliday(d){
 function dashIsWorkingDay(d){
   var dow = d.getDay(); // 0=Dim..6=Sam
   if(dow===0||dow===6) return false;
+  if(typeof planClosure === 'function' && planClosure(dashDateKey(d))) return false;   // fermeture saisie dans le Planning
   return !dashIsHoliday(d);
 }
 // Nombre de jours ouvrés entre 'from' et 'to' inclus (lundi-vendredi, fériés FR exclus)
@@ -22076,6 +22063,8 @@ function dashWeekdayKey(d){
 function dashAbsenceFraction(uid, dateKey, weekdayKey, absencesRecurrentes, absencesExceptions){
   var exc = (absencesExceptions||{})[dateKey];
   if(exc && exc[uid] != null && exc[uid] !== '') return parseFloat(exc[uid])||0;
+  var cg = (typeof planCongeFrac === 'function') ? planCongeFrac(uid, dateKey) : null;   // congé posé dans le Planning
+  if(cg !== null) return cg;
   var rec = (absencesRecurrentes||{})[uid];
   if(rec && weekdayKey && rec[weekdayKey] != null && rec[weekdayKey] !== '') return parseFloat(rec[weekdayKey])||0;
   return 0;
@@ -23037,7 +23026,7 @@ function dashRenderCapacite(){
 
   html += '<div style="margin-top:16px">';
   html += '<div style="font-family:Open Sans,sans-serif;font-weight:800;font-size:0.95rem;margin-bottom:6px">📅 Capacité réelle, jour par jour</div>';
-  html += '<div style="font-size:.72rem;color:var(--mut);margin-bottom:8px">Calculée à partir des producteurs actifs et de leurs absences (habituelles ou ponctuelles) — l\'express est placé en priorité sur les premiers jours, le reste à produire comble ensuite ce qu\'il reste de capacité.</div>';
+  html += '<div style="font-size:.72rem;color:var(--mut);margin-bottom:8px">Calculée à partir des producteurs actifs et de leurs absences, congés et fermetures (à saisir dans l\'onglet Planning) — l\'express est placé en priorité sur les premiers jours, le reste à produire comble ensuite ce qu\'il reste de capacité.</div>';
   html += '<div id="dash-cap-days"></div>';
   html += '</div>';
 
@@ -23104,8 +23093,7 @@ function dashRenderCapaciteTable(days){
       (pctExpress>0 ? '<div style="width:'+pctExpress+'%;background:var(--acc)"></div>' : '')+
       '</div>';
     return '<tr style="border-bottom:1px solid var(--brd)">'+
-      '<td style="padding:7px 9px;font-weight:700;white-space:nowrap">'+label+echeanceBadge+
-        ' <button onclick="dashOpenAbsenceException(\''+day.dateKey+'\')" title="Ajuster les absences ce jour-là" style="background:none;border:none;color:var(--mut);cursor:pointer;font-size:.8rem;padding:0 2px">✎</button></td>'+
+      '<td style="padding:7px 9px;font-weight:700;white-space:nowrap">'+label+echeanceBadge+'</td>'+
       '<td style="padding:7px 9px;white-space:nowrap">'+day.capacite.toLocaleString('fr-FR')+'<div style="font-size:.66rem;color:var(--mut);font-weight:400">'+day.effectif.toLocaleString('fr-FR')+' prod.</div></td>'+
       '<td style="padding:7px 9px;color:var(--mut);white-space:nowrap">'+(day.commandes>0?day.commandes.toLocaleString('fr-FR'):'—')+'</td>'+
       '<td style="padding:7px 9px;color:var(--mut);white-space:nowrap">'+(day.express>0?day.express.toLocaleString('fr-FR'):'—')+'</td>'+
@@ -23116,47 +23104,6 @@ function dashRenderCapaciteTable(days){
   html += '</tbody></table></div>';
   html += '<div style="font-size:.68rem;color:var(--mut);margin-top:6px"><span style="color:var(--blu)">■</span> commandes déjà en file &nbsp; <span style="color:var(--acc)">■</span> express</div>';
   el.innerHTML = html;
-}
-
-// Ouvre la modale d'exception d'absence ponctuelle pour une date donnée
-// (ex: Boris finalement présent ce mercredi, ou Marie absente ce vendredi).
-function dashOpenAbsenceException(dateKey){
-  var titleEl = document.getElementById('dash-absence-title');
-  var d = new Date(dateKey+'T00:00:00');
-  titleEl.textContent = '✎ Absences du ' + d.toLocaleDateString('fr-FR',{weekday:'long',day:'2-digit',month:'2-digit'});
-
-  var exceptions = (S_dash.absencesExceptions||{})[dateKey] || {};
-  var wk = dashWeekdayKey(d);
-  var listEl = document.getElementById('dash-absence-list');
-  listEl.innerHTML = (S_dash.producers||[]).map(function(p){
-    var recFrac = wk ? (((S_dash.absencesRecurrentes||{})[p.uid]||{})[wk]) : null;
-    var recLabel = (recFrac==1) ? ' (habituellement absent journée)' : (recFrac==0.5) ? ' (habituellement absent ½ journée)' : '';
-    var curVal = (exceptions[p.uid] != null && exceptions[p.uid] !== '') ? String(exceptions[p.uid]) : '';
-    return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">'+
-      '<div style="flex:1;font-size:.85rem">'+esc(p.name)+'<span style="color:var(--mut);font-size:.72rem">'+recLabel+'</span></div>'+
-      '<select onchange="dashSaveAbsenceException(\''+dateKey+'\',\''+p.uid+'\',this.value)" style="background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.82rem;padding:6px 8px;outline:none">'+
-        '<option value=""'+(curVal===''?' selected':'')+'>Comme d\'habitude</option>'+
-        '<option value="0"'+(curVal==='0'?' selected':'')+'>Présent (journée complète)</option>'+
-        '<option value="0.5"'+(curVal==='0.5'?' selected':'')+'>Absent ½ journée</option>'+
-        '<option value="1"'+(curVal==='1'?' selected':'')+'>Absent (journée complète)</option>'+
-      '</select>'+
-    '</div>';
-  }).join('') || '<div style="color:var(--mut);font-size:.85rem">Aucun producteur actif.</div>';
-
-  om('m-dash-absence');
-}
-
-// Enregistre (ou supprime, si retour à "comme d'habitude") une exception
-// ponctuelle d'absence pour un producteur à une date donnée.
-function dashSaveAbsenceException(dateKey, uid, val){
-  var p = (val==='') ? fbd('settings/dashboard/absencesExceptions/'+dateKey+'/'+uid)
-                      : fbs('settings/dashboard/absencesExceptions/'+dateKey+'/'+uid, parseFloat(val));
-  p.then(function(){
-    if(!S_dash.absencesExceptions[dateKey]) S_dash.absencesExceptions[dateKey] = {};
-    if(val===''){ delete S_dash.absencesExceptions[dateKey][uid]; }
-    else{ S_dash.absencesExceptions[dateKey][uid] = parseFloat(val); }
-    dashRecalcCapacite();
-  });
 }
 
 // ── Recherche commandes (vue tableau) ──
@@ -23736,7 +23683,6 @@ function renderDashboardSettings(){
     var elInp = document.getElementById('dash-set-pcsjour');
     if(elInp) elInp.value = s.pcsParJourDefault || 2000;
   });
-  renderAbsencesRecurrentes();
 }
 function saveDashboardSettings(){
   var v = parseInt(document.getElementById('dash-set-pcsjour').value)||2000;
@@ -23746,51 +23692,285 @@ function saveDashboardSettings(){
   });
 }
 
+// ══════════════════════════════════════════════════
+// ── ONGLET PLANNING : petit agenda d'équipe (absences, congés, fermetures, événements) ──
+// Visible par tous (droit d'onglet « Planning »), modifiable avec le droit « planningEdit » (admin toujours).
+// Données (toutes sous settings/dashboard, comme les absences existantes) :
+//   absencesRecurrentes/{uid}/{lun..ven} = 0 | 0.5 | 1     (profil habituel — inchangé)
+//   absencesExceptions/{AAAA-MM-JJ}/{uid} = 0 | 0.5 | 1    (jour précis — inchangé)
+//   conges/{id}     = {uid, from, to, frac(1|0.5), note, by, at}
+//   fermetures/{id} = {label, from, to, by, at}
+//   agenda/{id}     = {date, time?, title, kind, note?, by, at}
+// ══════════════════════════════════════════════════
+var S_plan = {conges:{}, fermetures:{}, agenda:{}, weekStart:null};
+var PLAN_JOURS = ['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'];
+var PLAN_KINDS = {reunion:'🗓️ Réunion', info:'ℹ️ Info', autre:'📌 Autre'};
+function canPlanEdit(){ return !!(iAm || (permsLoaded && me_perms && me_perms.planningEdit === true)); }
+function startPlanListener(){
+  ['conges','fermetures','agenda'].forEach(function(k){
+    db.ref('settings/dashboard/'+k).on('value', function(s){
+      S_plan[k] = s.val() || {};
+      if(curTab === 'planning') planRender();
+    }, function(){});
+  });
+}
+// Fermeture (période) qui couvre un jour 'AAAA-MM-JJ', ou null
+function planClosure(key){
+  var f = (S_plan && S_plan.fermetures) || {}, ids = Object.keys(f);
+  for(var i = 0; i < ids.length; i++){ var x = f[ids[i]]; if(x && x.from && x.to && key >= x.from && key <= x.to) return x; }
+  return null;
+}
+// Fraction d'absence due à un congé (0.5 ou 1) pour un producteur un jour donné, ou null s'il n'a pas de congé ce jour-là
+function planCongeFrac(uid, key){
+  var c = (S_plan && S_plan.conges) || {}, best = null;
+  Object.keys(c).forEach(function(id){
+    var x = c[id]; if(!x || x.uid !== uid || !x.from || !x.to || key < x.from || key > x.to) return;
+    var f = parseFloat(x.frac); if(isNaN(f)) f = 1;
+    if(best === null || f > best) best = f;
+  });
+  return best;
+}
+// Absence d'un producteur un jour donné, avec l'origine (pour l'affichage)
+function planAbsInfo(uid, d){
+  var key = dashDateKey(d), exc = (S_dash.absencesExceptions || {})[key];
+  if(exc && exc[uid] != null && exc[uid] !== '') return {frac:parseFloat(exc[uid]) || 0, src:'ponctuel'};
+  var cg = planCongeFrac(uid, key);
+  if(cg !== null) return {frac:cg, src:'congé'};
+  var wk = dashWeekdayKey(d), rec = (S_dash.absencesRecurrentes || {})[uid];
+  if(rec && wk && rec[wk] != null && rec[wk] !== '') return {frac:parseFloat(rec[wk]) || 0, src:'habituel'};
+  return {frac:0, src:''};
+}
+function planMonday(d){ var x = new Date(d.getFullYear(), d.getMonth(), d.getDate()); x.setDate(x.getDate() - ((x.getDay()+6)%7)); return x; }
+function planFmtD(d){ return d.toLocaleDateString('fr-FR', {day:'numeric', month:'long'}); }
+function planFmtKey(k){ return new Date(k+'T00:00:00').toLocaleDateString('fr-FR'); }
+function planLoadAbs(){
+  return Promise.all([
+    fbg('users').then(function(s){ return s.val() || {}; }),
+    fbg('settings/dashboard/absencesRecurrentes').then(function(s){ return s.val() || {}; }),
+    fbg('settings/dashboard/absencesExceptions').then(function(s){ return s.val() || {}; })
+  ]).then(function(res){
+    S_dash.users = res[0]; S_dash.producers = dashActiveProducers(res[0]);
+    S_dash.absencesRecurrentes = res[1]; S_dash.absencesExceptions = res[2];
+  });
+}
+function openPlanningTab(){
+  if(!S_plan.weekStart) S_plan.weekStart = planMonday(new Date());
+  planRender();
+  planLoadAbs().then(planRender).catch(function(){ planRender(); });
+}
+function planChangeWeek(n){ var w = S_plan.weekStart; S_plan.weekStart = new Date(w.getFullYear(), w.getMonth(), w.getDate()+7*n); planRender(); }
+function planToday(){ S_plan.weekStart = planMonday(new Date()); planRender(); }
+function planBtn(txt, on, extra){ return '<button type="button" onclick="'+on+'" style="padding:4px 9px;border-radius:8px;border:1px solid var(--brd);background:none;color:var(--txt);font-size:.72rem;cursor:pointer;'+(extra||'')+'">'+txt+'</button>'; }
+function planCard(title, inner, right){
+  return '<div style="background:var(--card);border:1.5px solid var(--brd);border-radius:12px;padding:12px 14px;margin-bottom:12px">'+
+    '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px"><div style="font-family:Open Sans,sans-serif;font-weight:800;font-size:.92rem">'+title+'</div>'+(right||'')+'</div>'+inner+'</div>';
+}
+function planRender(){
+  var el = document.getElementById('plan-body'); if(!el) return;
+  if(!S_plan.weekStart) S_plan.weekStart = planMonday(new Date());
+  var edit = canPlanEdit(), ws = S_plan.weekStart, todayKey = dashDateKey(new Date()), producers = S_dash.producers || [], days = [], i;
+  for(i = 0; i < 7; i++) days.push(new Date(ws.getFullYear(), ws.getMonth(), ws.getDate()+i));
+  var lab = document.getElementById('plan-week-label'); if(lab) lab.textContent = 'Semaine du '+planFmtD(days[0])+' au '+planFmtD(days[6])+' '+days[6].getFullYear();
+  var byDay = {};
+  Object.keys(S_plan.agenda || {}).forEach(function(id){ var e = S_plan.agenda[id]; if(e && e.date) (byDay[e.date] = byDay[e.date] || []).push(Object.assign({id:id}, e)); });
+  Object.keys(byDay).forEach(function(k){ byDay[k].sort(function(a, b){ return String(a.time||'99:99').localeCompare(String(b.time||'99:99')); }); });
+  var html = '';
+  days.forEach(function(d, idx){
+    var key = dashDateKey(d), evs = byDay[key] || [], weekend = (d.getDay() === 0 || d.getDay() === 6);
+    if(weekend && !evs.length) return;
+    var closure = planClosure(key), holiday = dashIsHoliday(d), off = weekend || holiday || !!closure;
+    var badges = (holiday ? '<span style="font-size:.66rem;font-weight:800;padding:2px 7px;border-radius:99px;background:rgba(220,38,38,.12);color:var(--red)">Férié</span> ' : '') +
+                 (closure ? '<span style="font-size:.66rem;font-weight:800;padding:2px 7px;border-radius:99px;background:rgba(220,38,38,.12);color:var(--red)">🔒 '+esc(closure.label || 'Fermeture')+'</span> ' : '');
+    var inner = '';
+    evs.forEach(function(e){
+      inner += '<div style="display:flex;gap:8px;align-items:flex-start;padding:5px 0;border-top:1px solid var(--brd);font-size:.82rem'+(edit ? ';cursor:pointer' : '')+'"'+(edit ? ' onclick="planEventForm(\''+key+'\',\''+e.id+'\')"' : '')+'>'+
+        '<div style="min-width:46px;font-weight:700;color:var(--mut);font-size:.76rem">'+esc(e.time||'')+'</div>'+
+        '<div style="flex:1"><div>'+(PLAN_KINDS[e.kind]||PLAN_KINDS.autre).split(' ')[0]+' <strong>'+esc(e.title||'')+'</strong></div>'+(e.note ? '<div style="font-size:.72rem;color:var(--mut)">'+esc(e.note)+'</div>' : '')+'</div></div>';
+    });
+    if(!off){
+      var abs = producers.map(function(p){ var a = planAbsInfo(p.uid, d); return a.frac > 0 ? {name:p.name, a:a} : null; }).filter(Boolean);
+      var eff = dashEffectiveProducers(producers, d, S_dash.absencesRecurrentes, S_dash.absencesExceptions);
+      if(producers.length) inner += '<div style="padding:5px 0;border-top:1px solid var(--brd);font-size:.78rem"><span style="color:var(--mut)">Présents :</span> <strong>'+String(Math.round(eff*10)/10).replace('.', ',')+' / '+producers.length+'</strong>'+
+        (abs.length ? abs.map(function(x){ return '<div style="color:var(--acc);font-size:.76rem;margin-top:2px">• '+esc(x.name)+' — '+(x.a.frac >= 1 ? 'absent' : 'absent ½ journée')+' <span style="color:var(--mut)">('+x.a.src+')</span></div>'; }).join('') : '')+'</div>';
+    }
+    if(edit) inner += '<div style="display:flex;gap:6px;flex-wrap:wrap;padding-top:6px">'+planBtn('+ Événement', 'planEventForm(\''+key+'\')')+(off ? '' : planBtn('✎ Absences du jour', 'planDayAbsForm(\''+key+'\')'))+'</div>';
+    html += '<div style="background:var(--card);border:1.5px solid '+(key === todayKey ? 'var(--acc)' : 'var(--brd)')+';border-radius:12px;padding:10px 14px;margin-bottom:10px'+(off && !evs.length ? ';opacity:.75' : '')+'">'+
+      '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><div style="font-family:Open Sans,sans-serif;font-weight:800;font-size:.9rem">'+PLAN_JOURS[d.getDay()]+' '+planFmtD(d)+(key === todayKey ? ' <span style="color:var(--acc);font-size:.7rem">· aujourd\'hui</span>' : '')+'</div><div>'+badges+'</div></div>'+inner+'</div>';
+  });
+  // Congés
+  var cg = Object.keys(S_plan.conges || {}).map(function(id){ return Object.assign({id:id}, S_plan.conges[id]); }).filter(function(x){ return x && x.to && x.to >= todayKey; }).sort(function(a, b){ return a.from < b.from ? -1 : 1; });
+  var nameOf = function(uid){ var p = producers.find(function(q){ return q.uid === uid; }); return p ? p.name : '(ancien producteur)'; };
+  html += planCard('🏖️ Congés à venir', cg.length ? cg.map(function(x){
+      return '<div style="display:flex;justify-content:space-between;gap:8px;align-items:center;border-top:1px solid var(--brd);padding:5px 0;font-size:.8rem"><div><strong>'+esc(nameOf(x.uid))+'</strong> — du '+planFmtKey(x.from)+' au '+planFmtKey(x.to)+(parseFloat(x.frac) === 0.5 ? ' (½ journée)' : '')+(x.note ? '<div style="font-size:.72rem;color:var(--mut)">'+esc(x.note)+'</div>' : '')+'</div>'+(edit ? planBtn('Modifier', 'planCongeForm(\''+x.id+'\')') : '')+'</div>';
+    }).join('') : '<div style="color:var(--mut);font-size:.8rem">Aucun congé à venir.</div>', edit ? planBtn('+ Poser un congé', 'planCongeForm()') : '');
+  // Fermetures
+  var fm = Object.keys(S_plan.fermetures || {}).map(function(id){ return Object.assign({id:id}, S_plan.fermetures[id]); }).filter(function(x){ return x && x.to && x.to >= todayKey; }).sort(function(a, b){ return a.from < b.from ? -1 : 1; });
+  html += planCard('🔒 Fermetures', (fm.length ? fm.map(function(x){
+      return '<div style="display:flex;justify-content:space-between;gap:8px;align-items:center;border-top:1px solid var(--brd);padding:5px 0;font-size:.8rem"><div><strong>'+esc(x.label||'Fermeture')+'</strong> — du '+planFmtKey(x.from)+' au '+planFmtKey(x.to)+'</div>'+(edit ? planBtn('Modifier', 'planFermForm(\''+x.id+'\')') : '')+'</div>';
+    }).join('') : '<div style="color:var(--mut);font-size:.8rem">Aucune fermeture à venir.</div>')+
+    '<div style="font-size:.68rem;color:var(--mut);margin-top:6px">Les jours fériés sont automatiques. Les fermetures et jours fériés ne comptent pas comme jours ouvrés (capacité, statistiques de délais).</div>', edit ? planBtn('+ Ajouter', 'planFermForm()') : '');
+  // Absences récurrentes
+  html += planCard('🧑‍🤝‍🧑 Absences récurrentes', '<div style="font-size:.74rem;color:var(--mut);margin-bottom:8px">Profil hebdomadaire habituel de chaque producteur (ex : absent tous les mercredis).</div><div id="plan-recurrent" style="overflow-x:auto"></div>');
+  el.innerHTML = html;
+  renderAbsencesRecurrentes('plan-recurrent', !edit);
+}
+// ── fenêtre de saisie ──
+function planModal(title, body){
+  document.getElementById('plan-modal-title').textContent = title;
+  document.getElementById('plan-modal-body').innerHTML = body;
+  om('m-plan');
+}
+function planInp(label, input){ return '<div style="margin-bottom:10px"><div style="font-size:.74rem;font-weight:700;color:var(--mut);margin-bottom:3px">'+label+'</div>'+input+'</div>'; }
+var PLAN_INP = 'width:100%;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.9rem;padding:9px 10px;box-sizing:border-box';
+function planActs(id, saveFn, delFn){
+  return '<div class="macts" style="margin-top:12px"><button class="btn bsec" onclick="cm(\'m-plan\')">Annuler</button>'+
+    (id ? '<button class="btn bsec" style="color:var(--red)" onclick="'+delFn+'(\''+id+'\')">Supprimer</button>' : '')+
+    '<button class="btn bpri" onclick="'+saveFn+'(\''+(id||'')+'\')">Enregistrer</button></div>';
+}
+function planV(id){ var e = document.getElementById(id); return e ? e.value.trim() : ''; }
+// Événement d'agenda
+function planEventForm(dateKey, id){
+  if(!canPlanEdit()) return;
+  var e = id ? (S_plan.agenda[id] || {}) : {};
+  planModal(id ? 'Modifier l\'événement' : 'Nouvel événement',
+    planInp('Type', '<select id="pe-kind" style="'+PLAN_INP+'">'+Object.keys(PLAN_KINDS).map(function(k){ return '<option value="'+k+'"'+((e.kind||'info') === k ? ' selected' : '')+'>'+PLAN_KINDS[k]+'</option>'; }).join('')+'</select>')+
+    planInp('Titre', '<input id="pe-title" type="text" value="'+esc(e.title||'')+'" placeholder="Ex : Réunion de production" style="'+PLAN_INP+'">')+
+    planInp('Date', '<input id="pe-date" type="date" value="'+esc(e.date || dateKey || '')+'" style="'+PLAN_INP+'">')+
+    planInp('Heure (facultatif)', '<input id="pe-time" type="time" value="'+esc(e.time||'')+'" style="'+PLAN_INP+'">')+
+    planInp('Précisions (facultatif)', '<textarea id="pe-note" rows="2" style="'+PLAN_INP+'">'+esc(e.note||'')+'</textarea>')+
+    planActs(id, 'planEventSave', 'planEventDel'));
+}
+function planEventSave(id){
+  if(!canPlanEdit()) return;
+  var title = planV('pe-title'), date = planV('pe-date');
+  if(!title || !/^\d{4}-\d{2}-\d{2}$/.test(date)){ toast('⚠️ Titre et date obligatoires', 1); return; }
+  var key = id || db.ref('settings/dashboard/agenda').push().key, old = (id && S_plan.agenda[id]) || {};
+  var v = {date:date, title:title, kind:planV('pe-kind') || 'info', by:old.by || getMyName(), at:old.at || Date.now()};
+  if(planV('pe-time')) v.time = planV('pe-time');
+  if(planV('pe-note')) v.note = planV('pe-note');
+  fbs('settings/dashboard/agenda/'+key, v).then(function(){ S_plan.agenda[key] = v; cm('m-plan'); planRender(); toast('✅ Événement enregistré'); }).catch(function(){ toast('⚠️ Enregistrement refusé (droits Firebase ?)', 1); });
+}
+function planEventDel(id){
+  if(!canPlanEdit()) return;
+  fbd('settings/dashboard/agenda/'+id).then(function(){ delete S_plan.agenda[id]; cm('m-plan'); planRender(); }).catch(function(){ toast('⚠️ Suppression refusée', 1); });
+}
+// Congé d'un producteur (période)
+function planCongeForm(id){
+  if(!canPlanEdit()) return;
+  var x = id ? (S_plan.conges[id] || {}) : {}, pr = S_dash.producers || [];
+  if(!pr.length){ toast('Aucun producteur actif', 1); return; }
+  planModal(id ? 'Modifier le congé' : 'Poser un congé',
+    planInp('Producteur', '<select id="pc-uid" style="'+PLAN_INP+'">'+pr.map(function(p){ return '<option value="'+esc(p.uid)+'"'+(x.uid === p.uid ? ' selected' : '')+'>'+esc(p.name)+'</option>'; }).join('')+'</select>')+
+    planInp('Du', '<input id="pc-from" type="date" value="'+esc(x.from||'')+'" style="'+PLAN_INP+'">')+
+    planInp('Au (inclus)', '<input id="pc-to" type="date" value="'+esc(x.to||'')+'" style="'+PLAN_INP+'">')+
+    planInp('Durée', '<select id="pc-frac" style="'+PLAN_INP+'"><option value="1"'+(parseFloat(x.frac) !== 0.5 ? ' selected' : '')+'>Journées complètes</option><option value="0.5"'+(parseFloat(x.frac) === 0.5 ? ' selected' : '')+'>½ journée</option></select>')+
+    planInp('Note (facultatif)', '<input id="pc-note" type="text" value="'+esc(x.note||'')+'" placeholder="Ex : congés d\'été" style="'+PLAN_INP+'">')+
+    '<div style="font-size:.7rem;color:var(--mut)">Les week-ends, jours fériés et fermetures dans la période sont ignorés automatiquement.</div>'+
+    planActs(id, 'planCongeSave', 'planCongeDel'));
+}
+function planCongeSave(id){
+  if(!canPlanEdit()) return;
+  var from = planV('pc-from'), to = planV('pc-to') || from, uid = planV('pc-uid');
+  if(!uid || !/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to)){ toast('⚠️ Producteur et dates obligatoires', 1); return; }
+  if(to < from){ toast('⚠️ La date de fin est avant le début', 1); return; }
+  var key = id || db.ref('settings/dashboard/conges').push().key, old = (id && S_plan.conges[id]) || {};
+  var v = {uid:uid, from:from, to:to, frac:parseFloat(planV('pc-frac')) || 1, by:old.by || getMyName(), at:old.at || Date.now()};
+  if(planV('pc-note')) v.note = planV('pc-note');
+  fbs('settings/dashboard/conges/'+key, v).then(function(){ S_plan.conges[key] = v; cm('m-plan'); planRender(); toast('✅ Congé enregistré'); }).catch(function(){ toast('⚠️ Enregistrement refusé (droits Firebase ?)', 1); });
+}
+function planCongeDel(id){
+  if(!canPlanEdit()) return;
+  fbd('settings/dashboard/conges/'+id).then(function(){ delete S_plan.conges[id]; cm('m-plan'); planRender(); }).catch(function(){ toast('⚠️ Suppression refusée', 1); });
+}
+// Fermeture (période)
+function planFermForm(id){
+  if(!canPlanEdit()) return;
+  var x = id ? (S_plan.fermetures[id] || {}) : {};
+  planModal(id ? 'Modifier la fermeture' : 'Nouvelle fermeture',
+    planInp('Libellé', '<input id="pf-label" type="text" value="'+esc(x.label||'')+'" placeholder="Ex : Fermeture annuelle" style="'+PLAN_INP+'">')+
+    planInp('Du', '<input id="pf-from" type="date" value="'+esc(x.from||'')+'" style="'+PLAN_INP+'">')+
+    planInp('Au (inclus)', '<input id="pf-to" type="date" value="'+esc(x.to||'')+'" style="'+PLAN_INP+'">')+
+    planActs(id, 'planFermSave', 'planFermDel'));
+}
+function planFermSave(id){
+  if(!canPlanEdit()) return;
+  var from = planV('pf-from'), to = planV('pf-to') || from, label = planV('pf-label') || 'Fermeture';
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to)){ toast('⚠️ Dates obligatoires', 1); return; }
+  if(to < from){ toast('⚠️ La date de fin est avant le début', 1); return; }
+  var key = id || db.ref('settings/dashboard/fermetures').push().key, old = (id && S_plan.fermetures[id]) || {};
+  var v = {label:label, from:from, to:to, by:old.by || getMyName(), at:old.at || Date.now()};
+  fbs('settings/dashboard/fermetures/'+key, v).then(function(){ S_plan.fermetures[key] = v; cm('m-plan'); planRender(); toast('✅ Fermeture enregistrée'); }).catch(function(){ toast('⚠️ Enregistrement refusé (droits Firebase ?)', 1); });
+}
+function planFermDel(id){
+  if(!canPlanEdit()) return;
+  fbd('settings/dashboard/fermetures/'+id).then(function(){ delete S_plan.fermetures[id]; cm('m-plan'); planRender(); }).catch(function(){ toast('⚠️ Suppression refusée', 1); });
+}
+// Absences d'un jour précis (exceptions), même enregistrement qu'avant
+function planDayAbsForm(dateKey){
+  if(!canPlanEdit()) return;
+  var d = new Date(dateKey+'T00:00:00'), exc = (S_dash.absencesExceptions || {})[dateKey] || {}, wk = dashWeekdayKey(d);
+  var rows = (S_dash.producers || []).map(function(p){
+    var cur = (exc[p.uid] != null && exc[p.uid] !== '') ? String(exc[p.uid]) : '';
+    var cg = planCongeFrac(p.uid, dateKey), rf = wk ? (((S_dash.absencesRecurrentes || {})[p.uid] || {})[wk]) : null;
+    var hint = cg !== null ? ' (en congé)' : (rf == 1 ? ' (habituellement absent)' : (rf == 0.5 ? ' (habituellement ½ j)' : ''));
+    return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><div style="flex:1;font-size:.85rem">'+esc(p.name)+'<span style="color:var(--mut);font-size:.72rem">'+hint+'</span></div>'+
+      '<select onchange="planSaveException(\''+dateKey+'\',\''+p.uid+'\',this.value)" style="background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.82rem;padding:6px 8px">'+
+      '<option value=""'+(cur === '' ? ' selected' : '')+'>Comme d\'habitude</option><option value="0"'+(cur === '0' ? ' selected' : '')+'>Présent (journée complète)</option><option value="0.5"'+(cur === '0.5' ? ' selected' : '')+'>Absent ½ journée</option><option value="1"'+(cur === '1' ? ' selected' : '')+'>Absent (journée complète)</option></select></div>';
+  }).join('') || '<div style="color:var(--mut);font-size:.85rem">Aucun producteur actif.</div>';
+  planModal('✎ Absences du '+d.toLocaleDateString('fr-FR', {weekday:'long', day:'2-digit', month:'2-digit'}), '<p style="color:var(--mut);font-size:.78rem;margin-bottom:10px">Ajuste la présence pour cette date précise uniquement — le profil habituel et les congés ne sont pas modifiés.</p>'+rows+'<div class="macts" style="margin-top:8px"><button class="btn bpri" onclick="cm(\'m-plan\')">Fermer</button></div>');
+}
+function planSaveException(dateKey, uid, val){
+  if(!canPlanEdit()) return;
+  var p = (val === '') ? fbd('settings/dashboard/absencesExceptions/'+dateKey+'/'+uid) : fbs('settings/dashboard/absencesExceptions/'+dateKey+'/'+uid, parseFloat(val));
+  p.then(function(){
+    S_dash.absencesExceptions = S_dash.absencesExceptions || {};
+    if(!S_dash.absencesExceptions[dateKey]) S_dash.absencesExceptions[dateKey] = {};
+    if(val === '') delete S_dash.absencesExceptions[dateKey][uid]; else S_dash.absencesExceptions[dateKey][uid] = parseFloat(val);
+    planRender();
+  }).catch(function(){ toast('⚠️ Enregistrement refusé (droits Firebase ?)', 1); });
+}
+
 var DASH_WEEKDAY_LABELS = [['lun','Lun'],['mar','Mar'],['mer','Mer'],['jeu','Jeu'],['ven','Ven']];
 
 // Grille "producteur × jour de semaine" pour définir le profil d'absence
 // habituel de chacun. Chargée indépendamment de S_dash (l'onglet Admin peut
 // être ouvert sans être jamais passé par l'onglet Tableau de bord).
-function renderAbsencesRecurrentes(){
-  var el = document.getElementById('dash-set-absences');
+function renderAbsencesRecurrentes(targetId, ro){
+  var el = document.getElementById(targetId || 'plan-recurrent');
   if(!el) return;
-  Promise.all([
-    fbg('users').then(function(s){ return s.val()||{}; }),
-    fbg('settings/dashboard/absencesRecurrentes').then(function(s){ return s.val()||{}; })
-  ]).then(function(res){
-    var users = res[0], absences = res[1]||{};
-    var producers = dashActiveProducers(users);
-    if(!producers.length){ el.innerHTML = '<div style="color:var(--mut);font-size:.85rem">Aucun producteur actif.</div>'; return; }
-    var html = '<table style="width:100%;min-width:420px;border-collapse:collapse;font-size:.8rem">';
-    html += '<thead><tr style="text-align:left;border-bottom:1.5px solid var(--brd)">'+
-      '<th style="padding:6px 8px;color:var(--mut);font-family:Open Sans,sans-serif;font-size:0.73rem;font-weight:800">PRODUCTEUR</th>'+
-      DASH_WEEKDAY_LABELS.map(function(w){ return '<th style="padding:6px 8px;color:var(--mut);font-family:Open Sans,sans-serif;font-size:0.73rem;font-weight:800;text-align:center">'+w[1]+'</th>'; }).join('')+
-      '</tr></thead><tbody>';
-    html += producers.map(function(p){
-      var prof = absences[p.uid] || {};
-      return '<tr style="border-bottom:1px solid var(--brd)">'+
-        '<td style="padding:6px 8px;white-space:nowrap">'+esc(p.name)+'</td>'+
-        DASH_WEEKDAY_LABELS.map(function(w){
-          var val = (prof[w[0]] != null && prof[w[0]] !== '') ? String(prof[w[0]]) : '0';
-          return '<td style="padding:4px 6px;text-align:center">'+
-            '<select onchange="saveAbsenceRecurrente(\''+p.uid+'\',\''+w[0]+'\',this.value)" style="background:var(--sur);border:1.5px solid var(--brd);border-radius:6px;color:var(--txt);font-size:.72rem;padding:4px;outline:none">'+
-              '<option value="0"'+(val==='0'?' selected':'')+'>Présent</option>'+
-              '<option value="0.5"'+(val==='0.5'?' selected':'')+'>½ j</option>'+
-              '<option value="1"'+(val==='1'?' selected':'')+'>Absent</option>'+
-            '</select>'+
-          '</td>';
-        }).join('')+
-      '</tr>';
-    }).join('');
-    html += '</tbody></table>';
-    el.innerHTML = html;
-  });
+  var producers = S_dash.producers || [], absences = S_dash.absencesRecurrentes || {};
+  if(!producers.length){ el.innerHTML = '<div style="color:var(--mut);font-size:.85rem">Aucun producteur actif.</div>'; return; }
+  var html = '<table style="width:100%;min-width:420px;border-collapse:collapse;font-size:.8rem">';
+  html += '<thead><tr style="text-align:left;border-bottom:1.5px solid var(--brd)">'+
+    '<th style="padding:6px 8px;color:var(--mut);font-family:Open Sans,sans-serif;font-size:0.73rem;font-weight:800">PRODUCTEUR</th>'+
+    DASH_WEEKDAY_LABELS.map(function(w){ return '<th style="padding:6px 8px;color:var(--mut);font-family:Open Sans,sans-serif;font-size:0.73rem;font-weight:800;text-align:center">'+w[1]+'</th>'; }).join('')+
+    '</tr></thead><tbody>';
+  html += producers.map(function(p){
+    var prof = absences[p.uid] || {};
+    return '<tr style="border-bottom:1px solid var(--brd)">'+
+      '<td style="padding:6px 8px;white-space:nowrap">'+esc(p.name)+'</td>'+
+      DASH_WEEKDAY_LABELS.map(function(w){
+        var val = (prof[w[0]] != null && prof[w[0]] !== '') ? String(prof[w[0]]) : '0';
+        return '<td style="padding:4px 6px;text-align:center">'+
+          '<select'+(ro ? ' disabled' : '')+' onchange="saveAbsenceRecurrente(\''+p.uid+'\',\''+w[0]+'\',this.value)" style="background:var(--sur);border:1.5px solid var(--brd);border-radius:6px;color:var(--txt);font-size:.72rem;padding:4px;outline:none">'+
+            '<option value="0"'+(val==='0'?' selected':'')+'>Présent</option>'+
+            '<option value="0.5"'+(val==='0.5'?' selected':'')+'>½ j</option>'+
+            '<option value="1"'+(val==='1'?' selected':'')+'>Absent</option>'+
+          '</select>'+
+        '</td>';
+      }).join('')+
+    '</tr>';
+  }).join('');
+  html += '</tbody></table>';
+  el.innerHTML = html;
 }
 
 // Enregistre le profil habituel d'un producteur pour un jour de semaine
 // donné (0 = présent, 0.5 = absent ½ journée, 1 = absent journée complète).
 function saveAbsenceRecurrente(uid, weekday, val){
+  if(!canPlanEdit()) return;
   fbs('settings/dashboard/absencesRecurrentes/'+uid+'/'+weekday, parseFloat(val)).then(function(){
+    S_dash.absencesRecurrentes = S_dash.absencesRecurrentes || {};
     if(!S_dash.absencesRecurrentes[uid]) S_dash.absencesRecurrentes[uid] = {};
     S_dash.absencesRecurrentes[uid][weekday] = parseFloat(val);
   });
