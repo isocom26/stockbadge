@@ -2015,7 +2015,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.11.06-1100';
+var APP_VERSION = '2026.11.06-1130';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -2953,6 +2953,7 @@ function ecranAutoOpen(tries){
 // Pas de correctif technique invisible ici. tag = qui est concerné :
 //   'all' (tout le monde), 'admin' (admin/direction), 'maint' (maintenance), 'stock' (ajout de stock), 'reprint' (réimpressions)
 var NEWS = [
+  {n:55, d:'06/11/2026', tag:'admin', t:'Import des expéditions : import historique (une seule fois)', x:'Un fichier « regroupé » par transporteur (date, n° colis, BL, destinataire) est reconnu et active le mode « Import historique » : seuls les colis rattachés à une commande sont enregistrés (avec leur vraie date d\'expédition, déjà confirmés), les autres sont ignorés. L\'import quotidien reste inchangé.'},
   {n:54, d:'06/11/2026', tag:'all', t:'Import des expéditions : nouvel export EBP « Vue production »', x:'L\'import reconnaît maintenant le nouvel export EBP (colonnes « N° document » et « Numéro de commande du client »). L\'ancien format reste lu. Les colis ColiShip sans BL sont retrouvés par le nom du destinataire (colonne « Nom (adresse) (livraison) ») : nom identique et unique = coché d\'office, nom approchant = proposé à vérifier. Les anciens exports ColiShip (sans ligne d\'en-tête, colis DPD compris) sont reconnus.'},
   {n:53, d:'06/11/2026', tag:'all', t:'Import des expéditions : vraie date d\'expédition', x:'L\'import lit la date dans le bordereau Chronopost (en-tête) et dans le nom du fichier ColiShip, et l\'affiche dans « Expédié le ». Pour corriger des colis déjà importés avec la date du jour, recharge simplement le fichier : l\'import propose de corriger leur date.'},
   {n:52, d:'05/11/2026', tag:'all', t:'Tableau de bord : colonnes réorganisées + « Expédié le »', x:'Dans le tableau Commandes : Formats, Qté, Par, Créé le, Départ prévu, Depuis, Expédié le, Suivi. « Expédié le » affiche la date d\'enregistrement du colis (import des exports ou saisie manuelle), colis par colis si les dates diffèrent.'},
@@ -8662,6 +8663,22 @@ function simpDateColissimo(name){
   return n ? simpMkDate(n[3], n[2], n[1]) : null;
 }
 function simpDayKey(ts){ var d = new Date(ts); return d.getFullYear()+'-'+(d.getMonth()+1)+'-'+d.getDate(); }
+// Fichier « regroupé » (import historique, une seule fois) : Transporteur;Date expédition;N° colis;N° BL;Destinataire / Réf. envoi;Fichier source
+function simpParseRegroupe(text){
+  var out = {chrono:[], coli:[], from:0, to:0, bad:0};
+  text.split(/\r?\n/).forEach(function(l, i){
+    if(i === 0 || !l.trim()) return;
+    var p = simpSplit(l, ';'), tr = String(p[0]||'').trim(), dm = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(String(p[1]||'').trim());
+    var num = String(p[2]||'').replace(/\s+/g, '').toUpperCase(), bl = String(p[3]||'').trim().toUpperCase();
+    var d = dm ? simpMkDate(dm[3], dm[2], dm[1]) : null;
+    if(!/^[A-Z0-9]{8,20}$/.test(num) || !d || !/chrono|colissimo/i.test(tr)){ out.bad++; return; }
+    var o = {transp:/chrono/i.test(tr) ? 'Chronopost' : 'Colissimo', num:num, bl:/^BL\d{8}$/.test(bl) ? bl : '', dest:String(p[4]||'').trim(), shipAt:d};
+    out[/chrono/i.test(tr) ? 'chrono' : 'coli'].push(o);
+    if(!out.from || d < out.from) out.from = d;
+    if(d > out.to) out.to = d;
+  });
+  return out;
+}
 function simpParseChrono(text){
   var lines = text.split(/\r?\n/), out = [], iLT = -1, iBl = -1, iEnv = -1, inTable = false;
   lines.forEach(function(l){
@@ -8818,11 +8835,12 @@ function simpBlIndex(){
   });
   return m;
 }
-function simpColisEntry(transp, num, bl, c, now, src, shipAt){
+function simpColisEntry(transp, num, bl, c, now, src, shipAt, hist){
   var e = {transp:transp, num:num, bl:bl||'', at:now, byName:getMyName(), src:src||'import'};
   if(shipAt) e.shipAt = shipAt;
   if(me && me.uid) e.byUid = me.uid;
-  if(!suiviNeedsConfirm(c)) e.conf = {at:now, byName:'Import automatique', auto:true};
+  if(hist) e.conf = {at:shipAt || now, byName:'Import historique', auto:true};   // déjà parti : rien à confirmer
+  else if(!suiviNeedsConfirm(c)) e.conf = {at:now, byName:'Import automatique', auto:true};
   return e;
 }
 // N° de colis → {orderId, kid, k} pour les colis déjà rattachés à une commande
@@ -8916,7 +8934,7 @@ function simpBuild(){
     if(!e.mode || simpIsCarrierMode(e.mode) || inFiles[bl]) return;
     var c = simpFindExact(e.ref); if(!c) return;
     if(c.livraison || colisList(c).length) return;
-    SIMP.emports.push({bl:bl, mode:e.mode, orderId:c.id, client:e.client, on:true});
+    SIMP.emports.push({bl:bl, mode:e.mode, orderId:c.id, client:e.client, on:!SIMP.hist});
   });
 }
 function simpHandleFiles(files){
@@ -8939,7 +8957,15 @@ function simpHandleFiles(files){
             return;
           }
           var text = simpDecode(rd.result), head = simpNorm(text.slice(0, 400));
-          if(/bordereau recapitulatif/.test(head) || /numero de lt/.test(simpNorm(text.slice(0, 3000)))){
+          if(/^transporteur;date expedition;n.{0,3}colis/.test(head.replace(/^\uFEFF/, ''))){
+            var g = simpParseRegroupe(text), fr = function(t){ return new Date(t).toLocaleDateString('fr-FR'); };
+            ['chrono', 'coli'].forEach(function(k){
+              if(!g[k].length) return;
+              SIMP.srcs[k] = {carrier:g[k], info:{ok:true, txt:(k === 'chrono' ? 'Chronopost' : 'Colissimo')+' (regroupé) : '+g[k].length+' colis du '+fr(g.from)+' au '+fr(g.to)+' ('+f.name+')'}};
+            });
+            if(g.bad) SIMP.errs.push({ok:false, txt:f.name+' : '+g.bad+' ligne(s) illisible(s) ignorée(s)'});
+            SIMP.hist = true;   // fichier regroupé = import historique
+          } else if(/bordereau recapitulatif/.test(head) || /numero de lt/.test(simpNorm(text.slice(0, 3000)))){
             var a = simpParseChrono(text), da = simpDateChrono(text, f.name);
             if(da) a.forEach(function(x){ x.shipAt = da; });
             SIMP.srcs.chrono = {carrier:a, info:{ok:a.length > 0, txt:'Chronopost : '+a.length+' colis ('+f.name+')'+(da ? ' · expédiés le '+new Date(da).toLocaleDateString('fr-FR') : '')}};
@@ -8974,7 +9000,7 @@ function simpMerge(){
   SIMP.missing = miss;
 }
 function simpReset(){
-  SIMP.srcs = {}; SIMP.errs = []; SIMP.rows = []; SIMP.emports = []; SIMP.blLinks = []; SIMP.view = '';
+  SIMP.srcs = {}; SIMP.errs = []; SIMP.rows = []; SIMP.emports = []; SIMP.blLinks = []; SIMP.view = ''; SIMP.hist = false;
   simpMerge(); simpRender();
 }
 function simpDrop(ev){
@@ -8996,6 +9022,7 @@ function simpRender(){
   }
   if(SIMP.carrier.length && !SIMP.ebpLoaded) h += '<div style="font-size:.78rem;color:var(--red);margin-bottom:8px">Ajoute aussi l\'export EBP : c\'est lui qui relie chaque BL à sa commande.</div>';
   if(SIMP.rows.length){
+    h += '<label style="display:flex;gap:8px;align-items:center;font-size:.78rem;margin:2px 0 8px"><input type="checkbox" '+(SIMP.hist ? 'checked ' : '')+'onchange="simpHistToggle(this.checked)"><span><strong>📚 Import historique</strong> <span style="color:var(--mut)">(une seule fois : les colis sans commande sont ignorés, tout est marqué « confirmé »)</span></span></label>';
     h += '<div class="dash-tbl-wrap"><table style="width:100%;min-width:560px;border-collapse:collapse;font-size:.76rem"><thead><tr style="text-align:left;border-bottom:1.5px solid var(--brd);color:var(--mut)"><th style="padding:5px 4px"></th><th style="padding:5px 4px">COLIS</th><th style="padding:5px 4px">BL</th><th style="padding:5px 4px">COMMANDE</th><th style="padding:5px 4px">ÉTAT</th></tr></thead><tbody>';
     SIMP.rows.forEach(function(r, i){
       var st = (r.viaName && r.state === 'ok') ? ['✅ Trouvée (par le nom)', 'var(--grn)'] : (SIMP_STATE[r.hp ? 'hp' : r.state] || SIMP_STATE.none), byId = (S_cmdIndex && S_cmdIndex.byId) || {}, cmd = '';
@@ -9030,13 +9057,14 @@ function simpRender(){
   var nCol = SIMP.rows.filter(function(r){ return r.on && r.orderId; }).length, nEmp = SIMP.emports.filter(function(e){ return e.on; }).length;
   var isNew = function(r){ return r.state !== 'dup' && r.state !== 'aside' && !r.stored; };
   var nHp = SIMP.rows.filter(function(r){ return isNew(r) && r.hp && !(r.on && r.orderId); }).length;
-  var nSide = SIMP.rows.filter(function(r){ return isNew(r) && !r.hp && !(r.on && r.orderId); }).length;
+  var nSide = SIMP.hist ? 0 : SIMP.rows.filter(function(r){ return isNew(r) && !r.hp && !(r.on && r.orderId); }).length;
+  var nIgn = SIMP.hist ? SIMP.rows.filter(function(r){ return isNew(r) && !(r.on && r.orderId); }).length : 0;
   var nBl = simpBlWrites().length;
   if(SIMP.rows.length || SIMP.emports.length || SIMP.blLinks.length){
-    var nConf = SIMP.rows.filter(function(r){ var c = ((S_cmdIndex.byId)||{})[r.orderId]; return r.on && r.orderId && suiviNeedsConfirm(c); }).length;
+    var nConf = SIMP.hist ? 0 : SIMP.rows.filter(function(r){ var c = ((S_cmdIndex.byId)||{})[r.orderId]; return r.on && r.orderId && suiviNeedsConfirm(c); }).length;
     var nFixUi = SIMP.rows.filter(function(r){ return r.state === 'dup' && r.dateFix && r.on; }).length;
     h += '<div style="font-size:.76rem;color:var(--mut);margin-top:10px">'+nCol+' colis à enregistrer dont '+nConf+' à confirmer ; '+nEmp+' emport(s) ; '+nBl+' BL mémorisé(s) sur leur commande.'+
-      (nSide ? '<br><strong style="color:var(--acc)">'+nSide+' colis non rattaché(s) seront mis de côté dans « Colis à rattacher » : rien ne se perd.</strong>' : '')+(nHp ? '<br>'+nHp+' colis marqué(s) « hors production » (consultables dans la liste « Hors production »).' : '')+(nFixUi ? '<br><strong style="color:var(--acc)">📅 '+nFixUi+' colis déjà enregistré(s) : la date d\'expédition sera corrigée d\'après le fichier.</strong>' : '')+'</div>'+
+      (nIgn ? '<br><strong style="color:var(--acc)">📚 '+nIgn+' colis sans commande rattachée seront ignorés (import historique) ; coche-les à la main pour les ajouter.</strong>' : '')+(nSide ? '<br><strong style="color:var(--acc)">'+nSide+' colis non rattaché(s) seront mis de côté dans « Colis à rattacher » : rien ne se perd.</strong>' : '')+(nHp ? '<br>'+nHp+' colis marqué(s) « hors production » (consultables dans la liste « Hors production »).' : '')+(nFixUi ? '<br><strong style="color:var(--acc)">📅 '+nFixUi+' colis déjà enregistré(s) : la date d\'expédition sera corrigée d\'après le fichier.</strong>' : '')+'</div>'+
       '<button class="btn bpri" style="width:100%;margin-top:8px" '+((nCol+nEmp+nSide+nHp+nBl+nFixUi) ? '' : 'disabled ')+'onclick="simpApply()">✅ Enregistrer</button>';
   }
   var nO = simpOrphList().length, nH = simpHpList().length;
@@ -9048,13 +9076,14 @@ function simpRender(){
   if(SIMP.view === 'hp'){ el.innerHTML = top+simpHpHtml(); return; }
   el.innerHTML = top+(h || '<div style="font-size:.8rem;color:var(--mut)">Choisis les fichiers du soir : export EBP, bordereau Chronopost et export ColiShip. Rien n\'est enregistré avant ta validation.</div>');
 }
+function simpHistToggle(v){ SIMP.hist = !!v; simpBuild(); simpRender(); }
 function simpHp(i){ var r = SIMP.rows[i]; if(!r) return; r.hp = !r.hp; if(r.hp) r.on = false; simpRender(); }
 function simpPick(i, id){ var r = SIMP.rows[i]; if(!r) return; r.orderId = id || ''; r.on = !!id; simpRender(); }
 function simpToggle(i, v){ var r = SIMP.rows[i]; if(r){ r.on = !!v; simpRender(); } }
 function simpToggleEmp(i, v){ var e = SIMP.emports[i]; if(e){ e.on = !!v; simpRender(); } }
 function simpOpen(){
   if(!canSuiviSaisie()) return;
-  SIMP.srcs = {}; SIMP.errs = []; SIMP.info = []; SIMP.carrier = []; SIMP.ebp = {}; SIMP.rows = []; SIMP.emports = []; SIMP.blLinks = []; SIMP.ebpLoaded = false; SIMP.view = ''; SIMP.missing = [];
+  SIMP.srcs = {}; SIMP.errs = []; SIMP.info = []; SIMP.carrier = []; SIMP.ebp = {}; SIMP.rows = []; SIMP.emports = []; SIMP.blLinks = []; SIMP.ebpLoaded = false; SIMP.view = ''; SIMP.missing = []; SIMP.hist = false;
   var f = document.getElementById('simp-files'); if(f) f.value = '';
   simpRender(); om('m-suivi-import');
 }
@@ -9080,9 +9109,9 @@ function simpApply(){
     if(r.state === 'dup' || r.state === 'aside' || r.stored && !(r.on && r.orderId)) return;
     var key = String(r.num).replace(/\s+/g, '').toUpperCase();
     if(r.on && r.orderId && byId[r.orderId] && !r.hp){
-      (perOrder[r.orderId] = perOrder[r.orderId] || {})['colis/'+gid()] = simpColisEntry(r.transp, r.num, r.bl, byId[r.orderId], now, 'import', r.shipAt); nCol++;
+      (perOrder[r.orderId] = perOrder[r.orderId] || {})['colis/'+gid()] = simpColisEntry(r.transp, r.num, r.bl, byId[r.orderId], now, 'import', r.shipAt, SIMP.hist); nCol++;
       if(byNum[key]) clear.push(byNum[key].id);   // il était mis de côté : il est maintenant rattaché
-    } else if(!already[key]){
+    } else if(!already[key] && !SIMP.hist){   // import historique : les colis sans commande sont ignorés
       var o = {transp:r.transp, num:r.num, bl:r.bl||'', ref:r.ref||'', client:r.client||'', at:now, byName:me_name};
       if(r.shipAt) o.shipAt = r.shipAt;
       if(r.dest) o.dest = r.dest;
