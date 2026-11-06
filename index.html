@@ -1063,6 +1063,7 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
   <div id="stats-content"><div style="color:var(--mut);font-size:.85rem;text-align:center;padding:30px">Sélectionnez une période et cliquez sur Afficher</div></div>
   <div id="stats-num-block"></div>
 </div>
+<div id="stats-delais-block"></div>
 
 <div id="view-dashboard" class="view">
   <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:12px">
@@ -2015,7 +2016,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.11.06-1500';
+var APP_VERSION = '2026.11.06-1630';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -2953,6 +2954,7 @@ function ecranAutoOpen(tries){
 // Pas de correctif technique invisible ici. tag = qui est concerné :
 //   'all' (tout le monde), 'admin' (admin/direction), 'maint' (maintenance), 'stock' (ajout de stock), 'reprint' (réimpressions)
 var NEWS = [
+  {n:58, d:'06/11/2026', tag:'all', t:'Statistiques : respect des délais', x:'Nouveau bloc dans Statistiques : % de commandes parties à l\'heure (par rapport au départ prévu), délai de production en jours ouvrés (moyenne, médiane, max), détail par site, évolution par mois et liste des commandes en retard. Jours ouvrés = hors week-ends, jours fériés et fermeture annuelle.'},
   {n:57, d:'06/11/2026', tag:'admin', t:'Import des expéditions : rapprochement par nom nettement amélioré', x:'Les colis Colissimo sans BL sont mieux retrouvés : noms avec chiffres (MHRE89) ou numéro de SIRET collé, BL déjà utilisés écartés, BL trop anciens/récents écartés d\'après la date d\'expédition. Quand un client a autant de commandes que de colis, ils sont proposés dans l\'ordre (à vérifier avant de cocher).'},
   {n:56, d:'06/11/2026', tag:'all', t:'Fiche commande : emport / autre mode + date d\'expédition', x:'Sur la fiche d\'une commande, nouveau bouton « 🚶 Emport / autre mode (sans colis) » (emport, livraison par nos soins, enlèvement par le transporteur du client, autre) avec sa date, et un champ « Date d\'expédition » à l\'ajout d\'un colis à la main. La date s\'affiche dans « Expédié le » du tableau.'},
   {n:55, d:'06/11/2026', tag:'admin', t:'Import des expéditions : import historique (une seule fois)', x:'Un fichier « regroupé » par transporteur (date, n° colis, BL, destinataire) est reconnu et active le mode « Import historique » : seuls les colis rattachés à une commande sont enregistrés (avec leur vraie date d\'expédition, déjà confirmés), les autres sont ignorés. L\'import quotidien reste inchangé.'},
@@ -19609,11 +19611,142 @@ function statsApplyPoleUi(){
   });
   var nb = document.getElementById('stats-num-block');
   if(nb && viewPole === 'badges') nb.innerHTML = '';
+  var dl = document.getElementById('stats-delais-block'); if(dl) dl.style.display = num ? 'none' : '';
+}
+
+// ══════════════════════════════════════════════════
+// ── Statistique « Respect des délais » : délais de production et départ à l'heure ──
+// Jours ouvrés = ni samedi, ni dimanche, ni jour férié, ni fermeture annuelle (à compléter ci-dessous chaque année).
+// Aucune donnée n'est écrite : tout est calculé à partir des commandes (créée le, départ prévu, 1re expédition).
+// ══════════════════════════════════════════════════
+var DELAI_FERMETURES = [['2026-12-21','2026-12-24']];   // fermetures annuelles (bornes incluses)
+var _delaiHolCache = {};
+function delaiKey(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function delaiPaques(y){
+  var a = y%19, b = Math.floor(y/100), c = y%100, d = Math.floor(b/4), e = b%4, f = Math.floor((b+8)/25), g = Math.floor((b-f+1)/3),
+      h = (19*a+b-d-g+15)%30, i = Math.floor(c/4), k = c%4, l = (32+2*e+2*i-h-k)%7, m = Math.floor((a+11*h+22*l)/451),
+      mo = Math.floor((h+l-7*m+114)/31), da = ((h+l-7*m+114)%31)+1;
+  return new Date(y, mo-1, da);
+}
+function delaiFeries(y){
+  if(_delaiHolCache[y]) return _delaiHolCache[y];
+  var set = {}, add = function(d){ set[delaiKey(d)] = 1; };
+  ['01-01','05-01','05-08','07-14','08-15','11-01','11-11','12-25'].forEach(function(md){ set[y+'-'+md] = 1; });
+  var p = delaiPaques(y);
+  [1, 39, 50].forEach(function(n){ add(new Date(p.getFullYear(), p.getMonth(), p.getDate()+n)); });   // lundi de Pâques, Ascension, lundi de Pentecôte
+  return (_delaiHolCache[y] = set);
+}
+function delaiOuvre(d){
+  var w = d.getDay(); if(w === 0 || w === 6) return false;
+  var k = delaiKey(d);
+  if(delaiFeries(d.getFullYear())[k]) return false;
+  for(var i = 0; i < DELAI_FERMETURES.length; i++) if(k >= DELAI_FERMETURES[i][0] && k <= DELAI_FERMETURES[i][1]) return false;
+  return true;
+}
+// Nombre de jours ouvrés dans l'intervalle ]a, b] (a et b en 'YYYY-MM-DD') ; négatif si b est avant a
+function delaiJoursOuvres(a, b){
+  if(a === b) return 0;
+  if(b < a) return -delaiJoursOuvres(b, a);
+  var d = new Date(a+'T00:00:00'), end = new Date(b+'T00:00:00'), n = 0;
+  d.setDate(d.getDate()+1);
+  while(d <= end){ if(delaiOuvre(d)) n++; d.setDate(d.getDate()+1); }
+  return n;
+}
+// Jour de la 1re expédition d'une commande (colis ou emport / autre mode) — null si rien d'expédié
+function delaiExpeKey(c){
+  var ts = [];
+  colisList(c).forEach(function(k){ var t = k.shipAt || k.at; if(t) ts.push(t); });
+  if(c && c.livraison && c.livraison.mode){ var t2 = c.livraison.shipAt || c.livraison.at; if(t2) ts.push(t2); }
+  return ts.length ? delaiKey(new Date(Math.min.apply(null, ts))) : null;
+}
+function delaiCalc(from, to){
+  var byId = (S_cmdIndex && S_cmdIndex.byId) || {}, rows = [], shipped = 0, noDep = 0;
+  Object.keys(byId).forEach(function(id){
+    var c = byId[id]; if(!c) return;
+    var ex = delaiExpeKey(c); if(!ex || ex < from || ex > to) return;
+    shipped++;
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(c.dateDepart||'') || !c.createdAt){ noDep++; return; }
+    var cr = delaiKey(new Date(c.createdAt));
+    rows.push({id:id, c:c, site:c.site||'—', cr:cr, dep:c.dateDepart, ex:ex, prod:Math.max(0, delaiJoursOuvres(cr, ex)), ecart:delaiJoursOuvres(c.dateDepart, ex)});
+  });
+  return {rows:rows, shipped:shipped, noDep:noDep};
+}
+function delaiMed(a){ if(!a.length) return 0; var s = a.slice().sort(function(x, y){ return x-y; }), m = Math.floor(s.length/2); return s.length%2 ? s[m] : (s[m-1]+s[m])/2; }
+function delaiPct(n, t){ return t ? Math.round(1000*n/t)/10 : 0; }
+function delaiCol(p){ return p >= 95 ? 'var(--grn)' : (p >= 85 ? 'var(--acc)' : 'var(--red)'); }
+function delaiFmt(n){ return (Math.round(n*10)/10).toString().replace('.', ','); }
+function statsDelaisRange(){
+  if(statsModeActive === 'period'){
+    var f = document.getElementById('stats-date-from'), t = document.getElementById('stats-date-to');
+    if(!f || !f.value || !t || !t.value) return null;
+    return {from:f.value, to:t.value, label:f.value+' → '+t.value};
+  }
+  var m = parseInt((document.getElementById('stats-month')||{}).value), y = parseInt((document.getElementById('stats-year')||{}).value);
+  if(isNaN(m)) m = new Date().getMonth(); if(isNaN(y)) y = new Date().getFullYear();
+  return {from:delaiKey(new Date(y, m, 1)), to:delaiKey(new Date(y, m+1, 0)), label:new Date(y, m, 1).toLocaleDateString('fr-FR', {month:'long', year:'numeric'})};
+}
+function statsDelaisLoad(){
+  var el = document.getElementById('stats-delais-block'); if(!el) return;
+  var R = statsDelaisRange(); if(!R){ el.innerHTML = ''; return; }
+  el.innerHTML = statsDelaisHtml(delaiCalc(R.from, R.to), R);
+}
+function statsDelaisHtml(D, R){
+  var rows = D.rows, n = rows.length, card = 'background:var(--card);border:1.5px solid var(--brd);border-radius:12px;padding:12px 14px';
+  var h = '<div style="'+card+';margin-top:14px">'+
+    '<div style="font-family:Open Sans,sans-serif;font-weight:800;font-size:.95rem;margin-bottom:2px">⏱️ Respect des délais</div>'+
+    '<div style="font-size:.72rem;color:var(--mut);margin-bottom:10px">Commandes expédiées sur la période ('+esc(R.label)+'), en jours ouvrés (hors week-ends, jours fériés et fermeture annuelle). Date d\'expédition = 1re expédition de la commande.</div>';
+  if(!n){
+    return h+'<div style="color:var(--mut);font-size:.82rem;padding:8px 0">Aucune commande expédiée sur cette période avec une date de départ prévue.'+(D.shipped ? ' ('+D.shipped+' expédiée(s) sans date de départ prévue)' : '')+'</div></div>';
+  }
+  var ok = rows.filter(function(r){ return r.ecart <= 0; }), late = rows.filter(function(r){ return r.ecart > 0; });
+  var pct = delaiPct(ok.length, n), prods = rows.map(function(r){ return r.prod; });
+  var avg = prods.reduce(function(a, b){ return a+b; }, 0)/n, avgLate = late.length ? late.reduce(function(a, r){ return a+r.ecart; }, 0)/late.length : 0;
+  var tile = function(v, l, sub, col){ return '<div style="flex:1;min-width:120px;background:var(--sur);border-radius:10px;padding:10px 12px"><div style="font-size:1.45rem;font-weight:800;color:'+(col||'var(--txt)')+'">'+v+'</div><div style="font-size:.72rem;font-weight:700">'+l+'</div>'+(sub ? '<div style="font-size:.66rem;color:var(--mut)">'+sub+'</div>' : '')+'</div>'; };
+  h += '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">'+
+    tile(delaiFmt(pct)+' %', 'Départ à l\'heure', ok.length+' sur '+n+' commandes', delaiCol(pct))+
+    tile(delaiFmt(avg)+' j', 'Délai de production moyen', 'médian '+delaiFmt(delaiMed(prods))+' j · max '+Math.max.apply(null, prods)+' j')+
+    tile(late.length ? delaiFmt(avgLate)+' j' : '—', 'Retard moyen', late.length+' commande(s) en retard', late.length ? 'var(--red)' : '')+
+  '</div>';
+  // Répartition
+  var b = [['À l\'heure ou en avance', ok.length, 'var(--grn)'], ['1 jour de retard', late.filter(function(r){ return r.ecart === 1; }).length, 'var(--acc)'],
+           ['2 à 3 jours', late.filter(function(r){ return r.ecart >= 2 && r.ecart <= 3; }).length, 'var(--red)'], ['Plus de 3 jours', late.filter(function(r){ return r.ecart > 3; }).length, 'var(--red)']];
+  h += '<div style="margin-bottom:12px">'+b.map(function(x){
+    var p = delaiPct(x[1], n);
+    return '<div style="display:flex;align-items:center;gap:8px;font-size:.76rem;margin:3px 0"><div style="width:150px;flex-shrink:0">'+x[0]+'</div><div style="flex:1;background:var(--sur);border-radius:99px;height:10px;overflow:hidden"><div style="width:'+p+'%;height:100%;background:'+x[2]+'"></div></div><div style="width:84px;text-align:right;font-weight:700">'+x[1]+' · '+delaiFmt(p)+' %</div></div>';
+  }).join('')+'</div>';
+  // Par site
+  var sites = {}; rows.forEach(function(r){ var o = sites[r.site] = sites[r.site] || {n:0, ok:0, prod:0}; o.n++; if(r.ecart <= 0) o.ok++; o.prod += r.prod; });
+  var th = 'padding:5px 8px;color:var(--mut);font-size:.68rem;font-weight:800;text-align:left;white-space:nowrap', td = 'padding:5px 8px;font-size:.78rem';
+  h += '<div style="font-size:.78rem;font-weight:800;margin:6px 0 4px">Par site</div><div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse"><thead><tr style="border-bottom:1.5px solid var(--brd)"><th style="'+th+'">SITE</th><th style="'+th+'">COMMANDES</th><th style="'+th+'">À L\'HEURE</th><th style="'+th+'">DÉLAI MOYEN</th></tr></thead><tbody>'+
+    Object.keys(sites).sort(function(a, b){ return sites[b].n - sites[a].n; }).map(function(k){ var o = sites[k], p = delaiPct(o.ok, o.n);
+      return '<tr style="border-bottom:1px solid var(--brd)"><td style="'+td+';font-weight:700">'+esc(k)+'</td><td style="'+td+'">'+o.n+'</td><td style="'+td+';color:'+delaiCol(p)+';font-weight:700">'+delaiFmt(p)+' % <span style="color:var(--mut);font-weight:400">('+o.ok+'/'+o.n+')</span></td><td style="'+td+'">'+delaiFmt(o.prod/o.n)+' j</td></tr>'; }).join('')+'</tbody></table></div>';
+  // Évolution par mois d'expédition
+  var months = {}; rows.forEach(function(r){ var k = r.ex.slice(0, 7), o = months[k] = months[k] || {n:0, ok:0, prod:0}; o.n++; if(r.ecart <= 0) o.ok++; o.prod += r.prod; });
+  var mk = Object.keys(months).sort();
+  if(mk.length > 1){
+    h += '<div style="font-size:.78rem;font-weight:800;margin:12px 0 4px">Évolution par mois</div><div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse"><thead><tr style="border-bottom:1.5px solid var(--brd)"><th style="'+th+'">MOIS</th><th style="'+th+'">COMMANDES</th><th style="'+th+'">À L\'HEURE</th><th style="'+th+'">DÉLAI MOYEN</th></tr></thead><tbody>'+
+      mk.map(function(k){ var o = months[k], p = delaiPct(o.ok, o.n), lab = new Date(k+'-01T00:00:00').toLocaleDateString('fr-FR', {month:'long', year:'numeric'});
+        return '<tr style="border-bottom:1px solid var(--brd)"><td style="'+td+';font-weight:700">'+lab+'</td><td style="'+td+'">'+o.n+'</td><td style="'+td+';color:'+delaiCol(p)+';font-weight:700">'+delaiFmt(p)+' %</td><td style="'+td+'">'+delaiFmt(o.prod/o.n)+' j</td></tr>'; }).join('')+'</tbody></table></div>';
+  }
+  // Commandes en retard
+  if(late.length){
+    var dFr = function(k){ return new Date(k+'T00:00:00').toLocaleDateString('fr-FR'); };
+    late.sort(function(a, b){ return b.ecart - a.ecart; });
+    h += '<div style="font-size:.78rem;font-weight:800;margin:12px 0 4px">Commandes en retard ('+late.length+')</div><div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;min-width:520px"><thead><tr style="border-bottom:1.5px solid var(--brd)"><th style="'+th+'">CMD</th><th style="'+th+'">SITE</th><th style="'+th+'">CRÉÉ LE</th><th style="'+th+'">DÉPART PRÉVU</th><th style="'+th+'">EXPÉDIÉ LE</th><th style="'+th+'">RETARD</th></tr></thead><tbody>'+
+      late.slice(0, 40).map(function(r){
+        var inDash = (S_dash.commandes||[]).some(function(x){ return x.id === r.id; });
+        var lab = esc(dashCmdLabel(r.c));
+        return '<tr style="border-bottom:1px solid var(--brd)"><td style="'+td+';font-weight:700;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap'+(inDash ? ';cursor:pointer;text-decoration:underline" onclick="dashOpenCommandeDetail(\''+r.id+'\')' : '')+'">'+lab+'</td><td style="'+td+'">'+esc(r.site)+'</td><td style="'+td+'">'+dFr(r.cr)+'</td><td style="'+td+'">'+dFr(r.dep)+'</td><td style="'+td+'">'+dFr(r.ex)+'</td><td style="'+td+';color:var(--red);font-weight:700">+'+r.ecart+' j</td></tr>'; }).join('')+'</tbody></table></div>'+
+      (late.length > 40 ? '<div style="font-size:.7rem;color:var(--mut);margin-top:4px">… et '+(late.length-40)+' autre(s)</div>' : '');
+  }
+  h += '<div style="font-size:.68rem;color:var(--mut);margin-top:10px">'+n+' commande(s) prise(s) en compte'+(D.noDep ? ' · '+D.noDep+' expédiée(s) ignorée(s) (pas de date de départ prévue)' : '')+'. La date de départ prévue est la date actuelle de la commande.</div></div>';
+  return h;
 }
 
 function loadStats(){
   statsApplyPoleUi();
   if(viewPole === 'numerique'){ loadStatsNum(); return; }
+  try { statsDelaisLoad(); } catch(e){ var db_ = document.getElementById('stats-delais-block'); if(db_) db_.innerHTML = ''; }
   if(viewPole === 'tout') loadStatsNum();
   var monthEl = document.getElementById('stats-month');
   var yearEl  = document.getElementById('stats-year');
