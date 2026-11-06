@@ -2019,7 +2019,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.11.06-1800';
+var APP_VERSION = '2026.11.06-1830';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -23740,6 +23740,13 @@ function planAbsInfo(uid, d){
   if(rec && wk && rec[wk] != null && rec[wk] !== '') return {frac:parseFloat(rec[wk]) || 0, src:'habituel'};
   return {frac:0, src:''};
 }
+// Toute l'équipe (admin et direction compris) pour les congés et absences ; seuls les producteurs comptent dans la capacité
+function planStaff(){
+  var us = S_dash.users || {};
+  return Object.keys(us).filter(function(uid){ var u = us[uid]; return u && (u.name || u.email); })
+    .map(function(uid){ return {uid:uid, name:userDispName(us[uid], uid)}; })
+    .sort(function(a, b){ return String(a.name).localeCompare(String(b.name), 'fr'); });
+}
 function planMonday(d){ var x = new Date(d.getFullYear(), d.getMonth(), d.getDate()); x.setDate(x.getDate() - ((x.getDay()+6)%7)); return x; }
 function planFmtD(d){ return d.toLocaleDateString('fr-FR', {day:'numeric', month:'long'}); }
 function planFmtKey(k){ return new Date(k+'T00:00:00').toLocaleDateString('fr-FR'); }
@@ -23768,7 +23775,7 @@ function planCard(title, inner, right){
 function planRender(){
   var el = document.getElementById('plan-body'); if(!el) return;
   if(!S_plan.weekStart) S_plan.weekStart = planMonday(new Date());
-  var edit = canPlanEdit(), ws = S_plan.weekStart, todayKey = dashDateKey(new Date()), producers = S_dash.producers || [], days = [], i;
+  var edit = canPlanEdit(), ws = S_plan.weekStart, todayKey = dashDateKey(new Date()), producers = S_dash.producers || [], staff = planStaff(), days = [], i;
   for(i = 0; i < 7; i++) days.push(new Date(ws.getFullYear(), ws.getMonth(), ws.getDate()+i));
   var lab = document.getElementById('plan-week-label'); if(lab) lab.textContent = 'Semaine du '+planFmtD(days[0])+' au '+planFmtD(days[6])+' '+days[6].getFullYear();
   var byDay = {};
@@ -23788,7 +23795,7 @@ function planRender(){
         '<div style="flex:1"><div>'+(PLAN_KINDS[e.kind]||PLAN_KINDS.autre).split(' ')[0]+' <strong>'+esc(e.title||'')+'</strong></div>'+(e.note ? '<div style="font-size:.72rem;color:var(--mut)">'+esc(e.note)+'</div>' : '')+'</div></div>';
     });
     if(!off){
-      var abs = producers.map(function(p){ var a = planAbsInfo(p.uid, d); return a.frac > 0 ? {name:p.name, a:a} : null; }).filter(Boolean);
+      var abs = staff.map(function(p){ var a = planAbsInfo(p.uid, d); return a.frac > 0 ? {name:p.name, a:a} : null; }).filter(Boolean);
       var eff = dashEffectiveProducers(producers, d, S_dash.absencesRecurrentes, S_dash.absencesExceptions);
       if(producers.length) inner += '<div style="padding:5px 0;border-top:1px solid var(--brd);font-size:.78rem"><span style="color:var(--mut)">Présents :</span> <strong>'+String(Math.round(eff*10)/10).replace('.', ',')+' / '+producers.length+'</strong>'+
         (abs.length ? abs.map(function(x){ return '<div style="color:var(--acc);font-size:.76rem;margin-top:2px">• '+esc(x.name)+' — '+(x.a.frac >= 1 ? 'absent' : 'absent ½ journée')+' <span style="color:var(--mut)">('+x.a.src+')</span></div>'; }).join('') : '')+'</div>';
@@ -23799,7 +23806,7 @@ function planRender(){
   });
   // Congés
   var cg = Object.keys(S_plan.conges || {}).map(function(id){ return Object.assign({id:id}, S_plan.conges[id]); }).filter(function(x){ return x && x.to && x.to >= todayKey; }).sort(function(a, b){ return a.from < b.from ? -1 : 1; });
-  var nameOf = function(uid){ var p = producers.find(function(q){ return q.uid === uid; }); return p ? p.name : '(ancien producteur)'; };
+  var nameOf = function(uid){ var p = staff.find(function(q){ return q.uid === uid; }); return p ? p.name : '(compte supprimé)'; };
   html += planCard('🏖️ Congés à venir', cg.length ? cg.map(function(x){
       return '<div style="display:flex;justify-content:space-between;gap:8px;align-items:center;border-top:1px solid var(--brd);padding:5px 0;font-size:.8rem"><div><strong>'+esc(nameOf(x.uid))+'</strong> — du '+planFmtKey(x.from)+' au '+planFmtKey(x.to)+(parseFloat(x.frac) === 0.5 ? ' (½ journée)' : '')+(x.note ? '<div style="font-size:.72rem;color:var(--mut)">'+esc(x.note)+'</div>' : '')+'</div>'+(edit ? planBtn('Modifier', 'planCongeForm(\''+x.id+'\')') : '')+'</div>';
     }).join('') : '<div style="color:var(--mut);font-size:.8rem">Aucun congé à venir.</div>', edit ? planBtn('+ Poser un congé', 'planCongeForm()') : '');
@@ -23810,7 +23817,7 @@ function planRender(){
     }).join('') : '<div style="color:var(--mut);font-size:.8rem">Aucune fermeture à venir.</div>')+
     '<div style="font-size:.68rem;color:var(--mut);margin-top:6px">Les jours fériés sont automatiques. Les fermetures et jours fériés ne comptent pas comme jours ouvrés (capacité, statistiques de délais).</div>', edit ? planBtn('+ Ajouter', 'planFermForm()') : '');
   // Absences récurrentes
-  html += planCard('🧑‍🤝‍🧑 Absences récurrentes', '<div style="font-size:.74rem;color:var(--mut);margin-bottom:8px">Profil hebdomadaire habituel de chaque producteur (ex : absent tous les mercredis).</div><div id="plan-recurrent" style="overflow-x:auto"></div>');
+  html += planCard('🧑‍🤝‍🧑 Absences récurrentes', '<div style="font-size:.74rem;color:var(--mut);margin-bottom:8px">Profil hebdomadaire habituel de chaque collaborateur (ex : absent tous les mercredis). Seuls les producteurs comptent dans le calcul de capacité.</div><div id="plan-recurrent" style="overflow-x:auto"></div>');
   el.innerHTML = html;
   renderAbsencesRecurrentes('plan-recurrent', !edit);
 }
@@ -23857,10 +23864,10 @@ function planEventDel(id){
 // Congé d'un producteur (période)
 function planCongeForm(id){
   if(!canPlanEdit()) return;
-  var x = id ? (S_plan.conges[id] || {}) : {}, pr = S_dash.producers || [];
-  if(!pr.length){ toast('Aucun producteur actif', 1); return; }
+  var x = id ? (S_plan.conges[id] || {}) : {}, pr = planStaff();
+  if(!pr.length){ toast('Aucun collaborateur chargé, réessaie dans un instant', 1); return; }
   planModal(id ? 'Modifier le congé' : 'Poser un congé',
-    planInp('Producteur', '<select id="pc-uid" style="'+PLAN_INP+'">'+pr.map(function(p){ return '<option value="'+esc(p.uid)+'"'+(x.uid === p.uid ? ' selected' : '')+'>'+esc(p.name)+'</option>'; }).join('')+'</select>')+
+    planInp('Collaborateur', '<select id="pc-uid" style="'+PLAN_INP+'">'+pr.map(function(p){ return '<option value="'+esc(p.uid)+'"'+(x.uid === p.uid ? ' selected' : '')+'>'+esc(p.name)+'</option>'; }).join('')+'</select>')+
     planInp('Du', '<input id="pc-from" type="date" value="'+esc(x.from||'')+'" style="'+PLAN_INP+'">')+
     planInp('Au (inclus)', '<input id="pc-to" type="date" value="'+esc(x.to||'')+'" style="'+PLAN_INP+'">')+
     planInp('Durée', '<select id="pc-frac" style="'+PLAN_INP+'"><option value="1"'+(parseFloat(x.frac) !== 0.5 ? ' selected' : '')+'>Journées complètes</option><option value="0.5"'+(parseFloat(x.frac) === 0.5 ? ' selected' : '')+'>½ journée</option></select>')+
@@ -23909,14 +23916,14 @@ function planFermDel(id){
 function planDayAbsForm(dateKey){
   if(!canPlanEdit()) return;
   var d = new Date(dateKey+'T00:00:00'), exc = (S_dash.absencesExceptions || {})[dateKey] || {}, wk = dashWeekdayKey(d);
-  var rows = (S_dash.producers || []).map(function(p){
+  var rows = planStaff().map(function(p){
     var cur = (exc[p.uid] != null && exc[p.uid] !== '') ? String(exc[p.uid]) : '';
     var cg = planCongeFrac(p.uid, dateKey), rf = wk ? (((S_dash.absencesRecurrentes || {})[p.uid] || {})[wk]) : null;
     var hint = cg !== null ? ' (en congé)' : (rf == 1 ? ' (habituellement absent)' : (rf == 0.5 ? ' (habituellement ½ j)' : ''));
     return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><div style="flex:1;font-size:.85rem">'+esc(p.name)+'<span style="color:var(--mut);font-size:.72rem">'+hint+'</span></div>'+
       '<select onchange="planSaveException(\''+dateKey+'\',\''+p.uid+'\',this.value)" style="background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.82rem;padding:6px 8px">'+
       '<option value=""'+(cur === '' ? ' selected' : '')+'>Comme d\'habitude</option><option value="0"'+(cur === '0' ? ' selected' : '')+'>Présent (journée complète)</option><option value="0.5"'+(cur === '0.5' ? ' selected' : '')+'>Absent ½ journée</option><option value="1"'+(cur === '1' ? ' selected' : '')+'>Absent (journée complète)</option></select></div>';
-  }).join('') || '<div style="color:var(--mut);font-size:.85rem">Aucun producteur actif.</div>';
+  }).join('') || '<div style="color:var(--mut);font-size:.85rem">Aucun collaborateur.</div>';
   planModal('✎ Absences du '+d.toLocaleDateString('fr-FR', {weekday:'long', day:'2-digit', month:'2-digit'}), '<p style="color:var(--mut);font-size:.78rem;margin-bottom:10px">Ajuste la présence pour cette date précise uniquement — le profil habituel et les congés ne sont pas modifiés.</p>'+rows+'<div class="macts" style="margin-top:8px"><button class="btn bpri" onclick="cm(\'m-plan\')">Fermer</button></div>');
 }
 function planSaveException(dateKey, uid, val){
@@ -23938,11 +23945,11 @@ var DASH_WEEKDAY_LABELS = [['lun','Lun'],['mar','Mar'],['mer','Mer'],['jeu','Jeu
 function renderAbsencesRecurrentes(targetId, ro){
   var el = document.getElementById(targetId || 'plan-recurrent');
   if(!el) return;
-  var producers = S_dash.producers || [], absences = S_dash.absencesRecurrentes || {};
-  if(!producers.length){ el.innerHTML = '<div style="color:var(--mut);font-size:.85rem">Aucun producteur actif.</div>'; return; }
+  var producers = planStaff(), absences = S_dash.absencesRecurrentes || {};
+  if(!producers.length){ el.innerHTML = '<div style="color:var(--mut);font-size:.85rem">Chargement…</div>'; return; }
   var html = '<table style="width:100%;min-width:420px;border-collapse:collapse;font-size:.8rem">';
   html += '<thead><tr style="text-align:left;border-bottom:1.5px solid var(--brd)">'+
-    '<th style="padding:6px 8px;color:var(--mut);font-family:Open Sans,sans-serif;font-size:0.73rem;font-weight:800">PRODUCTEUR</th>'+
+    '<th style="padding:6px 8px;color:var(--mut);font-family:Open Sans,sans-serif;font-size:0.73rem;font-weight:800">COLLABORATEUR</th>'+
     DASH_WEEKDAY_LABELS.map(function(w){ return '<th style="padding:6px 8px;color:var(--mut);font-family:Open Sans,sans-serif;font-size:0.73rem;font-weight:800;text-align:center">'+w[1]+'</th>'; }).join('')+
     '</tr></thead><tbody>';
   html += producers.map(function(p){
