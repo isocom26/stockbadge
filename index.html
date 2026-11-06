@@ -2019,7 +2019,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.11.06-1830';
+var APP_VERSION = '2026.11.06-1900';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -19638,24 +19638,31 @@ function delaiJoursOuvres(a, b){
   while(d <= end){ if(delaiOuvre(d)) n++; d.setDate(d.getDate()+1); }
   return n;
 }
-// Jour de la 1re expédition d'une commande (colis ou emport / autre mode) — null si rien d'expédié
+// Jour de la 1re expédition d'une commande (colis ou emport / autre mode) — null si aucune VRAIE date d'expédition.
+// Seule la date d'expédition réelle (shipAt : fichier du transporteur ou saisie) est fiable ; la date d'enregistrement du colis
+// (« at ») est celle de l'import, donc on ne s'en sert pas : une commande sans vraie date est exclue du calcul.
 function delaiExpeKey(c){
   var ts = [];
-  colisList(c).forEach(function(k){ var t = k.shipAt || k.at; if(t) ts.push(t); });
-  if(c && c.livraison && c.livraison.mode){ var t2 = c.livraison.shipAt || c.livraison.at; if(t2) ts.push(t2); }
+  colisList(c).forEach(function(k){ if(k.shipAt) ts.push(k.shipAt); });
+  if(c && c.livraison && c.livraison.mode && c.livraison.shipAt) ts.push(c.livraison.shipAt);
   return ts.length ? delaiKey(new Date(Math.min.apply(null, ts))) : null;
 }
+// Commande expédiée (colis ou emport enregistré) mais sans vraie date d'expédition
+function delaiSansDate(c){
+  return !delaiExpeKey(c) && (colisList(c).length > 0 || !!(c && c.livraison && c.livraison.mode));
+}
 function delaiCalc(from, to){
-  var byId = (S_cmdIndex && S_cmdIndex.byId) || {}, rows = [], shipped = 0, noDep = 0;
+  var byId = (S_cmdIndex && S_cmdIndex.byId) || {}, rows = [], shipped = 0, noDep = 0, noDate = 0;
   Object.keys(byId).forEach(function(id){
     var c = byId[id]; if(!c) return;
+    if(delaiSansDate(c)){ noDate++; return; }
     var ex = delaiExpeKey(c); if(!ex || ex < from || ex > to) return;
     shipped++;
     if(!/^\d{4}-\d{2}-\d{2}$/.test(c.dateDepart||'') || !c.createdAt){ noDep++; return; }
     var cr = delaiKey(new Date(c.createdAt));
     rows.push({id:id, c:c, site:c.site||'—', cr:cr, dep:c.dateDepart, ex:ex, prod:Math.max(0, delaiJoursOuvres(cr, ex)), ecart:delaiJoursOuvres(c.dateDepart, ex)});
   });
-  return {rows:rows, shipped:shipped, noDep:noDep};
+  return {rows:rows, shipped:shipped, noDep:noDep, noDate:noDate};
 }
 function delaiMed(a){ if(!a.length) return 0; var s = a.slice().sort(function(x, y){ return x-y; }), m = Math.floor(s.length/2); return s.length%2 ? s[m] : (s[m-1]+s[m])/2; }
 function delaiPct(n, t){ return t ? Math.round(1000*n/t)/10 : 0; }
@@ -19682,7 +19689,7 @@ function statsDelaisHtml(D, R){
     '<div style="font-family:Open Sans,sans-serif;font-weight:800;font-size:.95rem;margin-bottom:2px">⏱️ Respect des délais</div>'+
     '<div style="font-size:.72rem;color:var(--mut);margin-bottom:10px">Commandes expédiées sur la période ('+esc(R.label)+'), en jours ouvrés (hors week-ends, jours fériés et fermeture annuelle). Date d\'expédition = 1re expédition de la commande.</div>';
   if(!n){
-    return h+'<div style="color:var(--mut);font-size:.82rem;padding:8px 0">Aucune commande expédiée sur cette période avec une date de départ prévue.'+(D.shipped ? ' ('+D.shipped+' expédiée(s) sans date de départ prévue)' : '')+'</div></div>';
+    return h+'<div style="color:var(--mut);font-size:.82rem;padding:8px 0">Aucune commande expédiée sur cette période avec une date de départ prévue.'+(D.shipped ? ' ('+D.shipped+' expédiée(s) sans date de départ prévue)' : '')+(D.noDate ? '<br>⚠️ '+D.noDate+' commande(s) exclue(s) : colis sans vraie date d\'expédition (ré-importer les exports corrige).' : '')+'</div></div>';
   }
   var ok = rows.filter(function(r){ return r.ecart <= 0; }), late = rows.filter(function(r){ return r.ecart > 0; });
   var pct = delaiPct(ok.length, n), prods = rows.map(function(r){ return r.prod; });
@@ -19725,7 +19732,8 @@ function statsDelaisHtml(D, R){
         return '<tr style="border-bottom:1px solid var(--brd)"><td style="'+td+';font-weight:700;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap'+(inDash ? ';cursor:pointer;text-decoration:underline" onclick="dashOpenCommandeDetail(\''+r.id+'\')' : '')+'">'+lab+'</td><td style="'+td+'">'+esc(r.site)+'</td><td style="'+td+'">'+dFr(r.cr)+'</td><td style="'+td+'">'+dFr(r.dep)+'</td><td style="'+td+'">'+dFr(r.ex)+'</td><td style="'+td+';color:var(--red);font-weight:700">+'+r.ecart+' j</td></tr>'; }).join('')+'</tbody></table></div>'+
       (late.length > 40 ? '<div style="font-size:.7rem;color:var(--mut);margin-top:4px">… et '+(late.length-40)+' autre(s)</div>' : '');
   }
-  h += '<div style="font-size:.68rem;color:var(--mut);margin-top:10px">'+n+' commande(s) prise(s) en compte'+(D.noDep ? ' · '+D.noDep+' expédiée(s) ignorée(s) (pas de date de départ prévue)' : '')+'. La date de départ prévue est la date actuelle de la commande.</div></div>';
+  h += '<div style="font-size:.68rem;color:var(--mut);margin-top:10px">'+n+' commande(s) prise(s) en compte'+(D.noDep ? ' · '+D.noDep+' expédiée(s) ignorée(s) (pas de date de départ prévue)' : '')+'. La date de départ prévue est la date actuelle de la commande.'+
+    (D.noDate ? '<br>⚠️ '+D.noDate+' commande(s) expédiée(s) exclue(s) : leur colis n\'a pas de vraie date d\'expédition (enregistrés sans la date du fichier transporteur). Ré-importer les exports (mode « Import historique ») corrige leur date.' : '')+'</div></div>';
   return h;
 }
 
