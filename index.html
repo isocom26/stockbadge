@@ -2019,7 +2019,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.11.09-1400';
+var APP_VERSION = '2026.11.09-1415';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -2957,6 +2957,7 @@ function ecranAutoOpen(tries){
 // Pas de correctif technique invisible ici. tag = qui est concerné :
 //   'all' (tout le monde), 'admin' (admin/direction), 'maint' (maintenance), 'stock' (ajout de stock), 'reprint' (réimpressions)
 var NEWS = [
+  {n:60, d:'09/11/2026', tag:'all', t:'Statistiques : sous-onglets, avance et jauge des délais', x:'Statistiques est maintenant rangé en sous-onglets (Résumé, Production, Délais, Qualité, Équipe) pour retrouver une info plus vite. Dans Délais : jauge en avance / à l\'heure / en retard, avance moyenne, et listes repliables des commandes en retard et en avance.'},
   {n:59, d:'06/11/2026', tag:'all', t:'Nouvel onglet Planning', x:'Petit agenda de l\'équipe : semaine par semaine, absences, congés par producteur (en période), fermetures, et événements (réunions, infos…). Visible par tous ; la modification se donne dans Admin › Droits (« Peut modifier le Planning »). Les absences récurrentes quittent Admin et la saisie des absences du jour quitte Capacité : tout se fait maintenant dans Planning. Capacité et statistiques de délais tiennent compte des congés et fermetures.'},
   {n:58, d:'06/11/2026', tag:'all', t:'Statistiques : respect des délais', x:'Nouveau bloc dans Statistiques : % de commandes parties à l\'heure (par rapport au départ prévu), délai de production en jours ouvrés (moyenne, médiane, max), détail par site, évolution par mois et liste des commandes en retard. Jours ouvrés = hors week-ends, jours fériés et fermeture annuelle.'},
   {n:57, d:'06/11/2026', tag:'admin', t:'Import des expéditions : rapprochement par nom nettement amélioré', x:'Les colis Colissimo sans BL sont mieux retrouvés : noms avec chiffres (MHRE89) ou numéro de SIRET collé, BL déjà utilisés écartés, BL trop anciens/récents écartés d\'après la date d\'expédition. Quand un client a autant de commandes que de colis, ils sont proposés dans l\'ordre (à vérifier avant de cocher).'},
