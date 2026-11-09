@@ -2019,7 +2019,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.11.09-1300';
+var APP_VERSION = '2026.11.09-1330';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -22886,12 +22886,19 @@ function dashCalcChargeActuelle(commandes, allReports, opts){
     var refQty = dashCommandeQty(c);
     var producedQty = producedTotalFor(c);
     var remaining = Math.max(0, refQty - producedQty);
-    if(remaining <= 0) return;
 
+    // Réimpressions : on compte les pièces à réimprimer (quantité de la demande), pas toute la commande.
+    // Une demande sans quantité renseignée garde l'ancien calcul (reste de la commande).
     if(dashFindActiveReprint(c)){
-      reimpressions += remaining;
-      return;
+      var rq = dashActiveReprintQty(c);
+      if(rq > 0){
+        reimpressions += rq;     // pièces déjà produites une 1re fois : s'ajoutent au reste éventuel
+      } else {
+        reimpressions += remaining;
+        return;
+      }
     }
+    if(remaining <= 0) return;
     var b = byGKey[gKeyFor(c.id, c.cmd, c.site)];
     if(b && b.hasOngoing){
       surMachine += remaining;
@@ -23233,6 +23240,20 @@ function dashFindActiveReprint(c, listOpt){
     if(linked && (!match || (r.createdAt||0) > (match.createdAt||0))) match = r;
   }
   return match;
+}
+
+// Quantité totale des réimpressions ouvertes d'une commande (somme des « qty » des demandes non terminées)
+function dashActiveReprintQty(c){
+  var list = S_dash.reprints || [], tot = 0;
+  for(var i=0; i<list.length; i++){
+    var r = list[i];
+    if(r.status === 'done') continue;
+    var linked = (r.cmdId && r.cmdId === c.id) ||
+      (!r.cmdId && r.site && r.cmd && c.site && c.cmd &&
+        looseMatchKey(r.site)===looseMatchKey(c.site) && looseMatchKey(r.cmd)===looseMatchKey(c.cmd));
+    if(linked) tot += Math.max(0, parseInt(r.qty,10) || 0);
+  }
+  return tot;
 }
 
 // Sites pour lesquels le champ "nom" n'est pas un nom de client fiable
