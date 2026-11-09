@@ -2019,7 +2019,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.11.09-1200';
+var APP_VERSION = '2026.11.09-1215';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -19738,16 +19738,26 @@ function statsDelaisHtml(D, R){
     return h+'<div style="color:var(--mut);font-size:.82rem;padding:8px 0">Aucune commande expédiée sur cette période avec une date de départ prévue.'+(D.shipped ? ' ('+D.shipped+' expédiée(s) sans date de départ prévue)' : '')+(D.noDate ? '<br>⚠️ '+D.noDate+' commande(s) exclue(s) : colis sans vraie date d\'expédition (ré-importer les exports corrige).' : '')+'</div></div>';
   }
   var ok = rows.filter(function(r){ return r.ecart <= 0; }), late = rows.filter(function(r){ return r.ecart > 0; });
+  var early = rows.filter(function(r){ return r.ecart < 0; }), exact = rows.filter(function(r){ return r.ecart === 0; });
+  var avgAdv = early.length ? early.reduce(function(a, r){ return a-r.ecart; }, 0)/early.length : 0;
+  var trend = rows.reduce(function(a, r){ return a+r.ecart; }, 0)/n;   // écart moyen toutes commandes : négatif = en avance
   var pct = delaiPct(ok.length, n), prods = rows.map(function(r){ return r.prod; });
   var avg = prods.reduce(function(a, b){ return a+b; }, 0)/n, avgLate = late.length ? late.reduce(function(a, r){ return a+r.ecart; }, 0)/late.length : 0;
   var tile = function(v, l, sub, col){ return '<div style="flex:1;min-width:120px;background:var(--sur);border-radius:10px;padding:10px 12px"><div style="font-size:1.45rem;font-weight:800;color:'+(col||'var(--txt)')+'">'+v+'</div><div style="font-size:.72rem;font-weight:700">'+l+'</div>'+(sub ? '<div style="font-size:.66rem;color:var(--mut)">'+sub+'</div>' : '')+'</div>'; };
   h += '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">'+
     tile(delaiFmt(pct)+' %', 'Départ à l\'heure', ok.length+' sur '+n+' commandes', delaiCol(pct))+
     tile(delaiFmt(avg)+' j', 'Délai de production moyen', 'médian '+delaiFmt(delaiMed(prods))+' j · max '+Math.max.apply(null, prods)+' j')+
+    tile(early.length ? delaiFmt(avgAdv)+' j' : '—', 'Avance moyenne', early.length+' commande(s) en avance · '+delaiFmt(delaiPct(early.length, n))+' %', early.length ? 'var(--blu)' : '')+
     tile(late.length ? delaiFmt(avgLate)+' j' : '—', 'Retard moyen', late.length+' commande(s) en retard', late.length ? 'var(--red)' : '')+
   '</div>';
+  // Jauge : en avance / à l'heure / en retard
+  var seg = function(cnt, col){ var w = delaiPct(cnt, n); return w ? '<div style="width:'+w+'%;background:'+col+'" title="'+cnt+'"></div>' : ''; };
+  var tendTxt = Math.abs(trend) < 0.05 ? 'pile à l\'heure en moyenne' : (trend < 0 ? 'en moyenne <strong style="color:var(--blu)">'+delaiFmt(-trend)+' j d\'avance</strong> sur le départ prévu' : 'en moyenne <strong style="color:var(--red)">'+delaiFmt(trend)+' j de retard</strong> sur le départ prévu');
+  h += '<div style="margin-bottom:14px"><div style="display:flex;height:16px;border-radius:99px;overflow:hidden;background:var(--sur)">'+seg(early.length, 'var(--blu)')+seg(exact.length, 'var(--grn)')+seg(late.length, 'var(--red)')+'</div>'+
+    '<div style="display:flex;justify-content:space-between;font-size:.72rem;margin-top:5px;gap:6px;flex-wrap:wrap"><span style="color:var(--blu);font-weight:700">En avance '+early.length+' · '+delaiFmt(delaiPct(early.length, n))+' %</span><span style="color:var(--grn);font-weight:700">À l\'heure '+exact.length+' · '+delaiFmt(delaiPct(exact.length, n))+' %</span><span style="color:var(--red);font-weight:700">En retard '+late.length+' · '+delaiFmt(delaiPct(late.length, n))+' %</span></div>'+
+    '<div style="font-size:.74rem;color:var(--mut);margin-top:6px">Tendance : '+tendTxt+'.</div></div>';
   // Répartition
-  var b = [['À l\'heure ou en avance', ok.length, 'var(--grn)'], ['1 jour de retard', late.filter(function(r){ return r.ecart === 1; }).length, 'var(--acc)'],
+  var b = [['En avance', early.length, 'var(--blu)'], ['À l\'heure (jour prévu)', exact.length, 'var(--grn)'], ['1 jour de retard', late.filter(function(r){ return r.ecart === 1; }).length, 'var(--acc)'],
            ['2 à 3 jours', late.filter(function(r){ return r.ecart >= 2 && r.ecart <= 3; }).length, 'var(--red)'], ['Plus de 3 jours', late.filter(function(r){ return r.ecart > 3; }).length, 'var(--red)']];
   h += '<div style="margin-bottom:12px">'+b.map(function(x){
     var p = delaiPct(x[1], n);
@@ -19767,17 +19777,20 @@ function statsDelaisHtml(D, R){
       mk.map(function(k){ var o = months[k], p = delaiPct(o.ok, o.n), lab = new Date(k+'-01T00:00:00').toLocaleDateString('fr-FR', {month:'long', year:'numeric'});
         return '<tr style="border-bottom:1px solid var(--brd)"><td style="'+td+';font-weight:700">'+lab+'</td><td style="'+td+'">'+o.n+'</td><td style="'+td+';color:'+delaiCol(p)+';font-weight:700">'+delaiFmt(p)+' %</td><td style="'+td+'">'+delaiFmt(o.prod/o.n)+' j</td></tr>'; }).join('')+'</tbody></table></div>';
   }
-  // Commandes en retard
-  if(late.length){
-    var dFr = function(k){ return new Date(k+'T00:00:00').toLocaleDateString('fr-FR'); };
-    late.sort(function(a, b){ return b.ecart - a.ecart; });
-    h += '<div style="font-size:.78rem;font-weight:800;margin:12px 0 4px">Commandes en retard ('+late.length+')</div><div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;min-width:520px"><thead><tr style="border-bottom:1.5px solid var(--brd)"><th style="'+th+'">CMD</th><th style="'+th+'">SITE</th><th style="'+th+'">CRÉÉ LE</th><th style="'+th+'">DÉPART PRÉVU</th><th style="'+th+'">EXPÉDIÉ LE</th><th style="'+th+'">RETARD</th></tr></thead><tbody>'+
-      late.slice(0, 40).map(function(r){
+  // Listes repliables : commandes en retard, puis en avance
+  var dFr = function(k){ return new Date(k+'T00:00:00').toLocaleDateString('fr-FR'); };
+  var listHtml = function(title, arr, sign){
+    if(!arr.length) return '';
+    var colr = sign > 0 ? 'var(--red)' : 'var(--blu)', lbl = sign > 0 ? 'RETARD' : 'AVANCE';
+    arr = arr.slice().sort(function(x, y){ return sign*(y.ecart - x.ecart); });
+    return '<details style="margin-top:12px"><summary style="cursor:pointer;font-size:.78rem;font-weight:800">'+title+' ('+arr.length+')</summary><div style="overflow-x:auto;margin-top:4px"><table style="width:100%;border-collapse:collapse;min-width:520px"><thead><tr style="border-bottom:1.5px solid var(--brd)"><th style="'+th+'">CMD</th><th style="'+th+'">SITE</th><th style="'+th+'">CRÉÉ LE</th><th style="'+th+'">DÉPART PRÉVU</th><th style="'+th+'">EXPÉDIÉ LE</th><th style="'+th+'">'+lbl+'</th></tr></thead><tbody>'+
+      arr.slice(0, 40).map(function(r){
         var inDash = (S_dash.commandes||[]).some(function(x){ return x.id === r.id; });
         var lab = esc(dashCmdLabel(r.c));
-        return '<tr style="border-bottom:1px solid var(--brd)"><td style="'+td+';font-weight:700;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap'+(inDash ? ';cursor:pointer;text-decoration:underline" onclick="dashOpenCommandeDetail(\''+r.id+'\')' : '')+'">'+lab+'</td><td style="'+td+'">'+esc(r.site)+'</td><td style="'+td+'">'+dFr(r.cr)+'</td><td style="'+td+'">'+dFr(r.dep)+'</td><td style="'+td+'">'+dFr(r.ex)+'</td><td style="'+td+';color:var(--red);font-weight:700">+'+r.ecart+' j</td></tr>'; }).join('')+'</tbody></table></div>'+
-      (late.length > 40 ? '<div style="font-size:.7rem;color:var(--mut);margin-top:4px">… et '+(late.length-40)+' autre(s)</div>' : '');
-  }
+        return '<tr style="border-bottom:1px solid var(--brd)"><td style="'+td+';font-weight:700;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap'+(inDash ? ';cursor:pointer;text-decoration:underline" onclick="dashOpenCommandeDetail(\''+r.id+'\')' : '')+'">'+lab+'</td><td style="'+td+'">'+esc(r.site)+'</td><td style="'+td+'">'+dFr(r.cr)+'</td><td style="'+td+'">'+dFr(r.dep)+'</td><td style="'+td+'">'+dFr(r.ex)+'</td><td style="'+td+';color:'+colr+';font-weight:700">'+(sign > 0 ? '+' : '−')+Math.abs(r.ecart)+' j</td></tr>'; }).join('')+'</tbody></table></div>'+
+      (arr.length > 40 ? '<div style="font-size:.7rem;color:var(--mut);margin-top:4px">… et '+(arr.length-40)+' autre(s)</div>' : '')+'</details>';
+  };
+  h += listHtml('Commandes en retard', late, 1)+listHtml('Commandes expédiées en avance', early, -1);
   h += '<div style="font-size:.68rem;color:var(--mut);margin-top:10px">'+n+' commande(s) prise(s) en compte'+(D.noDep ? ' · '+D.noDep+' expédiée(s) ignorée(s) (pas de date de départ prévue)' : '')+'. La date de départ prévue est la date actuelle de la commande.'+
     (D.noDate ? '<br>⚠️ '+D.noDate+' commande(s) expédiée(s) exclue(s) : leur colis n\'a pas de vraie date d\'expédition (enregistrés sans la date du fichier transporteur). Ré-importer les exports (mode « Import historique ») corrige leur date.' : '')+'</div></div>';
   return h;
