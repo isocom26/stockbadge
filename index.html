@@ -5836,11 +5836,11 @@ function prevPhoto(ctx){
 var curSearchFilter = 'all'; // all | waiting | in_progress | produced | reprint | done
 
 // Filtres de statut (mêmes statuts que la « Situation » du Tableau de bord)
-var SRCH_FILTERS = [['all','Toutes'],['waiting','⏳ En attente'],['in_progress','🔄 En cours'],['produced','📦 Produite'],['reprint','🖨️ Réimpression'],['done','✅ Terminée']];
+var SRCH_FILTERS = [['all','Toutes'],['waiting','⏳ Attente production'],['in_progress','🔄 Production en cours'],['produced','📦 Produite'],['reprint','🖨️ Réimpression'],['done','✅ Terminée']];
 // Badge affiché sur la carte : libellé + couleurs par statut
 var SRCH_BADGES = {
-  waiting:     {label:'⏳ En attente', color:'var(--acc)', bg:'rgba(217,119,6,.15)'},
-  in_progress: {label:'🔄 En cours',   color:'#1d4ed8',    bg:'rgba(59,130,246,.15)'},
+  waiting:     {label:'⏳ Attente production', color:'var(--acc)', bg:'rgba(217,119,6,.15)'},
+  in_progress: {label:'🔄 Production en cours', color:'#1d4ed8',    bg:'rgba(59,130,246,.15)'},
   produced:    {label:'📦 Produite',   color:'#7c3aed',    bg:'rgba(124,58,237,.14)'},
   reprint:     {label:'🖨️ Réimpression', color:'var(--red)', bg:'rgba(220,38,38,.12)'},
   done:        {label:'✅ Terminée',   color:'var(--grn)', bg:'rgba(16,185,129,.15)'}
@@ -15660,7 +15660,7 @@ function cqGroupCard(items, cmdNom, cmdFormats, qtyState){
     '<div style="font-size:.78rem;margin-top:8px;color:var(--mut)">'+
       'Terminée : <strong style="color:var(--grn)">'+doneTime+'</strong>'+
       (cqTime?' · Contrôlé le : <strong style="color:var(--grn)">'+cqTime+'</strong>'+(l0.cqBy?' par <strong>'+l0.cqBy+'</strong>':''):'')+'</div>'+
-    '<div style="display:flex;gap:8px;margin-top:12px">'+acts+'</div>'+
+    '<div style="display:flex;gap:8px;margin-top:12px'+(cqStatus==='pending'?';flex-direction:column':'')+'">'+acts+'</div>'+
   '</div>';
 }
 
