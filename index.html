@@ -2019,7 +2019,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.11.09-1330';
+var APP_VERSION = '2026.11.09-1400';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -22626,6 +22626,34 @@ function openDashboardTab(){
   });
 }
 
+// « Sur poste maintenant » : relecture légère (les lignes du jour seulement) pour suivre l'atelier en direct,
+// sans refaire tout le chargement du tableau de bord. Appelée à l'ouverture de « Aujourd'hui » puis toutes les 30 s.
+var _dashDayBusy = false;
+function dashRefreshDay(){
+  if(_dashDayBusy || !S_dash.loaded || S_dash.dayIndex == null || S_dash.dayIndex < 0 || !S_dash.weekKey) return;
+  _dashDayBusy = true;
+  var wk = S_dash.weekKey, di = S_dash.dayIndex;
+  Promise.all((S_dash.producers||[]).map(function(pr){
+    return fbg('reports/'+pr.uid+'/'+wk+'/d'+di).then(function(snap){
+      var dayData = snap.val()||{}, lines = [];
+      ['h0','h1'].forEach(function(hk){ ((dayData[hk]||{}).lines||[]).forEach(function(l){ if(l && l.sec !== 'sub') lines.push(l); }); });
+      return {uid:pr.uid, name:pr.name, lines:lines};
+    });
+  })).then(function(dl){
+    _dashDayBusy = false;
+    if(wk !== S_dash.weekKey) return;
+    S_dash.dayLinesByUser = dl;
+    var updEl = document.getElementById('dash-updated');
+    if(updEl) updEl.textContent = '🕐 Actualisé à '+new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+    dashRenderAujourdhui();
+  }).catch(function(){ _dashDayBusy = false; });
+}
+function dashAujVisible(){
+  var pn = document.getElementById('dash-panel-aujourdhui'), vw = document.getElementById('view-dashboard');
+  return !!(pn && vw && pn.style.display !== 'none' && vw.offsetParent !== null && !document.hidden);
+}
+try{ setInterval(function(){ if(dashAujVisible()) dashRefreshDay(); }, 30000); }catch(e){}
+
 function dashSwitchSection(name){
   // Pôle numérique : pas de « Aujourd'hui » ni « Capacité » (postes et capacité badges)
   var numV = (viewPole === 'numerique');
@@ -22647,6 +22675,7 @@ function dashSwitchSection(name){
     if(btn) btn.classList.toggle('active', k===name);
   });
   document.body.classList.toggle('dash-commandes-wide', name==='recherche');
+  if(name==='aujourdhui') dashRefreshDay();
   if(name==='sav'){
     var sn = window._savNewSnap = [];
     try { var sv0 = savSeenGet() || []; savOpenItems().forEach(function(i){ if(sv0.indexOf(i.sid) < 0) sn.push(i.sid); }); } catch(e){}
@@ -23074,7 +23103,7 @@ function dashRenderAujourdhui(){
       html += '<div style="display:flex;justify-content:space-between;gap:8px;padding:9px 12px;border-bottom:1px solid var(--brd);font-size:.8rem;flex-wrap:wrap">'+
         '<span>'+(secLabel[l.sec]||l.sec)+' · <strong>'+(l.name||'—')+'</strong></span>'+
         '<span style="color:var(--mut)">'+(l.site||'—')+' '+(l.cmd||'—')+' · '+(l.format||'—')+'</span>'+
-        '<span style="font-family:Open Sans,sans-serif;font-weight:700;color:var(--acc)">'+l.qty+' pcs</span>'+
+        '<span style="font-family:Open Sans,sans-serif;font-weight:700;color:var(--acc)">'+(l.qty > 0 ? l.qty+' pcs' : 'en cours')+'</span>'+
       '</div>';
     });
     html += '</div>';
