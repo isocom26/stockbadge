@@ -2019,7 +2019,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.11.06-2000';
+var APP_VERSION = '2026.11.09-1130';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -8177,7 +8177,9 @@ function renderAdmin(){
       var disabled = u.disabled===true;
       var actions;
       if(u.role==='admin'){
-        actions = '<span class="abadge">Admin</span>';
+        actions = '<div class="admrow-actions">'+
+          '<button style="background:var(--card);border:1px solid var(--brd);color:var(--txt);border-radius:8px;padding:5px 10px;font-size:.72rem;cursor:pointer" onclick="openPermsPanel(\'' + uid + '\')">⚙️ Modifier</button>'+
+          '<span class="abadge">Admin</span></div>';
       } else if(disabled){
         actions = '<div class="admrow-actions">'+
           '<button style="background:none;border:1px solid var(--grn);color:var(--grn);border-radius:8px;padding:5px 10px;font-size:.72rem;cursor:pointer" onclick="reactivateUser(\'' + uid + '\')">♻️ Réactiver</button>'+
@@ -8187,8 +8189,8 @@ function renderAdmin(){
           '<button style="background:var(--card);border:1px solid var(--brd);color:var(--txt);border-radius:8px;padding:5px 10px;font-size:.72rem;cursor:pointer" onclick="openPermsPanel(\'' + uid + '\')">⚙️ Droits</button>'+
           '<button style="background:none;border:1px solid var(--red);color:var(--red);border-radius:8px;padding:5px 10px;font-size:.72rem;cursor:pointer" onclick="askDisableUser(\'' + uid + '\',\'' + esc((u.name||u.email).replace(/'/g,'')) + '\')">🚫 Désactiver</button></div>';
       }
-      return '<div class="admrow" style="'+(disabled?'opacity:.55':'')+'"><div class="udot '+(u.role==='admin'?'adm':'')+'">'+((u.name||u.email||'?').slice(0,2).toUpperCase())+'</div>'+
-        '<div class="admrow-info"><strong style="font-size:.9rem">'+(u.name||'—')+'</strong>'+
+      return '<div class="admrow" style="'+(disabled?'opacity:.55':'')+'"><div class="udot '+(u.role==='admin'?'adm':'')+'">'+((u.role==='admin' ? userDispName(u, uid) : (u.name||u.email||'?')).slice(0,2).toUpperCase())+'</div>'+
+        '<div class="admrow-info"><strong style="font-size:.9rem">'+esc(u.role==='admin' ? userDispName(u, uid) : (u.name||'—'))+'</strong>'+
           (disabled?' <span style="font-size:.68rem;color:var(--red);font-weight:800">🚫 DÉSACTIVÉ</span>':'')+
           (u.jobTitle?'<span style="font-size:0.76rem;color:var(--acc);font-family:Open Sans,sans-serif;font-weight:700;margin-left:6px">'+esc(u.jobTitle)+'</span>':'')+
           '<br><small style="color:var(--mut)">'+esc(u.email)+'</small></div>'+
@@ -9534,9 +9536,27 @@ function openPermsPanel(uid){
   fbg('users/'+uid).then(function(snap){
     var u = snap.val()||{};
     var perms = u.perms||{};
-    var name = u.name||u.email||uid;
+    var isAdm = (u.role === 'admin');
+    var name = isAdm ? userDispName(u, uid) : (u.name||u.email||uid);
     document.getElementById('cf-title').textContent = '⚙️ ' + name;
     var curJob = u.jobTitle || '';
+    if(isAdm){
+      document.getElementById('cf-msg').innerHTML =
+        '<div style="text-align:left;margin-top:8px"><div style="font-size:.76rem;color:var(--mut);margin-bottom:10px">Compte administrateur : accès complet, rôle et droits non modifiables.</div>'+
+        '<label style="font-size:.78rem;color:var(--mut);display:block;margin-bottom:4px">Poste / Titre</label>'+
+        '<input id="perm-jobtitle" type="text" value="'+esc(curJob)+'" placeholder="ex: Responsable de production" style="width:100%;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.88rem;padding:9px 12px;outline:none"></div>';
+      document.querySelector('#m-confirm .btn.bdan').textContent = '💾 Enregistrer';
+      document.querySelector('#m-confirm .btn.bdan').style.background = 'var(--grn)';
+      cfCb = function(){
+        var jt = document.getElementById('perm-jobtitle');
+        fbu('users/'+permsUserId, {jobTitle:(jt && jt.value.trim()) || null});
+        document.querySelector('#m-confirm .btn.bdan').textContent = 'Oui, confirmer';
+        document.querySelector('#m-confirm .btn.bdan').style.background = 'var(--red)';
+        cm('m-confirm'); toast('✅ Compte mis à jour !'); renderAdmin();
+      };
+      om('m-confirm');
+      return;
+    }
     document.getElementById('cf-msg').innerHTML =
       '<div style="text-align:left;margin-top:8px">'+
       '<div style="margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--brd)">'+
