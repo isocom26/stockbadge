@@ -2019,7 +2019,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.11.09-1215';
+var APP_VERSION = '2026.11.09-1300';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -23426,6 +23426,7 @@ function dashRenderRecherche(){
   html += '<select id="dash-search-site" onchange="dashRunSearch()" style="flex:1;min-width:130px;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.85rem;padding:8px;outline:none"><option value="">Tous les sites</option>'+siteOpts+'</select>';
   html += '<select id="dash-search-situation" onchange="dashRunSearch()" style="flex:1;min-width:180px;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.85rem;padding:8px;outline:none">'+
     '<option value="">Tous les statuts</option>'+
+    '<option value="prod_all">🏭 À la production (tout)</option>'+
     '<option value="waiting">⏳ Attente production</option>'+
     '<option value="in_progress">🔄 Production en cours</option>'+
     '<option value="reprint">🔴 Attente réimpression</option>'+
@@ -23482,6 +23483,7 @@ function dashRunSearch(){
     if(toMs!=null && (c.createdAt||0) > toMs) return false;
     if(situationFilter === 'sav'){ if(!dashSavList(c).length) return false; }
     else if(situationFilter === 'conf'){ if(!suiviPending(c).length) return false; }
+    else if(situationFilter === 'prod_all'){ var sk = dashComputeSituation(c).key; if(sk !== 'waiting' && sk !== 'in_progress' && sk !== 'reprint' && sk !== 'produced') return false; }
     else if(situationFilter && dashComputeSituation(c).key !== situationFilter) return false;
     if(q){
       var hay = [c.cmd, c.nom, c.site].concat(dashProducersFor(c)).concat((c.formats||[]).map(function(f){return f.format;})).join(' ').toLowerCase();
