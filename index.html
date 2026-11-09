@@ -898,7 +898,13 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
     <div class="rpt-nav-label" id="plan-week-label">—</div>
     <button class="rpt-nav-btn" onclick="planChangeWeek(1)">→</button>
   </div>
-  <div style="text-align:center;margin-bottom:10px"><button type="button" onclick="planToday()" style="padding:5px 12px;border-radius:8px;border:1px solid var(--brd);background:none;color:var(--txt);font-size:.76rem;cursor:pointer">Aujourd'hui</button></div>
+  <div style="display:flex;justify-content:center;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
+    <button type="button" onclick="planToday()" style="padding:5px 12px;border-radius:8px;border:1px solid var(--brd);background:none;color:var(--txt);font-size:.76rem;cursor:pointer">Aujourd'hui</button>
+    <span style="display:inline-flex;border:1px solid var(--brd);border-radius:8px;overflow:hidden">
+      <button type="button" id="plan-mode-week" onclick="planSetMode('week')" style="padding:5px 12px;border:none;background:none;color:var(--txt);font-size:.76rem;cursor:pointer">Semaine</button>
+      <button type="button" id="plan-mode-month" onclick="planSetMode('month')" style="padding:5px 12px;border:none;border-left:1px solid var(--brd);background:none;color:var(--txt);font-size:.76rem;cursor:pointer">Mois</button>
+    </span>
+  </div>
   <div id="plan-body"></div>
 </div>
 
@@ -2019,7 +2025,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.11.09-1415';
+var APP_VERSION = '2026.11.09-1445';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -23861,7 +23867,7 @@ function saveDashboardSettings(){
 //   fermetures/{id} = {label, from, to, by, at}
 //   agenda/{id}     = {date, time?, title, kind, note?, by, at}
 // ══════════════════════════════════════════════════
-var S_plan = {conges:{}, fermetures:{}, agenda:{}, weekStart:null};
+var S_plan = {conges:{}, fermetures:{}, agenda:{}, weekStart:null, mode:'week', monthStart:null};
 var PLAN_JOURS = ['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'];
 var PLAN_KINDS = {reunion:'🗓️ Réunion', info:'ℹ️ Info', autre:'📌 Autre'};
 function canPlanEdit(){ return !!(iAm || (permsLoaded && me_perms && me_perms.planningEdit === true)); }
@@ -23924,8 +23930,43 @@ function openPlanningTab(){
   planRender();
   planLoadAbs().then(planRender).catch(function(){ planRender(); });
 }
-function planChangeWeek(n){ var w = S_plan.weekStart; S_plan.weekStart = new Date(w.getFullYear(), w.getMonth(), w.getDate()+7*n); planRender(); }
-function planToday(){ S_plan.weekStart = planMonday(new Date()); planRender(); }
+function planChangeWeek(n){
+  if(S_plan.mode === 'month'){ var m = S_plan.monthStart || new Date(); S_plan.monthStart = new Date(m.getFullYear(), m.getMonth()+n, 1); planRender(); return; }
+  var w = S_plan.weekStart; S_plan.weekStart = new Date(w.getFullYear(), w.getMonth(), w.getDate()+7*n); planRender();
+}
+function planToday(){ var t = new Date(); S_plan.weekStart = planMonday(t); S_plan.monthStart = new Date(t.getFullYear(), t.getMonth(), 1); planRender(); }
+function planSetMode(m){
+  if(m === 'month'){
+    var mid = new Date(S_plan.weekStart.getFullYear(), S_plan.weekStart.getMonth(), S_plan.weekStart.getDate()+3);   // le jeudi : mois « dominant » de la semaine
+    S_plan.monthStart = new Date(mid.getFullYear(), mid.getMonth(), 1);
+  }
+  S_plan.mode = (m === 'month') ? 'month' : 'week'; planRender();
+}
+function planGoWeek(key){ S_plan.weekStart = planMonday(new Date(key+'T00:00:00')); S_plan.mode = 'week'; planRender(); }
+// Vue mensuelle : grille lundi → dimanche ; un clic sur un jour ouvre sa semaine (détail et modification)
+function planMonthHtml(byDay, staff, producers, todayKey){
+  var ms = S_plan.monthStart || new Date(), y = ms.getFullYear(), mo = ms.getMonth();
+  var first = new Date(y, mo, 1), start = planMonday(first), last = new Date(y, mo+1, 0), cells = [], d = new Date(start);
+  while(d <= last || d.getDay() !== 1){ cells.push(new Date(d)); d.setDate(d.getDate()+1); }
+  var h = '<div style="display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:3px;margin-bottom:12px">';
+  ['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'].forEach(function(j){ h += '<div style="text-align:center;font-size:.64rem;font-weight:800;color:var(--mut);padding:2px 0">'+j+'</div>'; });
+  cells.forEach(function(c){
+    var key = dashDateKey(c), inMonth = c.getMonth() === mo, weekend = (c.getDay() === 0 || c.getDay() === 6);
+    var closure = planClosure(key), holiday = dashIsHoliday(c), off = weekend || holiday || !!closure, evs = byDay[key] || [];
+    var nAbs = 0;
+    if(!off) staff.forEach(function(p){ if(planAbsInfo(p.uid, c).frac > 0) nAbs++; });
+    var bg = (holiday || closure) ? 'rgba(220,38,38,.10)' : (weekend ? 'var(--sur)' : 'var(--card)');
+    h += '<div onclick="planGoWeek(\''+key+'\')" style="cursor:pointer;min-height:62px;background:'+bg+';border:1.5px solid '+(key === todayKey ? 'var(--acc)' : 'var(--brd)')+';border-radius:8px;padding:3px 4px;overflow:hidden;'+(inMonth ? '' : 'opacity:.4')+'">'+
+      '<div style="font-size:.72rem;font-weight:800'+(key === todayKey ? ';color:var(--acc)' : '')+'">'+c.getDate()+'</div>'+
+      (holiday ? '<div style="font-size:.58rem;color:var(--red);font-weight:800">Férié</div>' : '')+
+      (closure ? '<div style="font-size:.58rem;color:var(--red);font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">🔒 '+esc(closure.label || 'Fermé')+'</div>' : '')+
+      evs.slice(0, 2).map(function(e){ return '<div style="font-size:.58rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+(PLAN_KINDS[e.kind]||PLAN_KINDS.autre).split(' ')[0]+' '+esc(e.title||'')+'</div>'; }).join('')+
+      (evs.length > 2 ? '<div style="font-size:.58rem;color:var(--mut)">+'+(evs.length-2)+'</div>' : '')+
+      (nAbs ? '<div style="font-size:.58rem;color:var(--acc);font-weight:700">🏖 '+nAbs+' abs.</div>' : '')+
+    '</div>';
+  });
+  return h+'</div><div style="font-size:.68rem;color:var(--mut);margin:-6px 0 12px">Touchez un jour pour voir son détail (et le modifier selon vos droits).</div>';
+}
 function planBtn(txt, on, extra){ return '<button type="button" onclick="'+on+'" style="padding:4px 9px;border-radius:8px;border:1px solid var(--brd);background:none;color:var(--txt);font-size:.72rem;cursor:pointer;'+(extra||'')+'">'+txt+'</button>'; }
 function planCard(title, inner, right){
   return '<div style="background:var(--card);border:1.5px solid var(--brd);border-radius:12px;padding:12px 14px;margin-bottom:12px">'+
@@ -23936,12 +23977,18 @@ function planRender(){
   if(!S_plan.weekStart) S_plan.weekStart = planMonday(new Date());
   var edit = canPlanEdit(), ws = S_plan.weekStart, todayKey = dashDateKey(new Date()), producers = S_dash.producers || [], staff = planStaff(), days = [], i;
   for(i = 0; i < 7; i++) days.push(new Date(ws.getFullYear(), ws.getMonth(), ws.getDate()+i));
-  var lab = document.getElementById('plan-week-label'); if(lab) lab.textContent = 'Semaine du '+planFmtD(days[0])+' au '+planFmtD(days[6])+' '+days[6].getFullYear();
+  var lab = document.getElementById('plan-week-label');
+  if(lab){
+    if(S_plan.mode === 'month'){ var mm = S_plan.monthStart || new Date(); var lm = new Date(mm.getFullYear(), mm.getMonth(), 1).toLocaleDateString('fr-FR', {month:'long', year:'numeric'}); lab.textContent = lm.charAt(0).toUpperCase()+lm.slice(1); }
+    else lab.textContent = 'Semaine du '+planFmtD(days[0])+' au '+planFmtD(days[6])+' '+days[6].getFullYear();
+  }
+  [['week','plan-mode-week'],['month','plan-mode-month']].forEach(function(x){ var b = document.getElementById(x[1]); if(b){ b.style.background = (S_plan.mode === x[0]) ? 'var(--acc)' : 'none'; b.style.color = (S_plan.mode === x[0]) ? '#fff' : 'var(--txt)'; b.style.fontWeight = (S_plan.mode === x[0]) ? '800' : '400'; } });
   var byDay = {};
   Object.keys(S_plan.agenda || {}).forEach(function(id){ var e = S_plan.agenda[id]; if(e && e.date) (byDay[e.date] = byDay[e.date] || []).push(Object.assign({id:id}, e)); });
   Object.keys(byDay).forEach(function(k){ byDay[k].sort(function(a, b){ return String(a.time||'99:99').localeCompare(String(b.time||'99:99')); }); });
   var html = '';
-  days.forEach(function(d, idx){
+  if(S_plan.mode === 'month') html += planMonthHtml(byDay, staff, producers, todayKey);
+  else days.forEach(function(d, idx){
     var key = dashDateKey(d), evs = byDay[key] || [], weekend = (d.getDay() === 0 || d.getDay() === 6);
     if(weekend && !evs.length) return;
     var closure = planClosure(key), holiday = dashIsHoliday(d), off = weekend || holiday || !!closure;
