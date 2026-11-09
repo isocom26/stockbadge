@@ -18884,9 +18884,9 @@ function renderDepCmdList(){
     if(poleCfgOn()) polesSyncMany(list.filter(function(c){ return cmdIsMixed(c) && !c.pStat; }).slice(0, 25));
 
     var statusLabels = {
-      waiting: '<span style="font-size:0.76rem;font-family:Open Sans,sans-serif;font-weight:800;padding:3px 9px;border-radius:99px;background:rgba(217,119,6,.15);color:var(--acc);border:1px solid var(--acc)">⏳ En attente</span>',
-      in_progress: '<span style="font-size:0.76rem;font-family:Open Sans,sans-serif;font-weight:800;padding:3px 9px;border-radius:99px;background:rgba(59,130,246,.15);color:#1d4ed8;border:1px solid #1d4ed8">🔄 En cours</span>',
-      done: '<span style="font-size:0.76rem;font-family:Open Sans,sans-serif;font-weight:800;padding:3px 9px;border-radius:99px;background:rgba(16,185,129,.15);color:var(--grn);border:1px solid var(--grn)">✅ Terminée</span>',
+      waiting: '<span style="font-size:0.76rem;font-family:Open Sans,sans-serif;font-weight:800;padding:3px 9px;border-radius:99px;white-space:nowrap;flex-shrink:0;background:rgba(217,119,6,.15);color:var(--acc);border:1px solid var(--acc)">⏳ En attente</span>',
+      in_progress: '<span style="font-size:0.76rem;font-family:Open Sans,sans-serif;font-weight:800;padding:3px 9px;border-radius:99px;white-space:nowrap;flex-shrink:0;background:rgba(59,130,246,.15);color:#1d4ed8;border:1px solid #1d4ed8">🔄 En cours</span>',
+      done: '<span style="font-size:0.76rem;font-family:Open Sans,sans-serif;font-weight:800;padding:3px 9px;border-radius:99px;white-space:nowrap;flex-shrink:0;background:rgba(16,185,129,.15);color:var(--grn);border:1px solid var(--grn)">✅ Terminée</span>',
     };
 
     el.innerHTML = list.map(function(c){
