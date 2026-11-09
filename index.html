@@ -2019,7 +2019,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.11.09-1130';
+var APP_VERSION = '2026.11.09-1200';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -19783,9 +19783,41 @@ function statsDelaisHtml(D, R){
   return h;
 }
 
+// ── Statistiques : sous-onglets (Résumé / Production / Délais / Qualité / Équipe) ──
+// loadStats balise chaque section avec <!--STAB:nom--> ; statsApplyTabs les range dans des volets. Sans balise (vues EBP, vide) : affichage inchangé.
+var STATS_TABS = [['resume','📊 Résumé'], ['prod','🏭 Production'], ['delais','⏱️ Délais'], ['qualite','✅ Qualité'], ['equipe','👥 Équipe']];
+function statsTabGet(){ try { return localStorage.getItem('stats_tab') || ''; } catch(e){ return ''; } }
+function statsApplyTabs(html){
+  if(html.indexOf('<!--STAB:') < 0) return html;
+  var parts = html.split(/<!--STAB:(\w+)-->/), head = parts[0], bk = {}, i;
+  for(i = 1; i < parts.length; i += 2) bk[parts[i]] = (bk[parts[i]] || '') + parts[i+1];
+  bk.delais = '<div id="stats-delais-slot"></div>' + (bk.delais || '');
+  var avail = STATS_TABS.filter(function(t){ return (bk[t[0]] || '').replace(/\s+/g, '') !== ''; });
+  var cur = statsTabGet(); if(!avail.some(function(t){ return t[0] === cur; })) cur = avail[0][0];
+  var bar = '<div id="stats-tabbar" style="display:flex;gap:6px;overflow-x:auto;margin:6px 0 14px;padding-bottom:2px">'+avail.map(function(t){
+    return '<button type="button" data-stab="'+t[0]+'" onclick="statsSetTab(\''+t[0]+'\')" class="maint-sub-btn'+(t[0] === cur ? ' active' : '')+'" style="flex:none;white-space:nowrap">'+t[1]+'</button>';
+  }).join('')+'</div>';
+  return head + bar + avail.map(function(t){ return '<div class="stats-pane" data-spane="'+t[0]+'" style="'+(t[0] === cur ? '' : 'display:none')+'">'+bk[t[0]]+'</div>'; }).join('');
+}
+function statsSetTab(name){
+  try { localStorage.setItem('stats_tab', name); } catch(e){}
+  document.querySelectorAll('#stats-tabbar [data-stab]').forEach(function(b){ b.classList.toggle('active', b.getAttribute('data-stab') === name); });
+  document.querySelectorAll('.stats-pane').forEach(function(p){ p.style.display = (p.getAttribute('data-spane') === name) ? '' : 'none'; });
+}
+// Le bloc « Respect des délais » vit dans le volet Délais ; on le remet à sa place avant chaque rechargement (le volet est reconstruit)
+function statsDelaisUndock(){
+  var blk = document.getElementById('stats-delais-block'), vs = document.getElementById('view-stats');
+  if(blk && vs && blk.parentNode !== vs) vs.appendChild(blk);
+}
+function statsDelaisDock(){
+  var blk = document.getElementById('stats-delais-block'), slot = document.getElementById('stats-delais-slot');
+  if(blk && slot) slot.appendChild(blk);
+}
+
 function loadStats(){
   statsApplyPoleUi();
   if(viewPole === 'numerique'){ loadStatsNum(); return; }
+  statsDelaisUndock();
   try { statsDelaisLoad(); } catch(e){ var db_ = document.getElementById('stats-delais-block'); if(db_) db_.innerHTML = ''; }
   if(viewPole === 'tout') loadStatsNum();
   var monthEl = document.getElementById('stats-month');
@@ -20094,6 +20126,7 @@ function loadStats(){
         }
       }
 
+      html += '<!--STAB:resume-->';
       // ── KPIs globaux ──
       html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px">';
       var diffHtml = '';
@@ -20126,6 +20159,7 @@ function loadStats(){
         html += '<div style="margin-bottom:16px"><div id="stats-year-cmp"><button type="button" onclick="statsLoadYearCompare()" style="width:100%;padding:10px;border-radius:10px;border:1.5px solid var(--brd);background:var(--card);color:var(--txt);font-family:Open Sans,sans-serif;font-weight:700;font-size:.85rem;cursor:pointer">📈 Voir l\'avance / le retard sur '+(year-1)+'</button></div></div>';
       }
 
+      html += '<!--STAB:prod-->';
       // ── Répartition machines ──
       var totalMach = (machineCount.semi||0) + (machineCount.auto||0) + (machineCount.table||0) || 1;
       html += statsSectionTitle('⚙️ Répartition par machine');
@@ -20238,6 +20272,7 @@ function loadStats(){
         html += '</div><div style="font-size:.66rem;color:var(--mut);margin-top:6px">Touche une barre pour voir les lignes qui la composent.</div></div>';
       }
 
+      html += '<!--STAB:qualite-->';
       // ── Réimpressions ──
       var totalReprints = 0;
       var reprintFmts = {};
@@ -20278,6 +20313,7 @@ function loadStats(){
         html += '</div>';
       }
 
+      html += '<!--STAB:delais-->';
       // ── Délai moyen de traitement ──
       var cmdDelais = [];
       var cmdLentes = [];
@@ -20317,6 +20353,7 @@ function loadStats(){
         html += '</div>';
       }
 
+      html += '<!--STAB:qualite-->';
       // ── CQ ──
       var totalCq = (cqStats.pending||0)+(cqStats.checked||0)+(cqStats.archived||0);
       if(totalCq > 0){
@@ -20332,6 +20369,7 @@ function loadStats(){
         html += '</div>';
       }
 
+      html += '<!--STAB:equipe-->';
       // ── Producteurs ──
       if(prodList.length){
         html += statsSectionTitle('👥 Production par collaborateur');
@@ -20394,7 +20432,8 @@ function loadStats(){
         }
       }
 
-      el.innerHTML = html;
+      el.innerHTML = statsApplyTabs(html);
+      statsDelaisDock();
     });
   });
 }
