@@ -5116,7 +5116,16 @@ function valRec(){
 }
 
 // ── MODALS STOCK ──
-function om(id){ document.getElementById(id).classList.add('open'); }
+function om(id){
+  if(id==='m-confirm'){
+    // Titre qui commence déjà par un emoji/symbole (formulaires, choix...) : on masque la grosse icône 🗑️ par défaut
+    try{
+      var t=document.getElementById('cf-title'), ic=document.querySelector('#m-confirm .ico');
+      if(t&&ic){ ic.style.display = /^\s*[^A-Za-z0-9À-ÿ«"'(\s]/.test(t.textContent||'') ? 'none' : ''; }
+    }catch(e){}
+  }
+  document.getElementById(id).classList.add('open');
+}
 function cm(id){ document.getElementById(id).classList.remove('open'); }
 
 // ── Import des produits du stock numérique depuis la liste des formats numériques ──
