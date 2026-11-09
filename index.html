@@ -2028,7 +2028,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.11.09-1445';
+var APP_VERSION = '2026.11.09-1710';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -2966,6 +2966,9 @@ function ecranAutoOpen(tries){
 // Pas de correctif technique invisible ici. tag = qui est concerné :
 //   'all' (tout le monde), 'admin' (admin/direction), 'maint' (maintenance), 'stock' (ajout de stock), 'reprint' (réimpressions)
 var NEWS = [
+  {n:63, d:'09/11/2026', tag:'admin', t:'Sites : TopBadges = TOP, ISO = ISOCOM, plus de « CMD MAIL »', x:'« CMD MAIL » et « TopBadges » ne sont plus proposés comme sites. TopBadges est lu comme TOP et ISO comme ISOCOM partout. Admin › « Harmoniser les sites » : diagnostic (lecture seule) puis fusion des anciennes données, après sauvegarde.'},
+  {n:62, d:'09/11/2026', tag:'all', t:'Contrôle qualité : alertes lisibles, statuts de la Recherche', x:'Contrôle qualité : les encarts d\'alerte (réimpression, pôle numérique, bouton) ne sont plus écrasés côte à côte. Recherche : les statuts s\'appellent « Attente production » et « Production en cours », comme dans le Tableau de bord.'},
+  {n:61, d:'09/11/2026', tag:'all', t:'Manuel d\'utilisation refait', x:'Nouveau manuel (69 pages) : tous les chapitres, avec captures à jour. Les fenêtres de choix et de formulaire n\'affichent plus la grosse corbeille.'},
   {n:60, d:'09/11/2026', tag:'all', t:'Statistiques : sous-onglets, avance et jauge des délais', x:'Statistiques est maintenant rangé en sous-onglets (Résumé, Production, Délais, Qualité, Équipe) pour retrouver une info plus vite. Dans Délais : jauge en avance / à l\'heure / en retard, avance moyenne, et listes repliables des commandes en retard et en avance.'},
   {n:59, d:'06/11/2026', tag:'all', t:'Nouvel onglet Planning', x:'Petit agenda de l\'équipe : semaine par semaine, absences, congés par producteur (en période), fermetures, et événements (réunions, infos…). Visible par tous ; la modification se donne dans Admin › Droits (« Peut modifier le Planning »). Les absences récurrentes quittent Admin et la saisie des absences du jour quitte Capacité : tout se fait maintenant dans Planning. Capacité et statistiques de délais tiennent compte des congés et fermetures.'},
   {n:58, d:'06/11/2026', tag:'all', t:'Statistiques : respect des délais', x:'Nouveau bloc dans Statistiques : % de commandes parties à l\'heure (par rapport au départ prévu), délai de production en jours ouvrés (moyenne, médiane, max), détail par site, évolution par mois et liste des commandes en retard. Jours ouvrés = hors week-ends, jours fériés et fermeture annuelle.'},
