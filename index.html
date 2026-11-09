@@ -728,8 +728,6 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
         <option value="RPB">RPB</option>
         <option value="ISOCOM">ISOCOM</option>
         <option value="TOP">TOP</option>
-        <option value="TopBadges">TopBadges</option>
-        <option value="CMD MAIL">CMD MAIL</option>
       </select>
     </div>
     <!-- N° commande -->
@@ -1232,6 +1230,13 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
       <button id="measure-btn" type="button" onclick="adminMeasureLoad()" style="width:100%;padding:9px;border-radius:8px;border:1.5px solid var(--brd);background:var(--sur);color:var(--txt);font-family:Open Sans,sans-serif;font-weight:700;font-size:.86rem;cursor:pointer">📏 Mesurer</button>
       <div id="measure-result" style="font-size:.78rem;margin-top:8px"></div>
     </div>
+    <div style="border-top:1px solid var(--brd);margin-top:12px;padding-top:12px">
+      <div style="font-family:Open Sans,sans-serif;font-weight:800;font-size:.88rem;margin-bottom:4px">🧭 Harmoniser les sites (TopBadges → TOP, ISO → ISOCOM)</div>
+      <div style="font-size:.74rem;color:var(--mut);margin-bottom:8px">Étape 1 : « Diagnostiquer » compte, site par site, les commandes, lignes de production et réimpressions (lecture seule) et repère les conflits (même numéro de commande présent sous les deux écritures). Étape 2 : sauvegardez la base (bouton « Exporter » plus haut). Étape 3 : « Appliquer » ne change que le nom du site ; les commandes en conflit ne sont pas touchées.</div>
+      <button id="sitefix-scan-btn" type="button" onclick="adminSiteScan()" style="width:100%;padding:9px;border-radius:8px;border:1.5px solid var(--brd);background:var(--sur);color:var(--txt);font-family:Open Sans,sans-serif;font-weight:700;font-size:.86rem;cursor:pointer">🔍 Diagnostiquer</button>
+      <div id="sitefix-result" style="font-size:.78rem;margin-top:8px"></div>
+      <button id="sitefix-apply-btn" type="button" onclick="adminSiteApply()" style="display:none;width:100%;margin-top:8px;padding:9px;border-radius:8px;border:none;background:var(--red);color:#fff;font-family:Open Sans,sans-serif;font-weight:700;font-size:.86rem;cursor:pointer">✅ Appliquer</button>
+    </div>
   </div>
 
   <!-- Vérification de cohérence des stocks à lots -->
@@ -1249,7 +1254,7 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
       <select id="admin-force-site" style="flex:1;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.85rem;padding:8px;outline:none">
         <option value="BMM">BMM</option><option value="FDB">FDB</option><option value="CB">CB</option>
         <option value="CMC">CMC</option><option value="RPB">RPB</option><option value="ISOCOM">ISOCOM</option>
-        <option value="TOP">TOP</option><option value="TopBadges">TopBadges</option><option value="CMD MAIL">CMD MAIL</option>
+        <option value="TOP">TOP</option>
       </select>
       <input type="text" id="admin-force-cmd" placeholder="N° commande ou nom" style="flex:2;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.85rem;padding:8px;outline:none;box-sizing:border-box">
     </div>
@@ -1277,7 +1282,7 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
       <select id="admin-clo-site" style="flex:1;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.85rem;padding:8px;outline:none">
         <option value="BMM">BMM</option><option value="FDB">FDB</option><option value="CB">CB</option>
         <option value="CMC">CMC</option><option value="RPB">RPB</option><option value="ISOCOM">ISOCOM</option>
-        <option value="TOP">TOP</option><option value="TopBadges">TopBadges</option><option value="CMD MAIL">CMD MAIL</option>
+        <option value="TOP">TOP</option>
       </select>
       <input type="text" id="admin-clo-cmd" placeholder="N° commande" style="flex:2;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.85rem;padding:8px;outline:none;box-sizing:border-box">
     </div>
@@ -1292,7 +1297,7 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
       <select id="admin-qc-site" style="flex:1;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.85rem;padding:8px;outline:none">
         <option value="BMM">BMM</option><option value="FDB">FDB</option><option value="CB">CB</option>
         <option value="CMC">CMC</option><option value="RPB">RPB</option><option value="ISOCOM">ISOCOM</option>
-        <option value="TOP">TOP</option><option value="TopBadges">TopBadges</option><option value="CMD MAIL">CMD MAIL</option>
+        <option value="TOP">TOP</option>
       </select>
       <input type="text" id="admin-qc-cmd" placeholder="N° commande" style="flex:2;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.85rem;padding:8px;outline:none;box-sizing:border-box">
     </div>
@@ -1895,8 +1900,6 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
         <option value="RPB">RPB</option>
         <option value="ISOCOM">ISOCOM</option>
         <option value="TOP">TOP</option>
-        <option value="TopBadges">TopBadges</option>
-        <option value="CMD MAIL">CMD MAIL</option>
       </select>
     </div>
     <div class="ff"><label>N° / Nom de commande *</label><input type="text" id="rp-cmd" placeholder="ex: 15552 ou DUPONT" oninput="rpCmdManualEdit();rpSearchCommande()" onchange="rpSearchCommande()" onpaste="setTimeout(rpSearchCommande,50)" style="width:100%;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.88rem;padding:9px 12px;outline:none;box-sizing:border-box"></div>
@@ -2588,11 +2591,11 @@ function cmdIsMixed(c){ var h = cmdPolesPresent(c); return h.badges && h.numeriq
 // todo (rien) → ongoing (en production) → produced (tout produit, à contrôler) → checked (contrôlé).
 function polesStateFrom(c, allLines){
   var has = cmdPolesPresent(c), out = {badges:null, numerique:null};
-  var sK = looseMatchKey(c.site), cK = looseMatchKey(c.cmd);
+  var sK = looseSiteKey(c.site), cK = looseMatchKey(c.cmd);
   var rel = (allLines || []).filter(function(l){
     if(!l) return false;
     if(c.id && l.cmdId === c.id) return true;
-    return !!(sK || cK) && looseMatchKey(l.site) === sK && looseMatchKey(l.cmd) === cK;
+    return !!(sK || cK) && looseSiteKey(l.site) === sK && looseMatchKey(l.cmd) === cK;
   });
   ['badges','numerique'].forEach(function(p){
     if(!has[p]) return;
@@ -9728,7 +9731,7 @@ function startCmdIndexListener(){
     Object.keys(raw).forEach(function(id){
       var c = raw[id];
       byId[id] = c;
-      if(c.site && c.cmd){ var kk = looseMatchKey(c.site)+'||'+looseMatchKey(c.cmd); bySiteCmd[kk] = c; idBySiteCmd[kk] = id; }
+      if(c.site && c.cmd){ var kk = looseSiteKey(c.site)+'||'+looseMatchKey(c.cmd); bySiteCmd[kk] = c; idBySiteCmd[kk] = id; }
     });
     S_cmdIndex = {byId:byId, bySiteCmd:bySiteCmd, idBySiteCmd:idBySiteCmd};
     cmdFixPoles(raw);
@@ -9759,7 +9762,7 @@ function cmdUrgentState(c, rpList){
     if(!r || r.status === 'done') continue;
     if((r.cmdId && r.cmdId === c.id) ||
        (!r.cmdId && r.site && r.cmd && c.site && c.cmd &&
-        looseMatchKey(r.site)===looseMatchKey(c.site) && looseMatchKey(r.cmd)===looseMatchKey(c.cmd))) return 'reprint';
+        looseSiteKey(r.site)===looseSiteKey(c.site) && looseMatchKey(r.cmd)===looseMatchKey(c.cmd))) return 'reprint';
   }
   if(!(c.cq && c.cq.at)) return 'cq';
   return '';
@@ -9780,7 +9783,7 @@ function rpIsUrgent(r){
   if(r.urgent) return true;
   var idx = S_cmdIndex || {};
   var c = (r.cmdId && idx.byId && idx.byId[r.cmdId]) ||
-          (idx.bySiteCmd && idx.bySiteCmd[looseMatchKey(r.site)+'||'+looseMatchKey(r.cmd)]);
+          (idx.bySiteCmd && idx.bySiteCmd[looseSiteKey(r.site)+'||'+looseMatchKey(r.cmd)]);
   return !!(c && c.urgent);
 }
 function urgentDotHtml(n){
@@ -9798,7 +9801,7 @@ function updateDepUrgentBadge(){
 }
 function findCmdNom(cmdId, site, cmd){
   if(cmdId && S_cmdIndex.byId[cmdId]) return S_cmdIndex.byId[cmdId].nom || null;
-  var k = looseMatchKey(site)+'||'+looseMatchKey(cmd);
+  var k = looseSiteKey(site)+'||'+looseMatchKey(cmd);
   if(S_cmdIndex.bySiteCmd[k]) return S_cmdIndex.bySiteCmd[k].nom || null;
   return null;
 }
@@ -10858,9 +10861,9 @@ function rpSearchCommandeByText(site, cmd, resultEl, fromCmdEl, manualEl, addBtn
   fbg('commandes').then(function(snap){
     var data = snap.val()||{};
     var cmdN = looseMatchKey(cmd);
-    var siteN = looseMatchKey(site);
+    var siteN = looseSiteKey(site);
     var found = Object.values(data).filter(function(c){
-      return looseMatchKey(c.site) === siteN &&
+      return looseSiteKey(c.site) === siteN &&
              looseMatchKey(c.cmd) === cmdN &&
              (c.status !== 'done' || qtyAwaitingControl(c)); // inclure waiting ET in_progress (et « Produite » avant contrôle)
     });
@@ -11000,16 +11003,16 @@ function saveReprint(){
   var qty = formats.reduce(function(s,f){ return s+parseInt(f.qty||0); },0).toString();
   if(missingQty.length){ toast('⚠️ Indiquez la quantité pour : '+missingQty.join(', '), 1); return; }
   if(!cmd||!formats.length||!qty){toast('Remplissez les champs obligatoires',1);return;}
-  var siteVal = document.getElementById('rp-site').value;
+  var siteVal = siteCanon(document.getElementById('rp-site').value);
   var cmdIdVal = window._rpSelectedCmdId || null;
 
   // ── Anti-doublon : une réimpression active existe-t-elle déjà pour ces formats ? ──
-  var siteKey = looseMatchKey(siteVal);
+  var siteKey = looseSiteKey(siteVal);
   var cmdKey = looseMatchKey(cmd);
   var dupFormats = [];
   (S_rp||[]).forEach(function(r){
     if(r.status === 'done') return;
-    var sameCmd = cmdIdVal && r.cmdId ? (r.cmdId === cmdIdVal) : (looseMatchKey(r.site) === siteKey && looseMatchKey(r.cmd) === cmdKey);
+    var sameCmd = cmdIdVal && r.cmdId ? (r.cmdId === cmdIdVal) : (looseSiteKey(r.site) === siteKey && looseMatchKey(r.cmd) === cmdKey);
     if(!sameCmd) return;
     var rFormats = (r.product||'').split(/\s*\/\s*/).map(function(p){
       var m = p.trim().match(/^([A-Z][A-Z0-9\-]+)/i);
@@ -11160,7 +11163,7 @@ function markProduced(rid){
 
 // Trouver le producteur original d'une commande depuis les rapports
 function findOriginalProducer(site, cmd, product, cmdId, cb){
-  var siteN = looseMatchKey(site);
+  var siteN = looseSiteKey(site);
   var cmdN  = looseMatchKey(cmd);
   var fmtN  = (product||'').trim().toLowerCase();
 
@@ -11181,7 +11184,7 @@ function findOriginalProducer(site, cmd, product, cmdId, cb){
               lines.forEach(function(l){
                 if(l.status !== 'done') return;
                 var matches = (cmdId && l.cmdId) ? (l.cmdId === cmdId)
-                  : (looseMatchKey(l.site) === siteN && looseMatchKey(l.cmd) === cmdN);
+                  : (looseSiteKey(l.site) === siteN && looseMatchKey(l.cmd) === cmdN);
                 if(!matches) return;
                 var lfmt = (l.format||'').trim().toLowerCase();
                 // Comparer avec le format passé en paramètre
@@ -11208,7 +11211,7 @@ function markReportLinesFromReprint(site, cmd, product, now, cmdId){
   });
   if(!formats.length) formats = [product.trim().toLowerCase()];
 
-  var siteN = looseMatchKey(site);
+  var siteN = looseSiteKey(site);
   var cmdN  = looseMatchKey(cmd);
 
   fbg('users').then(function(usnap){
@@ -11245,7 +11248,7 @@ function markReportLinesFromReprint(site, cmd, product, now, cmdId){
                 if(l.status !== 'ongoing') return;
                 if(qtyRulesOn() && l.cmdId) return;   // règles de quantité : le producteur clôture sa ligne avec sa quantité
                 var matches = (cmdId && l.cmdId) ? (l.cmdId === cmdId)
-                  : (looseMatchKey(l.site) === siteN && looseMatchKey(l.cmd) === cmdN);
+                  : (looseSiteKey(l.site) === siteN && looseMatchKey(l.cmd) === cmdN);
                 if(!matches) return;
                 var lfmt = (l.format||'').trim().toLowerCase();
                 if(!formats.some(function(f){ return f===lfmt; })) return;
@@ -11629,7 +11632,7 @@ function rptSectionHTML(lines, di, hi, sec, label, canEdit, wk){
 }
 
 function rptLineHTML(l, di, hi, sec, canEdit, wk){
-  var siteOpts = SITE_LIST.map(function(s){
+  var siteOpts = SITE_LIST.concat((l.site && SITE_LIST.indexOf(l.site) < 0) ? [l.site] : []).map(function(s){
     return '<option value="'+s+'"'+(l.site===s?' selected':'')+'>'+s+'</option>';
   }).join('');
   var isDone = (l.status === 'done');
@@ -11642,10 +11645,10 @@ function rptLineHTML(l, di, hi, sec, canEdit, wk){
   // (ex. réimpression demandée dans la fenêtre « Terminer »). Purement visuel : activeRp reste réservé aux lignes en cours.
   var shownRp = activeRp;
   if(!shownRp && isDone && l.site && l.cmd && l.format && S_rp && S_rp.length){
-    var lf = String(l.format).trim().toUpperCase(), ls = looseMatchKey(l.site), lc = looseMatchKey(l.cmd);
+    var lf = String(l.format).trim().toUpperCase(), ls = looseSiteKey(l.site), lc = looseMatchKey(l.cmd);
     shownRp = S_rp.find(function(r){
       if(r.status === 'done') return false;
-      var same = (l.cmdId && r.cmdId) ? r.cmdId === l.cmdId : (looseMatchKey(r.site) === ls && looseMatchKey(r.cmd) === lc);
+      var same = (l.cmdId && r.cmdId) ? r.cmdId === l.cmdId : (looseSiteKey(r.site) === ls && looseMatchKey(r.cmd) === lc);
       if(!same) return false;
       return String(r.product||'').split(/\s*\/\s*/).some(function(pp){
         var m = pp.trim().match(/^([A-Z][A-Z0-9\-]+)/i); return m && m[1].toUpperCase() === lf;
@@ -11761,13 +11764,13 @@ function rptLineHTML(l, di, hi, sec, canEdit, wk){
 // ★ CHERCHER UNE RÉIMPRESSION ACTIVE POUR UNE LIGNE DE RAPPORT
 function findActiveReprint(site, cmd, cmdId){
   if(!S_rp || !S_rp.length) return null;
-  var s = looseMatchKey(site);
+  var s = looseSiteKey(site);
   var c = looseMatchKey(cmd);
   return S_rp.find(function(r){
     if(r.status === 'done') return false;
     if(cmdId && r.cmdId) return r.cmdId === cmdId;
     if(!site || !cmd) return false;
-    return looseMatchKey(r.site) === s && looseMatchKey(r.cmd) === c;
+    return looseSiteKey(r.site) === s && looseMatchKey(r.cmd) === c;
   }) || null;
 }
 
@@ -12176,7 +12179,7 @@ function rptWarnIfTableDepends(wk, di, hi, sec, btn){
 // attente ne doit rien changer de plus).
 function recalcCmdStatusAfterLineDelete(cmdId, site, cmd){
   if(!cmdId && !(site && cmd)) return;
-  var siteN = looseMatchKey(site), cmdN = looseMatchKey(cmd);
+  var siteN = looseSiteKey(site), cmdN = looseMatchKey(cmd);
 
   fbg('users').then(function(usnap){
     var users = usnap.val()||{};
@@ -12194,7 +12197,7 @@ function recalcCmdStatusAfterLineDelete(cmdId, site, cmd){
               var lines = ((data[wk]&&data[wk]['d'+di]&&data[wk]['d'+di]['h'+hi])||{}).lines||[];
               lines.forEach(function(l){
                 var byCmdId = cmdId && l.cmdId === cmdId;
-                var bySiteCmd = site && cmd && looseMatchKey(l.site)===siteN && looseMatchKey(l.cmd)===cmdN;
+                var bySiteCmd = site && cmd && looseSiteKey(l.site)===siteN && looseMatchKey(l.cmd)===cmdN;
                 if(byCmdId || bySiteCmd) relevant.push(l);
               });
             }
@@ -15075,7 +15078,15 @@ function canFillReport(){
   return iAm || (permsLoaded && me_perms && me_perms.production === true);
 }
 
-var SITE_LIST = ['BMM','FDB','CB','CMC','RPB','ISOCOM','TOP','TopBadges','CMD MAIL'];
+var SITE_LIST = ['BMM','FDB','CB','CMC','RPB','ISOCOM','TOP'];
+// Écritures historiques d'un même site : « TopBadges » (ancienne saisie manuelle) = TOP ; « ISO » (lu sur l'étiquette ISO2026) = ISOCOM.
+var SITE_CANON = {topbadges:'TOP', 'top badges':'TOP', iso:'ISOCOM'};
+function siteCanon(s){
+  if(s == null) return s;
+  var k = String(s).trim().toLowerCase();
+  return SITE_CANON[k] || (typeof s === 'string' ? s.trim() : s);
+}
+function looseSiteKey(s){ return looseMatchKey(siteCanon(s)); }
 
 // Listen to machines
 function startMachListener(){
@@ -16080,6 +16091,7 @@ function parsePlancheText(raw){
 
   if(!result.formats.length) result.error = 'Aucun format détecté — vérifiez le texte collé';
   if(!result.site && !result.cmd) result.error = 'Numéro de commande non détecté';
+  if(result.site) result.site = siteCanon(result.site);
   return result;
 }
 
@@ -16864,6 +16876,7 @@ function depCreateCommandeFromParsed(btn){
 }
 
 function depCreateCommande(r, btn){
+  if(r && r.site) r.site = siteCanon(r.site);
   // Date de départ obligatoire. La saisie manuelle la fournit déjà dans r
   // (champ dep-man-date-depart, validé par depManSave) ; sinon (flux scan
   // QR), on la lit dans le formulaire d'aperçu au moment du clic — elle
@@ -18451,7 +18464,7 @@ function qtyHasNumFmt(c){
 function qtyLineMatches(c, l){
   if(!c || !l) return false;
   if(l.cmdId) return !!c.id && l.cmdId === c.id;
-  return looseMatchKey(l.site) === looseMatchKey(c.site) && looseMatchKey(l.cmd) === looseMatchKey(c.cmd);
+  return looseSiteKey(l.site) === looseSiteKey(c.site) && looseMatchKey(l.cmd) === looseMatchKey(c.cmd);
 }
 // Une réimpression non terminée est-elle liée à la commande ? (même lien que dashFindActiveReprint)
 // Commande « Produite » mais pas encore contrôlée : règles actives, commande créée depuis l'activation,
@@ -18472,7 +18485,7 @@ function qtyAwaitingControl(c){
 function qtyReopenOnReprint(cmdId, site, cmd){
   var idP = cmdId ? Promise.resolve(cmdId) : fbg('commandes').then(function(sn){
     var all = sn.val()||{}, f = null;
-    Object.keys(all).forEach(function(k){ if(looseMatchKey(all[k].site)===looseMatchKey(site) && looseMatchKey(all[k].cmd)===looseMatchKey(cmd)) f = k; });
+    Object.keys(all).forEach(function(k){ if(looseSiteKey(all[k].site)===looseSiteKey(site) && looseMatchKey(all[k].cmd)===looseMatchKey(cmd)) f = k; });
     return f;
   });
   idP.then(function(id){
@@ -18487,7 +18500,7 @@ function qtyReprintOpen(c, rpList){
     if(!r || r.status === 'done') return false;
     if(r.cmdId) return !!c.id && r.cmdId === c.id;
     return r.site && r.cmd && c.site && c.cmd &&
-      looseMatchKey(r.site)===looseMatchKey(c.site) && looseMatchKey(r.cmd)===looseMatchKey(c.cmd);
+      looseSiteKey(r.site)===looseSiteKey(c.site) && looseMatchKey(r.cmd)===looseMatchKey(c.cmd);
   });
 }
 
@@ -19067,7 +19080,7 @@ function getPendingTableKeys(){
                     if(fmtN) cmdIdFmts[l.cmdId+'||'+fmtN] = true;
                   }
                   if(l.site && l.cmd){
-                    var key = looseMatchKey(l.site)+'||'+looseMatchKey(l.cmd);
+                    var key = looseSiteKey(l.site)+'||'+looseMatchKey(l.cmd);
                     siteCmds[key] = true;
                     if(fmtN) siteCmdFmts[key+'||'+fmtN] = true;
                   }
@@ -19089,7 +19102,7 @@ function pendingTableHasFormat(pendingTable, c, format){
   var fmtN = (format||'').trim().toLowerCase();
   if(!fmtN) return false;
   if(c.id && pendingTable.cmdIdFmts[c.id+'||'+fmtN]) return true;
-  var key = looseMatchKey(c.site)+'||'+looseMatchKey(c.cmd)+'||'+fmtN;
+  var key = looseSiteKey(c.site)+'||'+looseMatchKey(c.cmd)+'||'+fmtN;
   return !!pendingTable.siteCmdFmts[key];
 }
 
@@ -19145,7 +19158,7 @@ function openPickCommande(wk, di, hi, sec){
 
     if(pendingTable){
       list.forEach(function(c){
-        c._pendingTable = !!(pendingTable.cmdIds[c.id] || pendingTable.siteCmds[looseMatchKey(c.site)+'||'+looseMatchKey(c.cmd)]);
+        c._pendingTable = !!(pendingTable.cmdIds[c.id] || pendingTable.siteCmds[looseSiteKey(c.site)+'||'+looseMatchKey(c.cmd)]);
       });
     }
     list.sort(function(a,b){
@@ -19347,7 +19360,7 @@ function pickSaisieManuelle(){
 function closeMatchingReadyForTableLine(cmdId, site, cmd, format){
   if(!site && !cmdId) return;
   var fmtN = (format||'').trim().toLowerCase();
-  var siteN = looseMatchKey(site), cmdN = looseMatchKey(cmd);
+  var siteN = looseSiteKey(site), cmdN = looseMatchKey(cmd);
   fbg('users').then(function(usnap){
     var users = usnap.val()||{};
     var promises = Object.keys(users).map(function(uid){
@@ -19367,7 +19380,7 @@ function closeMatchingReadyForTableLine(cmdId, site, cmd, format){
                 var lfmt = (l.format||'').trim().toLowerCase();
                 if(lfmt !== fmtN) return;
                 var matches = (cmdId && l.cmdId) ? (l.cmdId === cmdId)
-                  : (looseMatchKey(l.site) === siteN && looseMatchKey(l.cmd) === cmdN);
+                  : (looseSiteKey(l.site) === siteN && looseMatchKey(l.cmd) === cmdN);
                 if(!matches) return;
                 l.status = 'done';
                 l.doneAt = Date.now();
@@ -19399,7 +19412,7 @@ function syncCmdStatus(cmdId, site, cmd){
   if(!site || !cmd) return;
   fbg('commandes').then(function(snap){
     var data = snap.val()||{};
-    var siteN = looseMatchKey(site), cmdN = looseMatchKey(cmd);
+    var siteN = looseSiteKey(site), cmdN = looseMatchKey(cmd);
     var found = Object.keys(data).find(function(id){
       return looseMatchKey(data[id].site) === siteN && looseMatchKey(data[id].cmd) === cmdN;
     });
@@ -19454,7 +19467,7 @@ function updateCmdStatusInProgress(cmdId){
 // Vérifie que TOUTES les lignes (avec ou sans cmdId) d'une commande sont done
 // Couvre la transition : lignes saisies manuellement sans cmdId
 function checkAllLinesDone(cmdId, site, cmd, cb){
-  var siteN = looseMatchKey(site);
+  var siteN = looseSiteKey(site);
   var cmdN  = looseMatchKey(cmd);
 
   fbg('users').then(function(usnap){
@@ -19474,7 +19487,7 @@ function checkAllLinesDone(cmdId, site, cmd, cb){
               lines.forEach(function(l){
                 // Ligne liée par cmdId OU par site+cmd
                 var byCmdId = cmdId && l.cmdId === cmdId;
-                var bySiteCmd = looseMatchKey(l.site) === siteN &&
+                var bySiteCmd = looseSiteKey(l.site) === siteN &&
                                 looseMatchKey(l.cmd) === cmdN;
                 if(byCmdId || bySiteCmd) relevant.push(l);
               });
@@ -21098,6 +21111,95 @@ function adminMigrateReprintPhotos(){
   });
 }
 
+// ── Harmoniser les sites : TopBadges → TOP, ISO → ISOCOM (diagnostic en lecture seule, puis application après sauvegarde) ──
+var _siteFixPlan = null;
+function adminSiteScan(){
+  if(!iAm) return;
+  var btn = document.getElementById('sitefix-scan-btn'), out = document.getElementById('sitefix-result'), ap = document.getElementById('sitefix-apply-btn');
+  if(btn){ btn.disabled = true; btn.textContent = '⏳ Analyse…'; }
+  if(ap) ap.style.display = 'none';
+  out.style.color = 'var(--mut)'; out.textContent = 'Lecture de la base…'; _siteFixPlan = null;
+  Promise.all([fbg('commandes'), fbg('reports'), fbg('reports_admin'), fbg('reprints')]).then(function(r){
+    var cmds = r[0].val() || {}, reps = r[1].val() || {}, repsA = r[2].val() || {}, rps = r[3].val() || {};
+    var counts = {};   // site écrit → {c, l, r}
+    function bump(site, k){ var s = (site == null || site === '') ? '(vide)' : String(site); (counts[s] = counts[s] || {c:0,l:0,r:0})[k]++; }
+    function needs(site){ return site != null && site !== '' && siteCanon(site) !== site; }
+    function keyOf(site, cmd){ return looseSiteKey(site)+'||'+looseMatchKey(cmd); }
+    // commandes : regroupement par clé canonique pour repérer les conflits
+    var groups = {};
+    Object.keys(cmds).forEach(function(id){
+      var c = cmds[id]; if(!c) return; bump(c.site, 'c');
+      if(c.site && c.cmd){ (groups[keyOf(c.site, c.cmd)] = groups[keyOf(c.site, c.cmd)] || []).push(id); }
+    });
+    var conflictKeys = {}, conflicts = [];
+    Object.keys(groups).forEach(function(k){
+      var ids = groups[k]; if(ids.length < 2) return;
+      if(!ids.some(function(id){ return needs(cmds[id].site); })) return;   // doublon déjà existant sans rapport avec la fusion
+      conflictKeys[k] = true;
+      conflicts.push(ids.map(function(id){ return (cmds[id].site||'—')+' · '+(cmds[id].cmd||'—')+(cmds[id].nom?' ('+cmds[id].nom+')':''); }).join('   ⇄   '));
+    });
+    var updates = {}, nC = 0, nL = 0, nR = 0, skipL = 0, skipR = 0, skipC = 0;
+    Object.keys(cmds).forEach(function(id){
+      var c = cmds[id]; if(!c || !needs(c.site)) return;
+      if(conflictKeys[keyOf(c.site, c.cmd)]){ skipC++; return; }
+      updates['commandes/'+id+'/site'] = siteCanon(c.site); nC++;
+    });
+    function walk(base, tree){
+      Object.keys(tree).forEach(function(uid){ var u = tree[uid] || {};
+        Object.keys(u).forEach(function(wk){ var w = u[wk] || {};
+          Object.keys(w).forEach(function(dn){ var d = w[dn]; if(!d || typeof d !== 'object') return;
+            Object.keys(d).forEach(function(hn){ var h = d[hn]; var lines = h && h.lines; if(!lines) return;
+              Object.keys(lines).forEach(function(li){ var l = lines[li]; if(!l) return; bump(l.site, 'l');
+                if(!needs(l.site)) return;
+                if(conflictKeys[keyOf(l.site, l.cmd)]){ skipL++; return; }
+                updates[base+'/'+uid+'/'+wk+'/'+dn+'/'+hn+'/lines/'+li+'/site'] = siteCanon(l.site); nL++;
+              });
+            });
+          });
+        });
+      });
+    }
+    walk('reports', reps); walk('reports_admin', repsA);
+    Object.keys(rps).forEach(function(id){ var x = rps[id]; if(!x) return; bump(x.site, 'r');
+      if(!needs(x.site)) return;
+      if(conflictKeys[keyOf(x.site, x.cmd)]){ skipR++; return; }
+      updates['reprints/'+id+'/site'] = siteCanon(x.site); nR++;
+    });
+    _siteFixPlan = {updates:updates, nC:nC, nL:nL, nR:nR};
+    var rows = Object.keys(counts).sort(function(a,b){ return counts[b].c+counts[b].l - counts[a].c-counts[a].l; });
+    var h = '<table style="width:100%;border-collapse:collapse;font-size:.76rem"><tr style="text-align:left;color:var(--mut)"><th>Site écrit</th><th>Commandes</th><th>Lignes</th><th>Réimpr.</th></tr>'+
+      rows.map(function(s){ var x = counts[s], bad = needs(s);
+        return '<tr style="border-top:1px solid var(--brd)'+(bad?';color:var(--red);font-weight:700':'')+'"><td>'+esc(s)+(bad?' → '+esc(siteCanon(s)):'')+'</td><td>'+x.c+'</td><td>'+x.l+'</td><td>'+x.r+'</td></tr>'; }).join('')+'</table>';
+    h += '<div style="margin-top:8px"><strong>À corriger :</strong> '+nC+' commande(s), '+nL+' ligne(s) de production, '+nR+' réimpression(s).</div>';
+    if(conflicts.length){
+      h += '<div style="margin-top:6px;color:var(--red)"><strong>⚠️ '+conflicts.length+' conflit(s)</strong> (même numéro sous les deux écritures) — non touchés ('+skipC+' commande(s), '+skipL+' ligne(s), '+skipR+' réimpression(s)) :<br>'+conflicts.slice(0,15).map(esc).join('<br>')+'</div>';
+    }
+    out.style.color = 'var(--txt)'; out.innerHTML = h;
+    if(ap){ ap.style.display = (nC+nL+nR) ? 'block' : 'none'; ap.disabled = false; ap.textContent = '✅ Appliquer ('+(nC+nL+nR)+' modification'+((nC+nL+nR)>1?'s':'')+')'; }
+    if(!(nC+nL+nR) && !conflicts.length) out.innerHTML += '<div style="margin-top:6px;color:var(--grn)">✅ Rien à corriger : tous les sites sont harmonisés.</div>';
+  }).catch(function(err){ out.style.color = 'var(--red)'; out.textContent = '❌ Erreur : '+((err&&err.message)||String(err)); })
+  .then(function(){ if(btn){ btn.disabled = false; btn.textContent = '🔍 Diagnostiquer'; } });
+}
+function adminSiteApply(){
+  if(!iAm || !_siteFixPlan) return;
+  var p = _siteFixPlan, paths = Object.keys(p.updates), out = document.getElementById('sitefix-result'), ap = document.getElementById('sitefix-apply-btn');
+  if(!paths.length) return;
+  if(!confirm('Changer le nom du site sur '+p.nC+' commande(s), '+p.nL+' ligne(s) et '+p.nR+' réimpression(s) ?\n\nAvez-vous bien téléchargé une sauvegarde (« Exporter toute la base ») avant ?')) return;
+  if(ap){ ap.disabled = true; ap.textContent = '⏳ Application…'; }
+  var chunks = [], i;
+  for(i = 0; i < paths.length; i += 300){ var o = {}; paths.slice(i, i+300).forEach(function(k){ o[k] = p.updates[k]; }); chunks.push(o); }
+  var done = 0;
+  chunks.reduce(function(chain, o){
+    return chain.then(function(){ return db.ref().update(o).then(function(){ done += Object.keys(o).length; out.style.color = 'var(--mut)'; out.textContent = '⏳ '+done+' / '+paths.length+'…'; }); });
+  }, Promise.resolve()).then(function(){
+    _siteFixPlan = null; toast('✅ '+paths.length+' site(s) harmonisé(s)');
+    adminSiteScan();   // nouveau diagnostic pour vérifier qu'il ne reste rien à corriger
+  }).catch(function(err){
+    out.style.color = 'var(--red)'; out.textContent = '❌ Interrompu après '+done+' / '+paths.length+' : '+((err&&err.message)||String(err))+' — relancez « Diagnostiquer » : seul le reste sera refait.';
+    if(ap){ ap.disabled = false; ap.textContent = '✅ Appliquer'; }
+  });
+}
+
 // Mesure (lecture seule) le poids et le temps de chargement des grandes parties de la base.
 function adminMeasureLoad(){
   if(!iAm) return;
@@ -21436,7 +21538,7 @@ function admCloturePrepare(){
   fbg('commandes').then(function(sn){
     var all = sn.val()||{}, id = null;
     Object.keys(all).forEach(function(k){
-      if(looseMatchKey(all[k].site) === looseMatchKey(site) && looseMatchKey(all[k].cmd) === looseMatchKey(cmd)) id = k;
+      if(looseSiteKey(all[k].site) === looseSiteKey(site) && looseMatchKey(all[k].cmd) === looseMatchKey(cmd)) id = k;
     });
     if(!id){ toast('⚠️ Commande '+site+' '+cmd+' introuvable', 1); return; }
     var c = Object.assign({id:id}, all[id]);
@@ -21474,7 +21576,7 @@ function admQtyCorrPrepare(){
   fbg('commandes').then(function(sn){
     var all = sn.val()||{}, id = null;
     Object.keys(all).forEach(function(k){
-      if(looseMatchKey(all[k].site) === looseMatchKey(site) && looseMatchKey(all[k].cmd) === looseMatchKey(cmd)) id = k;
+      if(looseSiteKey(all[k].site) === looseSiteKey(site) && looseMatchKey(all[k].cmd) === looseMatchKey(cmd)) id = k;
     });
     if(!id){ toast('⚠️ Commande '+site+' '+cmd+' introuvable', 1); return; }
     var c = Object.assign({id:id}, all[id]);
@@ -23281,7 +23383,7 @@ function dashFindActiveReprint(c, listOpt){
     if(r.status === 'done') continue;
     var linked = (r.cmdId && r.cmdId === c.id) ||
       (!r.cmdId && r.site && r.cmd && c.site && c.cmd &&
-        looseMatchKey(r.site)===looseMatchKey(c.site) && looseMatchKey(r.cmd)===looseMatchKey(c.cmd));
+        looseSiteKey(r.site)===looseSiteKey(c.site) && looseMatchKey(r.cmd)===looseMatchKey(c.cmd));
     if(linked && (!match || (r.createdAt||0) > (match.createdAt||0))) match = r;
   }
   return match;
@@ -23295,7 +23397,7 @@ function dashActiveReprintQty(c){
     if(r.status === 'done') continue;
     var linked = (r.cmdId && r.cmdId === c.id) ||
       (!r.cmdId && r.site && r.cmd && c.site && c.cmd &&
-        looseMatchKey(r.site)===looseMatchKey(c.site) && looseMatchKey(r.cmd)===looseMatchKey(c.cmd));
+        looseSiteKey(r.site)===looseSiteKey(c.site) && looseMatchKey(r.cmd)===looseMatchKey(c.cmd));
     if(linked) tot += Math.max(0, parseInt(r.qty,10) || 0);
   }
   return tot;
@@ -23306,7 +23408,7 @@ function dashActiveReprintQty(c){
 // avec le nom du site lui-même en dépiautage manuel) — pour ceux-là on
 // affiche toujours le numéro de commande tel que saisi. À retirer de cette
 // liste dès qu'un site obtient son propre QR code de commande.
-var DASH_SITES_CMD_FORCE_NUMBER = {TopBadges:true};
+var DASH_SITES_CMD_FORCE_NUMBER = {};  // TopBadges : saisie manuelle abandonnée (QR code), le nom du client s'affiche comme pour les autres sites
 
 // Libellé affiché en colonne CMD du tableau Commandes : nom du client quand
 // il est renseigné (quel que soit le site — le numéro est parfois une date
@@ -23544,7 +23646,7 @@ function dashRunSearch(){
 
   var all = S_dash.commandes || [];
   var list = all.filter(function(c){
-    if(site && c.site !== site) return false;
+    if(site && siteCanon(c.site) !== site) return false;
     if(fromMs!=null && (c.createdAt||0) < fromMs) return false;
     if(toMs!=null && (c.createdAt||0) > toMs) return false;
     if(situationFilter === 'sav'){ if(!dashSavList(c).length) return false; }
