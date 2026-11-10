@@ -89,7 +89,7 @@ header{background:var(--sur);border-bottom:1px solid var(--brd);padding:12px 16p
 .tab-groups-bar{display:flex;gap:4px;padding:8px 12px;border-bottom:1px solid var(--brd);background:var(--sur);position:sticky;top:53px;z-index:100;overflow-x:auto;scrollbar-width:none}
 .tab-groups-bar::-webkit-scrollbar{display:none}
 .tab-group-btn{font-family:Open Sans,sans-serif;font-weight:700;font-size:0.78rem;letter-spacing:.04em;text-transform:uppercase;padding:7px 13px;border-radius:10px;border:1.5px solid transparent;cursor:pointer;white-space:nowrap;background:none;color:var(--mut);transition:all .15s;flex-shrink:0}
-.tab-group-btn,.tab-sub-btn{text-decoration:none;display:inline-block;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+.tab-group-btn,.tab-sub-btn{line-height:normal;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 .tab-group-btn.active{background:var(--acc);color:#000;border-color:var(--acc)}
 .tab-sub-bar{display:flex;gap:4px;padding:6px 12px;border-bottom:1px solid var(--brd);background:var(--bg);position:sticky;top:93px;z-index:99;overflow-x:auto;scrollbar-width:none}
 .tab-sub-bar::-webkit-scrollbar{display:none}
@@ -1049,11 +1049,11 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
   </div>
 
   <div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap">
-    <a href="#/dashboard/recherche" data-route="dashboard/recherche" id="dash-tab-recherche" onclick="if(tabLinkNew(event))return true;dashSwitchSection('recherche');return false" class="maint-sub-btnNone" style="flex:1;text-align:center;text-decoration:none">🔍 Commandes</a>
+    <a href="#/dashboard/recherche" data-route="dashboard/recherche" id="dash-tab-recherche" onclick="if(tabLinkNew(event))return true;dashSwitchSection('recherche');return false" class="maint-sub-btn" style="flex:1;text-align:center;text-decoration:none">🔍 Commandes</a>
     <a href="#/dashboard/synthese" data-route="dashboard/synthese" id="dash-tab-synthese" onclick="if(tabLinkNew(event))return true;dashSwitchSection('synthese');return false" class="maint-sub-btn active" style="flex:1;text-align:center;text-decoration:none">📋 Synthèse</a>
-    <a href="#/dashboard/aujourdhui" data-route="dashboard/aujourdhui" id="dash-tab-aujourdhui" onclick="if(tabLinkNew(event))return true;dashSwitchSection('aujourdhui');return false" class="maint-sub-btnNone" style="flex:1;text-align:center;text-decoration:none">🏭 Aujourd'hui</a>
-    <a href="#/dashboard/capacite" data-route="dashboard/capacite" id="dash-tab-capacite" onclick="if(tabLinkNew(event))return true;dashSwitchSection('capacite');return false" class="maint-sub-btnNone" style="flex:1;text-align:center;text-decoration:none">⚡ Capacité</a>
-    <a href="#/dashboard/sav" data-route="dashboard/sav" id="dash-tab-sav" onclick="if(tabLinkNew(event))return true;dashSwitchSection('sav');return false" class="maint-sub-btnNone" style="flex:1;text-align:center;text-decoration:none">🛠 SAV</a>
+    <a href="#/dashboard/aujourdhui" data-route="dashboard/aujourdhui" id="dash-tab-aujourdhui" onclick="if(tabLinkNew(event))return true;dashSwitchSection('aujourdhui');return false" class="maint-sub-btn" style="flex:1;text-align:center;text-decoration:none">🏭 Aujourd'hui</a>
+    <a href="#/dashboard/capacite" data-route="dashboard/capacite" id="dash-tab-capacite" onclick="if(tabLinkNew(event))return true;dashSwitchSection('capacite');return false" class="maint-sub-btn" style="flex:1;text-align:center;text-decoration:none">⚡ Capacité</a>
+    <a href="#/dashboard/sav" data-route="dashboard/sav" id="dash-tab-sav" onclick="if(tabLinkNew(event))return true;dashSwitchSection('sav');return false" class="maint-sub-btn" style="flex:1;text-align:center;text-decoration:none">🛠 SAV</a>
   </div>
 
   <div id="dash-panel-synthese"></div>
@@ -1989,7 +1989,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.11.10-1745';
+var APP_VERSION = '2026.11.10-1750';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
