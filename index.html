@@ -605,7 +605,7 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
   <button class="tab-sub-btn ao" id="sub-commandes" style="display:none" onclick="switchSubTab('commandes',this)">🛒 Commandes</button>
   <button class="tab-sub-btn ao" id="sub-reception" style="display:none" onclick="switchSubTab('reception',this)">📬 Réception</button>
   <button class="tab-sub-btn ao" id="sub-inventaire" style="display:none" onclick="switchSubTab('inventaire',this)">📋 Inventaire<span id="inv-badge-sub" class="tab-badge" style="display:none">0</span></button>
-  <button class="tab-sub-btn ao" id="sub-journal" style="display:none" onclick="switchSubTab('journal',this)">📋 Journal</button>
+  <button class="tab-sub-btn ao" id="sub-journal" style="display:none" onclick="switchSubTab('journal',this)">🔄 Mouvements de stock</button>
 </div>
 <div class="tab-sub-bar" id="sub-bar-production">
   <button class="tab-sub-btn active" id="sub-report" onclick="switchSubTab('report',this)">📋 Ma production</button>
@@ -1989,7 +1989,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.11.10-1545';
+var APP_VERSION = '2026.11.10-1600';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -2929,6 +2929,7 @@ function ecranAutoOpen(tries){
 // Pas de correctif technique invisible ici. tag = qui est concerné :
 //   'all' (tout le monde), 'admin' (admin/direction), 'maint' (maintenance), 'stock' (ajout de stock), 'reprint' (réimpressions)
 var NEWS = [
+  {n:69, d:'10/11/2026', tag:'all', t:'Stock : « Mouvements de stock »', x:'Le sous-onglet « Journal » du Stock s\'appelle maintenant « Mouvements de stock » (même contenu).'},
   {n:68, d:'10/11/2026', tag:'all', t:'Stock : pastille rouge des alertes', x:'Une pastille rouge indique le nombre d\'articles en stock bas « non commandé » sur l\'onglet Stock et sur le sous-onglet Alertes. Elle remplace sur l\'onglet Stock celle des inventaires, qui reste sur le sous-onglet Inventaire.'},
   {n:67, d:'10/11/2026', tag:'all', t:'Stock : « Badges & Dérivés »', x:'Le sous-onglet « Badges & Magnets » du Stock (pôle badges) s\'appelle maintenant « Badges & Dérivés », ainsi que dans les listes de familles (inventaire, réunion, formulaires).'},
   {n:66, d:'10/11/2026', tag:'admin', t:'Nettoyage du code (lot 2)', x:'Retrait de 34 styles d\'affichage (47 lignes) qui n\'étaient utilisés par aucun écran. Aucun changement visible : les 23 écrans ont été comparés avant/après, pixel par pixel, sans aucune différence.'},
@@ -3275,7 +3276,7 @@ function esc(s){
 }
 
 var TABS_PERMS=[{key:'production'},{key:'commandes'},{key:'reception'},{key:'maintenance'},{key:'meeting'},{key:'stats'},{key:'dashboard'},{key:'admin'},{key:'journal'},{key:'inventaire'}];
-var TABS_LABELS={'production':'🏭 Production (onglet entier, avec Recherche)','commandes':'🛒 Commandes','reception':'📬 Réception','stats':'📊 Statistiques','reprint':'🖨️ Réimpressions','maintenance':'🔩 Maintenance','meeting':'📅 Réunion','qualite':'🔍 Contrôle Qualité','dashboard':'📈 Tableau de bord','admin':'🔧 Admin','journal':'📋 Journal des stocks','inventaire':'📋 Inventaire (comptage)'};
+var TABS_LABELS={'production':'🏭 Production (onglet entier, avec Recherche)','commandes':'🛒 Commandes','reception':'📬 Réception','stats':'📊 Statistiques','reprint':'🖨️ Réimpressions','maintenance':'🔩 Maintenance','meeting':'📅 Réunion','qualite':'🔍 Contrôle Qualité','dashboard':'📈 Tableau de bord','admin':'🔧 Admin','journal':'🔄 Mouvements de stock','inventaire':'📋 Inventaire (comptage)'};
 // ── ARBRE DES DROITS : onglet principal → sous-onglets → droits d'action ──
 // Stockage (tout est additif, rien n'est migré) :
 //   perms.tabs_<onglet>  : accès à l'onglet principal (existant)
@@ -3304,7 +3305,7 @@ var RIGHTS_TREE = [
     {id:'commandes', legacy:'commandes', btn:'sub-commandes', label:'🛒 Commandes', def:function(P,d){return d||!!P.orders;}, actions:['orders']},
     {id:'reception', legacy:'reception', btn:'sub-reception', label:'📬 Réception', def:function(P,d){return d||!!P.reception;}, actions:['reception']},
     {id:'inventaire', legacy:'inventaire', btn:'sub-inventaire', label:'📋 Inventaire', def:function(P,d){return d;}, actions:[]},
-    {id:'journal', legacy:'journal', btn:'sub-journal', label:'📋 Journal des stocks', def:function(P,d){return d;}, actions:[]}
+    {id:'journal', legacy:'journal', btn:'sub-journal', label:'🔄 Mouvements de stock', def:function(P,d){return d;}, actions:[]}
   ]},
   {key:'maintenance', label:'🔩 Maintenance', def:function(P,d){return d||!!P.maintenance;}, subs:[], actions:['maintenance','machCats','maintNotif']},
   {key:'meeting', label:'📅 Réunions', def:function(P,d){return d;}, subs:[]},
