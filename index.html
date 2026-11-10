@@ -1985,7 +1985,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.11.17-1330';
+var APP_VERSION = '2026.11.17-1510';
 var MANUEL_URL = 'manuel-isoprod.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -2943,6 +2943,7 @@ function ecranAutoOpen(tries){
 // Pas de correctif technique invisible ici. tag = qui est concerné :
 //   'all' (tout le monde), 'admin' (admin/direction), 'maint' (maintenance), 'stock' (ajout de stock), 'reprint' (réimpressions)
 var NEWS = [
+  {n:83, d:'10/11/2026', tag:'all', t:'Commandes mail et CMC : nouvelle nomenclature', x:'Étiquette SITE2026-CDE MAIL NOM DU CLIENT AAAAMMJJ+HHMM : le site est lu au début, le nom du client s\'affiche comme avant et la date + heure sert de numéro de commande (affichée « 20261104 1703 »). L\'ancienne écriture reste reconnue, avec un avertissement « ancienne nomenclature » et la recherche d\'un doublon. Rapprochement EBP adapté. Outil Admin d\'harmonisation des sites : une commande et son SAV ne sont plus pris pour un conflit.'},
   {n:82, d:'17/11/2026', tag:'stock', t:'Stock : colisage par fournisseur dans les commandes', x:'Dans « Modifier le composant », chaque fournisseur a un champ « Colisage » (pièces par carton, ex. 600) et une note (ex. 6 sachets × 100). Dans « Nouvelle commande », le colisage du fournisseur choisi s\'affiche sous le produit ; si la quantité n\'est pas un multiple, un avertissement propose d\'arrondir au carton supérieur. N\'a aucun effet sur le stock ni sur les comptes par carton.'},
   {n:81, d:'17/11/2026', tag:'all', t:'Manuel d\'utilisation mis à jour', x:'Nouveau manuel (72 pages) : mot de passe oublié, clic droit sur les onglets, exports dans Inventaire, pastilles par famille dans les alertes, Maintenance en tableaux, comparaison avec l\'an dernier dans les Statistiques. Le fichier s\'appelle désormais manuel-isoprod.pdf.'},
   {n:80, d:'17/11/2026', tag:'maint', t:'Maintenance : l\'onglet Plateaux en tableaux', x:'Les formats, les configurations, la liste des plateaux et têtes et l\'historique des interventions s\'affichent en tableaux (comme les machines) ; éléments à problème en rouge. Cartes conservées sur téléphone.'},
@@ -11167,7 +11168,7 @@ function saveReprint(){
     var sameCmd = cmdIdVal && r.cmdId ? (r.cmdId === cmdIdVal) : (looseSiteKey(r.site) === siteKey && looseMatchKey(r.cmd) === cmdKey);
     if(!sameCmd) return;
     var rFormats = (r.product||'').split(/\s*\/\s*/).map(function(p){
-      var m = p.trim().match(/^([A-Z][A-Z0-9\-]+)/i);
+      var m = p.trim().match(/^([A-Z][A-Z0-9_\-]+)/i);
       return m ? m[1].toUpperCase() : '';
     });
     formats.forEach(function(f){
@@ -11358,7 +11359,7 @@ function markReportLinesFromReprint(site, cmd, product, now, cmdId){
   var formats = [];
   var parts = (product||'').split(/\s*\/\s*|\s*\/\/\s*/);
   parts.forEach(function(p){
-    var m = p.trim().match(/^([A-Z][A-Z0-9\-]+)/i);
+    var m = p.trim().match(/^([A-Z][A-Z0-9_\-]+)/i);
     if(m) formats.push(m[1].trim().toLowerCase());
   });
   if(!formats.length) formats = [product.trim().toLowerCase()];
@@ -11803,7 +11804,7 @@ function rptLineHTML(l, di, hi, sec, canEdit, wk){
       var same = (l.cmdId && r.cmdId) ? r.cmdId === l.cmdId : (looseSiteKey(r.site) === ls && looseMatchKey(r.cmd) === lc);
       if(!same) return false;
       return String(r.product||'').split(/\s*\/\s*/).some(function(pp){
-        var m = pp.trim().match(/^([A-Z][A-Z0-9\-]+)/i); return m && m[1].toUpperCase() === lf;
+        var m = pp.trim().match(/^([A-Z][A-Z0-9_\-]+)/i); return m && m[1].toUpperCase() === lf;
       });
     }) || null;
   }
@@ -16293,7 +16294,7 @@ function parsePlancheText(raw){
 
   segments.forEach(function(seg){
     seg = seg.trim(); if(!seg) return;
-    var fm = seg.match(/^([A-Z][A-Z0-9]+(?:[A-Z0-9\-]*[A-Z0-9])?)/i);
+    var fm = seg.match(/^([A-Z][A-Z0-9]+(?:[A-Z0-9_\-]*[A-Z0-9])?)/i);
     if(!fm) return;
     var fmt = fm[1].toUpperCase();
     if(IGNORE.indexOf(fmt)>=0) return;
@@ -16771,10 +16772,10 @@ function parseQRPlanche(raw){
     // Format : lettres+chiffres+lettres optionnelles (BR6845CA, B45DMF01S, DEC3...)
     // Finition optionnelle : MAT, MAB, VER, BRI, MYLAR
     // Puis xQTÉ
-    var fm = seg.match(/^([A-Z][A-Z0-9\-]*[A-Z0-9])\s+(?:(?:mat|mab|ver|bri|mylar)\s+)?x\s*(\d+)/i);
-    if(!fm) fm = seg.match(/^([A-Z][A-Z0-9\-]+)\s+x\s*(\d+)/i);
+    var fm = seg.match(/^([A-Z][A-Z0-9_\-]*[A-Z0-9])\s+(?:(?:mat|mab|ver|bri|mylar)\s+)?x\s*(\d+)/i);
+    if(!fm) fm = seg.match(/^([A-Z][A-Z0-9_\-]+)\s+x\s*(\d+)/i);
     // Format en plusieurs mots (ex. « B38 FLUO-VERT x170 ») : mots collés par un espace, le plus court d'abord
-    if(!fm) fm = seg.match(/^([A-Z][A-Z0-9\-]*(?:\s+[A-Z0-9][A-Z0-9\-]*){1,3}?)\s+x\s*(\d+)/i);
+    if(!fm) fm = seg.match(/^([A-Z][A-Z0-9_\-]*(?:\s+[A-Z0-9][A-Z0-9_\-]*){1,3}?)\s+x\s*(\d+)/i);
     if(fm) result.formats.push({ format: fm[1].toUpperCase(), qty: parseInt(fm[2]) });
   });
 
@@ -20587,7 +20588,7 @@ function loadStats(){
         var prod = (r.product||'');
         var parts = prod.split(/\s*\/\s*/);
         parts.forEach(function(p){
-          var m = p.trim().match(/^([A-Z][A-Z0-9\-]+)/i);
+          var m = p.trim().match(/^([A-Z][A-Z0-9_\-]+)/i);
           if(m){ var fmt=m[1].toUpperCase(); reprintFmts[fmt]=(reprintFmts[fmt]||0)+1; }
         });
       });
