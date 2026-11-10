@@ -2036,7 +2036,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.11.10-1430';
+var APP_VERSION = '2026.11.10-1500';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -2975,6 +2975,7 @@ function ecranAutoOpen(tries){
 // Pas de correctif technique invisible ici. tag = qui est concerné :
 //   'all' (tout le monde), 'admin' (admin/direction), 'maint' (maintenance), 'stock' (ajout de stock), 'reprint' (réimpressions)
 var NEWS = [
+  {n:65, d:'10/11/2026', tag:'admin', t:'Nettoyage du code (lot 1)', x:'Retrait de 15 fonctions qui n\'étaient plus utilisées (anciens écrans plateaux, stats du mois, scan planche…). Aucun changement visible : rien ne doit avoir bougé.'},
   {n:64, d:'10/11/2026', tag:'all', t:'Disponible à l\'emport', x:'Sur la fiche d\'une commande terminée sans colis, nouveau bouton « 🚶 Disponible à l\'emport » : on le coche quand on dépose la commande à l\'accueil. Les personnes ayant le droit « Reçoit les alertes Disponible à l\'emport » (Admin > droits) voient un bandeau. La date d\'emport n\'est plus posée par l\'import EBP : elle est renseignée par ce bouton.'},
   {n:63, d:'09/11/2026', tag:'admin', t:'Sites : TopBadges = TOP, ISO = ISOCOM, plus de « CMD MAIL »', x:'« CMD MAIL » et « TopBadges » ne sont plus proposés comme sites. TopBadges est lu comme TOP et ISO comme ISOCOM partout. Admin › « Harmoniser les sites » : diagnostic (lecture seule) puis fusion des anciennes données, après sauvegarde.'},
   {n:62, d:'09/11/2026', tag:'all', t:'Contrôle qualité : alertes lisibles, statuts de la Recherche', x:'Contrôle qualité : les encarts d\'alerte (réimpression, pôle numérique, bouton) ne sont plus écrasés côte à côte. Recherche : les statuts s\'appellent « Attente production » et « Production en cours », comme dans le Tableau de bord.'},
@@ -5882,28 +5883,6 @@ function doSearch(){
   doSearchCommands(q, el);
 }
 
-function doSearchProducts(q, el){
-  if(!q){el.innerHTML='<div class="empty"><div class="e">📦</div><p>Tapez pour rechercher un produit</p></div>';return;}
-  var res=[];
-  S.cats.forEach(function(cat){
-    ['items','reserve_items'].forEach(function(dbp){
-      var zone=dbp==='items'?'atelier':'reserve';
-      (cat[dbp]||[]).forEach(function(item){
-        if(item.name.toLowerCase().includes(q)||cat.name.toLowerCase().includes(q)){
-          var low=isLowStock(item);
-          res.push({catId:cat.id,zone:zone,name:item.name,sub:'['+(zone==='atelier'?'Atelier':'Réserve')+'] '+esc(cat.name)+' · '+uQty(catUnit(cat),(item.qty||0))+(low?' ⚠ Stock bas':''),low:low,photo:item.photo});
-        }
-      });
-    });
-  });
-  if(!res.length){el.innerHTML='<div class="empty"><div class="e">😕</div><p>Aucun produit trouvé</p></div>';return;}
-  el.innerHTML=res.map(function(r){
-    var th=r.photo?'<img src="'+r.photo+'" style="width:42px;height:42px;border-radius:8px;object-fit:cover;flex-shrink:0">':'<div style="width:42px;height:42px;border-radius:8px;background:var(--sur);display:flex;align-items:center;justify-content:center;font-size:1.3rem;flex-shrink:0">📦</div>';
-    return '<div class="sr-item" onclick="openDet(\''+r.catId+'\',\''+r.zone+'\');switchTab(\''+r.zone+'\')">' +th+
-      '<div style="flex:1"><strong style="font-size:.9rem">'+esc(r.name)+'</strong><br><small style="color:'+(r.low?'var(--red)':'var(--mut)')+'">'+r.sub+'</small></div>'+
-      '<span style="color:var(--acc)">›</span></div>';
-  }).join('');
-}
 
 // Construit le HTML de la fiche détaillée d'une commande (formats produits,
 // quantités par rapport à la référence, CQ, producteurs, dernier jour) à
@@ -8195,7 +8174,6 @@ function renderInventoryHistory(){
 
 // ── STATS ──
 function yyyymm(d){var dt=d||new Date();return dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0');}
-function mlbl(ym){var p=ym.split('-');return new Date(+p[0],+p[1]-1,1).toLocaleString('fr-FR',{month:'long',year:'numeric'});}
 
 // ── ADMIN ──
 function renderAdmin(){
@@ -9722,10 +9700,6 @@ function openPermsPanel(uid){
   });
 }
 
-function updateUserRole(uid, role){
-  fbu('users/'+uid, {role:role});
-  toast('✅ Rôle mis à jour !');
-}
 
 // Désactive un compte (au lieu de le supprimer) : sa fiche est conservée
 // mais marquée disabled:true, ce qui lui coupe l'accès immédiatement (voir
@@ -10132,7 +10106,6 @@ function gammeEtapesFrom(gammes, code){ return gammeFrom(gammes, code).etapes; }
 // Lecture publique pour les étapes suivantes (rapports, suivi).
 function gammeGetEtapes(code){ return gammeEtapesFrom(S_gammes, code); }
 function gammeGet(code){ return gammeFrom(S_gammes, code); }
-function gammeEstOptionnelle(code, index){ return gammeGet(code).optionnelles.indexOf(index) >= 0; }
 function gammeDraftAussiList(){
   return gammeNormalizeAussi(Object.keys(gammeDraftAussi).filter(function(k){ return gammeDraftAussi[k]; }), gammeDraft);
 }
@@ -10745,11 +10718,6 @@ function rpProcessFile(file){
   reader.readAsDataURL(file);
 }
 
-function addRpPhotos(){
-  var input = document.getElementById('rp-photo-input-global');
-  Array.from(input.files).forEach(rpProcessFile);
-  try { input.value = ''; } catch(e){}
-}
 
 function rpPickFile(src){
   var id = src==='camera' ? 'rp-photo-camera-global' : 'rp-photo-input-global';
@@ -13907,10 +13875,6 @@ function askDelMach(){
 
 function getMach(mid){ return S_mach.find(function(m){ return m.id===mid; })||null; }
 
-// Devine la machine de l'appli correspondant à une machine de l'Excel (renvoie un id ou '')
-// Lignes pas encore importées (une ligne déjà présente sous son identifiant dans une machine est écartée)
-// Options de type des machines du pôle numérique (sélection : type courant ou sous-onglet affiché)
-function machNumTypeOptions(sel){ return machTypeOptions('numerique', sel); }
 // ── Créer machine (bouton FAB) ──
 function openCreateMach(){
   var numNew = (maintPole() === 'numerique');
@@ -14007,18 +13971,6 @@ var curPlateauFormatId = null;
 var curPlateauEmpId = null;
 var curPlateauElementId = null;
 var curPlateauElementType = null; // 'plateau' ou 'tete'
-
-// ── Listener Firebase ──
-function startPlateauxListener(){
-  db.ref('plateaux').on('value', function(snap){
-    var raw = snap.val()||{};
-    S_plateaux = Object.keys(raw).map(function(id){
-      return Object.assign({id:id}, raw[id]);
-    });
-    if(curMaintSub === 'plateaux') renderMaintList();
-    updateMaintBadge();
-  });
-}
 
 // ── Statuts ──
 var PLATEAU_STATUTS = {
@@ -14259,12 +14211,6 @@ function openPlateauEmplacement(formatId, empId){
   document.getElementById('maint-back-btn').onclick = function(){ openPlateauFormat(formatId); };
 }
 
-function pltClick(el){
-  if(!window._pltParams) return;
-  var key = el.getAttribute('data-key');
-  var p = window._pltParams[key];
-  if(p) openPlateauElement(p.f, p.e, p.i, p.t);
-}
 
 
 function switchPlateauTab(tab){
@@ -14804,19 +14750,6 @@ function askDelEmplacement(formatId, empId){
 
 
 // ── Prestataires (Admin) ──
-function resetPlateaux(){
-  document.getElementById('cf-title').textContent = '🗑 Réinitialiser les plateaux ?';
-  document.getElementById('cf-msg').textContent = 'Toutes les données de plateaux seront supprimées pour repartir de zéro avec la nouvelle structure. Cette action est irréversible.';
-  var cfBtn = document.querySelector('#m-confirm .btn.bdan');
-  if(cfBtn){ cfBtn.textContent='🗑 Oui, réinitialiser'; cfBtn.style.background='var(--red)'; cfBtn.style.color='#fff'; }
-  cfCb = function(){
-    fbd('plateaux').then(function(){
-      cm('m-confirm');
-      toast('✅ Plateaux réinitialisés — vous pouvez créer vos formats');
-    });
-  };
-  om('m-confirm');
-}
 
 function renderPrestataires(){
   fbg('prestataires').then(function(snap){
@@ -15217,11 +15150,6 @@ function startMachListener(){
 
 
 
-function machStatusInfo(s){
-  if(s==='waiting') return {cls:'ms-waiting',lbl:'🟡 Attente pièce',cardCls:'waiting'};
-  if(s==='hs')      return {cls:'ms-hs',     lbl:'🔴 Hors service', cardCls:'hs'};
-  return                   {cls:'ms-ok',     lbl:'🟢 En service',   cardCls:'ok'};
-}
 
 // MODALS MACHINE
 
@@ -15237,24 +15165,6 @@ function saveMachine(){
   cm('m-machine'); toast('✅ Machine ajoutée !');
 }
 
-function updateMachine(){
-  var n=document.getElementById('mach-n').value.trim(); if(!n){toast('Nom obligatoire',1);return;}
-  fbu('machines/'+editMachId,{
-    name:n, desc:document.getElementById('mach-d').value.trim(),
-    status:document.getElementById('mach-s').value,
-    order:parseInt(document.getElementById('mach-o').value)||99
-  });
-  cm('m-machine'); toast('✅ Machine mise à jour !');
-}
-
-// INTERVENTIONS
-
-function askDelInterv(iid){
-  document.getElementById('cf-title').textContent='Supprimer cette intervention ?';
-  document.getElementById('cf-msg').textContent='Cette intervention sera supprimée définitivement.';
-  cfCb=function(){ fbd('machines/'+curMachId+'/interventions/'+iid); cm('m-confirm'); toast('🗑 Intervention supprimée'); };
-  om('m-confirm');
-}
 
 function toast(msg,w){
   var t=document.getElementById('toast');t.textContent=msg;t.className='show'+(w?' w':'');
@@ -15281,13 +15191,6 @@ function rptHandlePickOrAdd(btn){
   }).catch(function(){ if(qtyRulesOn()) toast('Chargement impossible — réessaie dans un instant.', 1); else rptAddLine(wk, di, hi, sec); });
 }
 
-function rptHandleAdd(btn){
-  var wk  = btn.getAttribute('data-wk');
-  var di  = parseInt(btn.getAttribute('data-di'));
-  var hi  = parseInt(btn.getAttribute('data-hi'));
-  var sec = btn.getAttribute('data-sec');
-  rptAddLine(wk, di, hi, sec);
-}
 
 // ── CONTRÔLE QUALITÉ ──
 var cqTab = 'pending';
@@ -16109,22 +16012,6 @@ var scanPlancheResult = null;
 var scanSelectedFormats = [];
 var scanSelectedMachine = 'semi';
 
-function openScanPlanche(){
-  document.getElementById('scan-input').value = '';
-  document.getElementById('scan-result').innerHTML = '';
-  document.getElementById('scan-confirm-btn').style.display = 'none';
-  document.getElementById('scan-machine-wrap').style.display = 'none';
-  scanPlancheResult = null;
-  scanSelectedFormats = [];
-  scanSelectedMachine = 'semi';
-  // Reset machine buttons
-  ['semi','auto','table'].forEach(function(m){
-    var b = document.getElementById('scan-mach-'+m);
-    if(b) b.classList.toggle('selected', m==='semi');
-  });
-  om('m-scan-planche');
-  setTimeout(function(){ document.getElementById('scan-input').focus(); }, 300);
-}
 
 
 function scanSelectMachine(sec, btn){
@@ -16504,85 +16391,6 @@ function markSearchGroupDone(srKey){
     });
   };
   om('m-confirm');
-}
-
-// ── STATS MENSUELLES (ADMIN ONLY) ──
-function openStatsMonth(){
-  var el = document.getElementById('stats-month-content');
-  if(!el) return;
-  el.innerHTML = '<div style="text-align:center;color:var(--mut);padding:20px">🔍 Chargement…</div>';
-  var now = new Date();
-  var year = now.getFullYear();
-  var month = now.getMonth();
-  // Premier et dernier jour du mois
-  var firstDay = new Date(year, month, 1);
-  var lastDay = new Date(year, month+1, 0);
-  var monthLabel = firstDay.toLocaleDateString('fr-FR',{month:'long',year:'numeric'});
-
-  fbg('users').then(function(usnap){
-    var users = usnap.val()||{};
-    var promises = Object.keys(users).map(function(uid){
-      return fbg('reports/'+uid).then(function(snap){
-        return {uid:uid, name:users[uid].name||users[uid].email||uid, data:snap.val()||{}};
-      });
-    });
-    // Admin aussi
-    promises.push(fbg('reports_admin/'+me.uid).then(function(snap){
-      return {uid:me.uid+'_adm', name:getMyName(), data:snap.val()||{}};
-    }));
-
-    Promise.all(promises).then(function(results){
-      var stats = {}; // uid → {name, semi, auto, table, total, cmdCount}
-      results.forEach(function(r){
-        Object.keys(r.data).forEach(function(wk){
-          var monday = new Date(wk);
-          if(monday < firstDay || monday > lastDay) return;
-          var weekData = r.data[wk];
-          for(var di=0;di<5;di++){
-            for(var hi=0;hi<2;hi++){
-              var lines = ((weekData['d'+di]||{})['h'+hi]||{}).lines||[];
-              lines.forEach(function(l){
-                if(l.status !== 'done' || l.sec === 'sub') return;   // Sublimation : hors classement badges
-                if(!stats[r.uid]) stats[r.uid] = {name:r.name, semi:0, auto:0, table:0, total:0, cmds:{}};
-                var qty = parseInt(l.qty)||0;
-                var sec = l.sec||'semi';
-                stats[r.uid][sec] = (stats[r.uid][sec]||0) + qty;
-                // Règle semi+table = même produit → ne compter qu'une fois
-                if(statsLineCounts(sec, l.format)) stats[r.uid].total += qty;
-                if(l.cmd) stats[r.uid].cmds[l.cmd] = true;
-              });
-            }
-          }
-        });
-      });
-
-      var list = Object.values(stats).sort(function(a,b){ return b.total - a.total; });
-      if(!list.length){
-        el.innerHTML = '<div style="color:var(--mut);font-size:.85rem;text-align:center;padding:20px">Aucune production ce mois-ci</div>';
-        return;
-      }
-      var maxTotal = Math.max.apply(null, list.map(function(s){ return s.total; }));
-      el.innerHTML = '<div style="font-family:Open Sans,sans-serif;font-weight:800;font-size:0.92rem;color:var(--mut);margin-bottom:12px;text-transform:uppercase">'+monthLabel+'</div>'+
-        list.map(function(s){
-          var pct = maxTotal > 0 ? Math.round((s.total/maxTotal)*100) : 0;
-          return '<div style="background:var(--card);border:1.5px solid var(--brd);border-radius:12px;padding:12px;margin-bottom:8px">'+
-            '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">'+
-              '<strong style="font-family:Open Sans,sans-serif;font-size:0.97rem">'+esc(s.name)+'</strong>'+
-              '<strong style="color:var(--acc);font-size:1rem">'+s.total.toLocaleString('fr-FR')+' pcs</strong>'+
-            '</div>'+
-            '<div style="background:var(--sur);border-radius:99px;height:8px;overflow:hidden;margin-bottom:8px">'+
-              '<div style="background:var(--acc);height:100%;width:'+pct+'%;border-radius:99px;transition:width .3s"></div>'+
-            '</div>'+
-            '<div style="display:flex;gap:12px;font-size:.75rem;color:var(--mut)">'+
-              '<span>🔧 Semi-auto : <strong style="color:var(--txt)">'+s.semi.toLocaleString('fr-FR')+'</strong></span>'+
-              '<span>⚙️ Auto : <strong style="color:var(--txt)">'+s.auto.toLocaleString('fr-FR')+'</strong></span>'+
-              '<span>🪑 Table : <strong style="color:var(--txt)">'+s.table.toLocaleString('fr-FR')+'</strong></span>'+
-            '</div>'+
-            '<div style="font-size:.72rem;color:var(--mut);margin-top:4px">'+Object.keys(s.cmds).length+' commande(s)</div>'+
-          '</div>';
-        }).join('');
-    });
-  });
 }
 
 
