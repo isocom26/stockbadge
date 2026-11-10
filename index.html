@@ -550,6 +550,8 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
     <div class="fld"><label>Mot de passe</label><input type="password" id="li-pwd" placeholder="••••••••"></div>
     <div class="l-err" id="li-err"></div>
     <button class="l-btn" onclick="doLogin()">Se connecter</button>
+    <div style="text-align:center;margin-top:14px"><a href="#" onclick="doForgotPwd();return false" style="color:var(--mut);font-size:.8rem;text-decoration:underline">Mot de passe oublié ?</a></div>
+    <div id="li-info" style="display:none;margin-top:12px;font-size:.82rem;color:var(--grn);text-align:center"></div>
   </div>
   <div style="text-align:center;color:var(--mut);font-size:.68rem;margin-top:18px" id="login-version"></div>
 </div>
@@ -1987,7 +1989,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.11.10-1720';
+var APP_VERSION = '2026.11.10-1745';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -2905,6 +2907,23 @@ function doLogin() {
     err.textContent = 'Email ou mot de passe incorrect.'; err.style.display = 'block';
   });
 }
+// Mot de passe oublié : Firebase envoie un mail (en français) avec un lien pour choisir un nouveau mot de passe
+function doForgotPwd() {
+  var e = document.getElementById('li-email').value.trim();
+  var err = document.getElementById('li-err'), info = document.getElementById('li-info');
+  err.style.display = 'none'; info.style.display = 'none';
+  if(!e){ err.textContent = 'Saisis ton adresse e-mail ci-dessus, puis clique sur « Mot de passe oublié ? ».'; err.style.display = 'block'; return; }
+  try{ auth.languageCode = 'fr'; }catch(x){}
+  function ok(){ info.textContent = 'Si un compte existe pour cette adresse, un e-mail vient d\'être envoyé avec un lien pour choisir un nouveau mot de passe (pense à regarder les courriers indésirables).'; info.style.display = 'block'; }
+  auth.sendPasswordResetEmail(e).then(ok).catch(function(er){
+    var c = er && er.code;
+    if(c === 'auth/user-not-found') ok();   // même message : on ne révèle pas si l'adresse a un compte
+    else {
+      err.textContent = c === 'auth/invalid-email' ? 'Adresse e-mail invalide.' : c === 'auth/too-many-requests' ? 'Trop de demandes, réessaie dans quelques minutes.' : 'Envoi impossible pour le moment, réessaie plus tard.';
+      err.style.display = 'block';
+    }
+  });
+}
 function doLogout() { cm('m-user'); auth.signOut(); }
 // Droit « Écran atelier » : admin et direction toujours ; les autres comptes seulement si la case est cochée dans Droits.
 function canEcran(){
@@ -2928,6 +2947,7 @@ function ecranAutoOpen(tries){
 // Pas de correctif technique invisible ici. tag = qui est concerné :
 //   'all' (tout le monde), 'admin' (admin/direction), 'maint' (maintenance), 'stock' (ajout de stock), 'reprint' (réimpressions)
 var NEWS = [
+  {n:73, d:'10/11/2026', tag:'all', t:'Connexion : mot de passe oublié', x:'Sur l\'écran de connexion, le lien « Mot de passe oublié ? » envoie par e-mail un lien pour choisir un nouveau mot de passe (saisir d\'abord son adresse e-mail).'},
   {n:72, d:'10/11/2026', tag:'all', t:'Onglets : clic droit « Ouvrir dans un nouvel onglet »', x:'Les onglets et sous-onglets (Stock, Production, Admin, Tableau de bord…) sont de vrais liens : clic droit ou Ctrl+clic pour ouvrir un écran dans un nouvel onglet du navigateur, ou copier son adresse. Le clic normal ne change pas.'},
   {n:71, d:'10/11/2026', tag:'all', t:'Stock › Alertes : pastille par famille', x:'Sous Alertes, chaque famille (Badges & Dérivés, Porte-clés, Pins, Divers…) affiche en rouge son nombre d\'articles en stock bas non commandés.'},
   {n:70, d:'10/11/2026', tag:'all', t:'Stock : « Approvisionnement », plus de sous-onglet Réception', x:'Le sous-onglet « Commandes » du Stock (commandes aux fournisseurs) s\'appelle « Approvisionnement », pour ne plus le confondre avec les commandes clients. Le sous-onglet « Réception » disparaît : on réceptionne directement depuis Approvisionnement, avec le bouton « Réceptionner » de la commande (même fenêtre qu\'avant).'},
