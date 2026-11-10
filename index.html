@@ -1985,7 +1985,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.11.10-1900';
+var APP_VERSION = '2026.11.10-1920';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -2943,6 +2943,7 @@ function ecranAutoOpen(tries){
 // Pas de correctif technique invisible ici. tag = qui est concerné :
 //   'all' (tout le monde), 'admin' (admin/direction), 'maint' (maintenance), 'stock' (ajout de stock), 'reprint' (réimpressions)
 var NEWS = [
+  {n:77, d:'10/11/2026', tag:'admin', t:'Planning : choisir qui apparaît', x:'Dans Admin › Droits, la fiche de chaque compte a une case « Apparaît dans le Planning (absences, congés) ». Décochée (tablettes, écrans, comptes partagés), le compte disparaît des listes du Planning. Par défaut tout le monde apparaît, comme avant.'},
   {n:76, d:'10/11/2026', tag:'maint', t:'Maintenance : fiche machine en tableaux', x:'Dans la fiche d\'une machine, les rappels (fréquence, assigné, dernier fait, prochain) et l\'historique des interventions (date, type, description, par, coût, total) s\'affichent en tableaux ; rappels en retard en haut. Cartes conservées sur téléphone.'},
   {n:75, d:'10/11/2026', tag:'maint', t:'Maintenance : vue en tableau', x:'Les machines s\'affichent en tableau (statut, rappels échus ou prochain rappel, dernière intervention, nombre d\'interventions sur 30 jours). Les machines en panne ou avec un rappel échu sont en haut, surlignées ; clic sur un en-tête pour trier. Sur téléphone, les cartes sont conservées.'},
   {n:74, d:'10/11/2026', tag:'all', t:'Stock : exports déplacés dans Inventaire', x:'Les boutons d\'export CSV et PDF du stock ne sont plus dans Atelier et Réserve : ils sont dans Stock › Inventaire, bloc « Exporter le stock » (choix de la famille, puis Atelier ou Réserve).'},
@@ -9639,12 +9640,17 @@ function openPermsPanel(uid){
       document.getElementById('cf-msg').innerHTML =
         '<div style="text-align:left;margin-top:8px"><div style="font-size:.76rem;color:var(--mut);margin-bottom:10px">Compte administrateur : accès complet, rôle et droits non modifiables.</div>'+
         '<label style="font-size:.78rem;color:var(--mut);display:block;margin-bottom:4px">Poste / Titre</label>'+
-        '<input id="perm-jobtitle" type="text" value="'+esc(curJob)+'" placeholder="ex: Responsable de production" style="width:100%;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.88rem;padding:9px 12px;outline:none"></div>';
+        '<input id="perm-jobtitle" type="text" value="'+esc(curJob)+'" placeholder="ex: Responsable de production" style="width:100%;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.88rem;padding:9px 12px;outline:none">'+
+        '<label style="display:flex;align-items:center;gap:8px;margin:12px 0 0;cursor:pointer;font-size:.85rem" title="Décocher pour les comptes partagés (tablettes, écrans…) : ils disparaissent des listes du Planning (absences, congés)">'+
+        '<input type="checkbox" id="perm-in-planning" '+(u.inPlanning!==false?'checked':'')+' style="width:16px;height:16px;accent-color:var(--acc)">'+
+        '🗓️ Apparaît dans le Planning (absences, congés)'+
+      '</label>'+'</div>';
       document.querySelector('#m-confirm .btn.bdan').textContent = '💾 Enregistrer';
       document.querySelector('#m-confirm .btn.bdan').style.background = 'var(--grn)';
       cfCb = function(){
         var jt = document.getElementById('perm-jobtitle');
-        fbu('users/'+permsUserId, {jobTitle:(jt && jt.value.trim()) || null});
+        var ipA = document.getElementById('perm-in-planning');
+        fbu('users/'+permsUserId, {jobTitle:(jt && jt.value.trim()) || null, inPlanning:(ipA && !ipA.checked) ? false : null});
         document.querySelector('#m-confirm .btn.bdan').textContent = 'Oui, confirmer';
         document.querySelector('#m-confirm .btn.bdan').style.background = 'var(--red)';
         cm('m-confirm'); toast('✅ Compte mis à jour !'); renderAdmin();
@@ -9674,6 +9680,10 @@ function openPermsPanel(uid){
         '<input type="checkbox" id="perm-is-producer" '+(u.isProducer!==false?'checked':'')+' style="width:16px;height:16px;accent-color:var(--acc)">'+
         'Apparaît dans les statistiques de production'+
       '</label>'+
+      '<label style="display:flex;align-items:center;gap:8px;margin:10px 0 8px;cursor:pointer;font-size:.85rem" title="Décocher pour les comptes partagés (tablettes, écrans…) : ils disparaissent des listes du Planning (absences, congés)">'+
+        '<input type="checkbox" id="perm-in-planning" '+(u.inPlanning!==false?'checked':'')+' style="width:16px;height:16px;accent-color:var(--acc)">'+
+        '🗓️ Apparaît dans le Planning (absences, congés)'+
+      '</label>'+
       '<label style="font-size:.78rem;color:var(--mut);display:block;margin-bottom:4px">Poste / Titre</label>'+
       '<input id="perm-jobtitle" type="text" value="'+curJob+'" placeholder="ex: Imprimeur, Technicien..." style="width:100%;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.88rem;padding:9px 12px;outline:none">'+
       '</div>'+
@@ -9691,7 +9701,7 @@ function openPermsPanel(uid){
       var isProducerVal = isProducerEl ? isProducerEl.checked : (roleVal==='employee');
       var poleEl = document.getElementById('perm-pole');
       var poleVal = poleEl ? poleEl.value : 'badges';
-      fbu('users/'+permsUserId,{perms:treePerms,jobTitle:jobTitle||null,role:roleVal,isProducer:isProducerVal,pole:(poleVal==='numerique'||poleVal==='tous')?poleVal:null,numHelp:(document.getElementById('perm-numhelp')&&document.getElementById('perm-numhelp').checked)?true:null});
+      fbu('users/'+permsUserId,{perms:treePerms,jobTitle:jobTitle||null,role:roleVal,isProducer:isProducerVal,pole:(poleVal==='numerique'||poleVal==='tous')?poleVal:null,numHelp:(document.getElementById('perm-numhelp')&&document.getElementById('perm-numhelp').checked)?true:null,inPlanning:(document.getElementById('perm-in-planning')&&!document.getElementById('perm-in-planning').checked)?false:null});
       // Reset confirm button
       document.querySelector('#m-confirm .btn.bdan').textContent = 'Oui, confirmer';
       document.querySelector('#m-confirm .btn.bdan').style.background = 'var(--red)';
@@ -24046,7 +24056,7 @@ function planAbsInfo(uid, d){
 // Toute l'équipe (admin et direction compris) pour les congés et absences ; seuls les producteurs comptent dans la capacité
 function planStaff(){
   var us = S_dash.users || {};
-  return Object.keys(us).filter(function(uid){ var u = us[uid]; return u && (u.name || u.email); })
+  return Object.keys(us).filter(function(uid){ var u = us[uid]; return u && (u.name || u.email) && u.inPlanning !== false; })
     .map(function(uid){ return {uid:uid, name:userDispName(us[uid], uid)}; })
     .sort(function(a, b){ return String(a.name).localeCompare(String(b.name), 'fr'); });
 }
