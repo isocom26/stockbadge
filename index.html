@@ -262,6 +262,9 @@ input[type=file]{display:none}
 .sw-wrap{position:relative;margin-bottom:16px}
 .sw-wrap input{width:100%;background:var(--card);border:1.5px solid var(--brd);border-radius:12px;color:var(--txt);font-family:'DM Sans',sans-serif;font-size:1rem;padding:12px 36px 12px 44px;outline:none}.sw-clear{position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--mut);font-size:1.1rem;line-height:1;padding:4px;display:none}.sw-clear.visible{display:block}
 .sw-ico{position:absolute;left:13px;top:50%;transform:translateY(-50%);color:var(--mut)}
+.maint-tbl{display:block}.maint-cards{display:none}
+@media (max-width:700px){.maint-tbl{display:none}.maint-cards{display:block}}
+.maint-tbl th.srt{cursor:pointer;user-select:none}.maint-tbl tbody tr:hover{background:var(--sur)}
 .dash-tbl-wrap{overflow-x:auto;background:var(--card);border:1.5px solid var(--brd);border-radius:12px;scrollbar-width:auto;scrollbar-color:var(--acc) var(--sur)}
 .dash-tbl-wrap::-webkit-scrollbar{height:10px}
 .dash-tbl-wrap::-webkit-scrollbar-track{background:var(--sur)}
@@ -1982,7 +1985,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.11.10-1810';
+var APP_VERSION = '2026.11.10-1840';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -2940,6 +2943,7 @@ function ecranAutoOpen(tries){
 // Pas de correctif technique invisible ici. tag = qui est concerné :
 //   'all' (tout le monde), 'admin' (admin/direction), 'maint' (maintenance), 'stock' (ajout de stock), 'reprint' (réimpressions)
 var NEWS = [
+  {n:75, d:'10/11/2026', tag:'maint', t:'Maintenance : vue en tableau', x:'Les machines s\'affichent en tableau (statut, rappels échus ou prochain rappel, dernière intervention, nombre d\'interventions sur 30 jours). Les machines en panne ou avec un rappel échu sont en haut, surlignées ; clic sur un en-tête pour trier. Sur téléphone, les cartes sont conservées.'},
   {n:74, d:'10/11/2026', tag:'all', t:'Stock : exports déplacés dans Inventaire', x:'Les boutons d\'export CSV et PDF du stock ne sont plus dans Atelier et Réserve : ils sont dans Stock › Inventaire, bloc « Exporter le stock » (choix de la famille, puis Atelier ou Réserve).'},
   {n:73, d:'10/11/2026', tag:'all', t:'Connexion : mot de passe oublié', x:'Sur l\'écran de connexion, le lien « Mot de passe oublié ? » envoie par e-mail un lien pour choisir un nouveau mot de passe (saisir d\'abord son adresse e-mail).'},
   {n:72, d:'10/11/2026', tag:'all', t:'Onglets : clic droit « Ouvrir dans un nouvel onglet »', x:'Les onglets et sous-onglets (Stock, Production, Admin, Tableau de bord…) sont de vrais liens : clic droit ou Ctrl+clic pour ouvrir un écran dans un nouvel onglet du navigateur, ou copier son adresse. Le clic normal ne change pas.'},
@@ -13594,7 +13598,7 @@ function renderMaintList(){
     return;
   }
 
-  el.innerHTML += filtered.map(function(m){
+  var cardsHtml = filtered.map(function(m){
     var st = INTERV_STATUSES[m.status||'ok']||INTERV_STATUSES['ok'];
     var lastInterv = m.interventions && Object.values(m.interventions).length
       ? Object.values(m.interventions).sort(function(a,b){return (b.date||0)-(a.date||0);})[0]
@@ -13621,6 +13625,61 @@ function renderMaintList(){
       '<div style="font-size:.75rem;color:var(--mut)">🔧 Dernière intervention : <strong>'+lastDate+'</strong></div>'+
     '</div>';
   }).join('');
+  // PC / tablette : tableau (infos visibles sans ouvrir la machine) ; téléphone : cartes (bascule par CSS)
+  el.innerHTML += '<div class="maint-tbl">'+maintTableHtml(filtered)+'</div><div class="maint-cards">'+cardsHtml+'</div>';
+}
+
+// ── Maintenance : vue tableau ──
+var maintSort = {k:'prob', dir:1};
+function maintSetSort(k){
+  if(maintSort.k === k) maintSort.dir = -maintSort.dir; else maintSort = {k:k, dir:1};
+  renderMaintList();
+}
+function maintTableHtml(list){
+  var now = Date.now(), DAY = 86400000;
+  var rows = list.map(function(m){
+    var st = INTERV_STATUSES[m.status||'ok'] || INTERV_STATUSES['ok'];
+    var iv = m.interventions ? Object.values(m.interventions).sort(function(a,b){ return (b.date||0)-(a.date||0); }) : [];
+    var last = iv[0] || null;
+    var n30 = iv.filter(function(i){ return (i.date||0) > now - 30*DAY; }).length;
+    var rem = m.reminders ? Object.values(m.reminders) : [];
+    var due = rem.filter(function(r){ return getMachReminderStatus(r) === 'due'; });
+    var nextTs = null;
+    rem.forEach(function(r){ if(getMachReminderStatus(r) !== 'due' && r.lastDoneAt){ var t = r.lastDoneAt + r.freqDays*DAY; if(nextTs === null || t < nextTs) nextTs = t; } });
+    var hot = (m.status === 'panne' || due.length > 0);
+    return {m:m, st:st, last:last, n30:n30, due:due, nextTs:nextTs, hot:hot};
+  });
+  var k = maintSort.k, d = maintSort.dir;
+  rows.sort(function(x,y){
+    var c = 0;
+    if(k === 'name') c = x.m.name.localeCompare(y.m.name);
+    else if(k === 'status') c = x.st.label.localeCompare(y.st.label);
+    else if(k === 'rem') c = (y.due.length - x.due.length) || ((x.nextTs||Infinity) - (y.nextTs||Infinity));
+    else if(k === 'last') c = ((y.last&&y.last.date)||0) - ((x.last&&x.last.date)||0);
+    else if(k === 'n30') c = y.n30 - x.n30;
+    else c = (y.hot?1:0) - (x.hot?1:0);   // « prob » : machines à problème d'abord
+    return (c || x.m.name.localeCompare(y.m.name)) * (k === 'prob' ? 1 : d);
+  });
+  var heads = [['name','MACHINE'],['status','STATUT'],['rem','RAPPELS'],['last','DERNIÈRE INTERVENTION'],['n30','30 DERNIERS JOURS']];
+  var th = heads.map(function(h){
+    var arrow = maintSort.k === h[0] ? (maintSort.dir > 0 ? ' ▲' : ' ▼') : '';
+    return '<th class="srt" onclick="maintSetSort(\''+h[0]+'\')" style="padding:7px 9px;color:var(--mut);font-family:Open Sans,sans-serif;font-size:0.71rem;font-weight:800;letter-spacing:.03em;white-space:nowrap">'+h[1]+arrow+'</th>';
+  }).join('');
+  var tr = rows.map(function(x){
+    var remCell = x.due.length
+      ? '<span style="font-weight:800;color:var(--red)">🔔 '+x.due.length+' échu'+(x.due.length>1?'s':'')+'</span><div style="font-size:.7rem;color:var(--mut)">'+esc(x.due.map(function(r){ return r.desc||''; }).join(', '))+'</div>'
+      : (x.nextTs ? 'Prochain : <b>'+new Date(x.nextTs).toLocaleDateString('fr-FR')+'</b>' : '<span style="color:var(--mut)">—</span>');
+    var lastCell = x.last
+      ? '<b>'+new Date(x.last.date).toLocaleDateString('fr-FR')+'</b>'+(x.last.type?' · '+esc(x.last.type):'')+'<div style="font-size:.7rem;color:var(--mut)">'+esc(x.last.desc||'')+(x.last.by?' — '+esc(x.last.by):'')+'</div>'
+      : '<span style="color:var(--mut)">Jamais</span>';
+    return '<tr onclick="openMachDet(\''+x.m.id+'\')" style="cursor:pointer;border-bottom:1px solid var(--brd);'+(x.hot?'background:rgba(239,68,68,.07)':'')+'">'+
+      '<td style="padding:9px"><div style="font-family:Open Sans,sans-serif;font-weight:800">'+esc(x.m.name)+'</div>'+(x.m.serialNumber?'<div style="font-size:.7rem;color:var(--mut)">N° '+esc(x.m.serialNumber)+'</div>':'')+(x.m.desc?'<div style="font-size:.7rem;color:var(--mut)">'+esc(x.m.desc)+'</div>':'')+'</td>'+
+      '<td style="padding:9px;white-space:nowrap"><span style="font-size:.74rem;font-weight:800;padding:3px 9px;border-radius:99px;border:1px solid '+x.st.color+';color:'+x.st.color+'">'+x.st.label+'</span></td>'+
+      '<td style="padding:9px">'+remCell+'</td>'+
+      '<td style="padding:9px">'+lastCell+'</td>'+
+      '<td style="padding:9px;text-align:center;font-weight:800">'+x.n30+'</td></tr>';
+  }).join('');
+  return '<div class="dash-tbl-wrap"><table style="width:100%;min-width:760px;border-collapse:collapse;font-size:.8rem"><thead><tr style="text-align:left;border-bottom:1.5px solid var(--brd)">'+th+'</tr></thead><tbody>'+tr+'</tbody></table></div>';
 }
 
 // ── Détail machine ──
