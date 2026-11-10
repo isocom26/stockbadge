@@ -1525,7 +1525,7 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
     <div class="ff"><label>Description</label><input type="text" id="cat-d"></div>
     <div class="ff"><label>Famille</label>
       <select id="cat-fam" style="width:100%;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.9rem;padding:10px 12px;outline:none">
-        <option value="badge_magnet">🏷️ Badges & Magnets</option>
+        <option value="badge_magnet">🏷️ Badges & Dérivés</option>
         <option value="porte_cle">🔑 Porte-clés</option>
         <option value="pins">📌 Pins</option>
         <option value="divers">📦 Divers</option>
@@ -1597,7 +1597,7 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
     <div class="ff"><label>Description</label><input type="text" id="ecat-d"></div>
     <div class="ff"><label>Famille</label>
       <select id="ecat-fam" style="width:100%;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.9rem;padding:10px 12px;outline:none">
-        <option value="badge_magnet">🏷️ Badges & Magnets</option>
+        <option value="badge_magnet">🏷️ Badges & Dérivés</option>
         <option value="porte_cle">🔑 Porte-clés</option>
         <option value="pins">📌 Pins</option>
         <option value="divers">📦 Divers</option>
@@ -1989,7 +1989,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.11.10-1520';
+var APP_VERSION = '2026.11.10-1530';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -2333,11 +2333,11 @@ var zoneFamille = {atelier:'badge_magnet', reserve:'badge_magnet', alertes:'badg
 function catFamille(cat){ var f = (cat && cat.famille) || 'badge_magnet'; return f === 'gourdes' ? 'mugs' : f; }
 // Familles de stock : badges (historique) et pôle numérique (Mugs, Gourdes, Totebags). Champ additif « famille » sur la catégorie.
 var STOCK_FAMS = [
-  ['badge_magnet','🏷️ Badges & Magnets','badges'], ['porte_cle','🔑 Porte-clés','badges'], ['pins','📌 Pins','badges'], ['divers','📦 Divers','badges'],
+  ['badge_magnet','🏷️ Badges & Dérivés','badges'], ['porte_cle','🔑 Porte-clés','badges'], ['pins','📌 Pins','badges'], ['divers','📦 Divers','badges'],
   ['mugs','🖨️ Sublimation','numerique'], ['rollup','🧻 Roll up','numerique'], ['totebag','👜 Tote bags','numerique']
 ];
 function famPole(f){ for(var i=0;i<STOCK_FAMS.length;i++){ if(STOCK_FAMS[i][0]===f) return STOCK_FAMS[i][2]; } return 'badges'; }
-function famLabel(f){ for(var i=0;i<STOCK_FAMS.length;i++){ if(STOCK_FAMS[i][0]===f) return STOCK_FAMS[i][1]; } return '🏷️ Badges & Magnets'; }
+function famLabel(f){ for(var i=0;i<STOCK_FAMS.length;i++){ if(STOCK_FAMS[i][0]===f) return STOCK_FAMS[i][1]; } return '🏷️ Badges & Dérivés'; }
 function catPole(cat){ return famPole(catFamille(cat)); }
 // Gestion du stock (créer/modifier/supprimer références et articles, réserve) : admin partout ; le pôle numérique gère SES familles.
 function stockAdmin(cat){ return !!iAm || (typeof me_pole !== 'undefined' && me_pole === 'numerique' && !!cat && catPole(cat) === 'numerique'); }
@@ -2928,6 +2928,7 @@ function ecranAutoOpen(tries){
 // Pas de correctif technique invisible ici. tag = qui est concerné :
 //   'all' (tout le monde), 'admin' (admin/direction), 'maint' (maintenance), 'stock' (ajout de stock), 'reprint' (réimpressions)
 var NEWS = [
+  {n:67, d:'10/11/2026', tag:'all', t:'Stock : « Badges & Dérivés »', x:'Le sous-onglet « Badges & Magnets » du Stock (pôle badges) s\'appelle maintenant « Badges & Dérivés », ainsi que dans les listes de familles (inventaire, réunion, formulaires).'},
   {n:66, d:'10/11/2026', tag:'admin', t:'Nettoyage du code (lot 2)', x:'Retrait de 34 styles d\'affichage (47 lignes) qui n\'étaient utilisés par aucun écran. Aucun changement visible : les 23 écrans ont été comparés avant/après, pixel par pixel, sans aucune différence.'},
   {n:65, d:'10/11/2026', tag:'admin', t:'Nettoyage du code (lot 1)', x:'Retrait de 15 fonctions qui n\'étaient plus utilisées (anciens écrans plateaux, stats du mois, scan planche…). Aucun changement visible : rien ne doit avoir bougé.'},
   {n:64, d:'10/11/2026', tag:'all', t:'Disponible à l\'emport', x:'Sur la fiche d\'une commande terminée sans colis, nouveau bouton « 🚶 Disponible à l\'emport » : on le coche quand on dépose la commande à l\'accueil. Les personnes ayant le droit « Reçoit les alertes Disponible à l\'emport » (Admin > droits) voient un bandeau. La date d\'emport n\'est plus posée par l\'import EBP : elle est renseignée par ce bouton.'},
@@ -6940,7 +6941,7 @@ function startInvcListener(){
 }
 // Ordre d'affichage des formats : Badges & Magnets (ronds du plus petit au plus grand : 25 mm → 100 mm, puis les autres formats), puis Porte-clés, Pins, Divers.
 var INVC_FAM_ORDER = ['badge_magnet','porte_cle','pins','divers','mugs','rollup','totebag'];
-var INVC_FAM_LABEL = {badge_magnet:'🏷️ Badges & Magnets', porte_cle:'🔑 Porte-clés', pins:'📌 Pins', divers:'📦 Divers', mugs:'🖨️ Sublimation', rollup:'🧻 Roll up', totebag:'👜 Tote bags'};
+var INVC_FAM_LABEL = {badge_magnet:'🏷️ Badges & Dérivés', porte_cle:'🔑 Porte-clés', pins:'📌 Pins', divers:'📦 Divers', mugs:'🖨️ Sublimation', rollup:'🧻 Roll up', totebag:'👜 Tote bags'};
 function invcCatCmp(a, b){
   var fa = INVC_FAM_ORDER.indexOf(catFamille(a)), fb = INVC_FAM_ORDER.indexOf(catFamille(b));
   if(fa < 0) fa = 99; if(fb < 0) fb = 99;
@@ -12916,7 +12917,7 @@ function mtgRecalcChargeParPoste(){
 // ── Alertes "non commandées" auto (État des stocks) : réutilise exactement
 // la même logique que l'onglet Alertes (stock bas + aucune commande en
 // cours), regroupée par famille pour la lisibilité dans la réunion.
-var MTG_FAM_ORDER = [['badge_magnet','🏷️ Badges & Magnets'],['porte_cle','🔑 Porte-clés'],['pins','📌 Pins'],['divers','📦 Divers'],['mugs','🖨️ Sublimation'],['rollup','🧻 Roll up'],['totebag','👜 Tote bags']];
+var MTG_FAM_ORDER = [['badge_magnet','🏷️ Badges & Dérivés'],['porte_cle','🔑 Porte-clés'],['pins','📌 Pins'],['divers','📦 Divers'],['mugs','🖨️ Sublimation'],['rollup','🧻 Roll up'],['totebag','👜 Tote bags']];
 
 // Familles présentées selon le pôle de la réunion. Pôle numérique activé : chaque réunion ne montre que ses familles ;
 // désactivé : réunion badges inchangée (toutes les familles).
@@ -12963,7 +12964,7 @@ function mtgNotOrderedAlertsHtml(pole){
 
 // Libellés sans emoji pour le PDF : la police standard de jsPDF ne sait
 // pas afficher les emoji (ils ressortent en caractères illisibles).
-var MTG_FAM_PLAIN = {badge_magnet:'Badges & Magnets', porte_cle:'Porte-clés', pins:'Pins', divers:'Divers', mugs:'Sublimation', rollup:'Roll up', totebag:'Tote bags'};
+var MTG_FAM_PLAIN = {badge_magnet:'Badges & Dérivés', porte_cle:'Porte-clés', pins:'Pins', divers:'Divers', mugs:'Sublimation', rollup:'Roll up', totebag:'Tote bags'};
 
 // toLocaleString('fr-FR') insère une espace fine insécable comme séparateur
 // de milliers ; cette espace-là n'existe pas non plus dans la police du
