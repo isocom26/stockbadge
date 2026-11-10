@@ -589,7 +589,7 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
 <div class="tab-groups-bar">
   <button class="tab-group-btn active" id="grp-production" onclick="switchGroup('production')">🏭 Production</button>
   <button class="tab-group-btn ao" id="grp-dashboard" style="display:none" onclick="switchGroup('dashboard')">📈 Tableau de bord</button>
-  <button class="tab-group-btn" id="grp-stock" onclick="switchGroup('stock')">📦 Stock<span id="inv-badge-grp" class="tab-badge" style="display:none">0</span></button>
+  <button class="tab-group-btn" id="grp-stock" onclick="switchGroup('stock')">📦 Stock<span id="alertes-badge-grp" class="tab-badge" style="display:none">0</span></button>
   <button class="tab-group-btn ao" id="grp-maintenance" style="display:none" onclick="switchGroup('maintenance')">🔩 Maintenance</button>
   <button class="tab-group-btn ao" id="grp-meeting" style="display:none" onclick="switchGroup('meeting')">📅 Réunions</button>
   <button class="tab-group-btn ao" id="grp-planning" style="display:none" onclick="switchGroup('planning')">🗓️ Planning</button>
@@ -601,7 +601,7 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
 <div class="tab-sub-bar" id="sub-bar-stock" style="display:none">
   <button class="tab-sub-btn active" id="sub-atelier" onclick="switchSubTab('atelier',this)">🏭 Atelier</button>
   <button class="tab-sub-btn" id="sub-reserve" onclick="switchSubTab('reserve',this)">🏢 Réserve</button>
-  <button class="tab-sub-btn" id="sub-alertes" onclick="switchSubTab('alertes',this)">⚠️ Alertes</button>
+  <button class="tab-sub-btn" id="sub-alertes" onclick="switchSubTab('alertes',this)">⚠️ Alertes<span id="alertes-badge-sub" class="tab-badge" style="display:none">0</span></button>
   <button class="tab-sub-btn ao" id="sub-commandes" style="display:none" onclick="switchSubTab('commandes',this)">🛒 Commandes</button>
   <button class="tab-sub-btn ao" id="sub-reception" style="display:none" onclick="switchSubTab('reception',this)">📬 Réception</button>
   <button class="tab-sub-btn ao" id="sub-inventaire" style="display:none" onclick="switchSubTab('inventaire',this)">📋 Inventaire<span id="inv-badge-sub" class="tab-badge" style="display:none">0</span></button>
@@ -1989,7 +1989,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.11.10-1530';
+var APP_VERSION = '2026.11.10-1545';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -2376,6 +2376,7 @@ function orderInView(o){
 function stockApplyPole(){
   S.cats = (S.allCats || []).filter(catInView);
   S.orders = (S.allOrders || []).filter(orderInView);
+  try { updateAlertesBadge(); } catch(e){}
   var fams = famsInView().map(function(f){ return f[0]; });
   ['atelier','reserve','alertes'].forEach(function(z){ if(fams.indexOf(zoneFamille[z]) < 0) zoneFamille[z] = fams[0] || 'badge_magnet'; });
 }
@@ -2928,6 +2929,7 @@ function ecranAutoOpen(tries){
 // Pas de correctif technique invisible ici. tag = qui est concerné :
 //   'all' (tout le monde), 'admin' (admin/direction), 'maint' (maintenance), 'stock' (ajout de stock), 'reprint' (réimpressions)
 var NEWS = [
+  {n:68, d:'10/11/2026', tag:'all', t:'Stock : pastille rouge des alertes', x:'Une pastille rouge indique le nombre d\'articles en stock bas « non commandé » sur l\'onglet Stock et sur le sous-onglet Alertes. Elle remplace sur l\'onglet Stock celle des inventaires, qui reste sur le sous-onglet Inventaire.'},
   {n:67, d:'10/11/2026', tag:'all', t:'Stock : « Badges & Dérivés »', x:'Le sous-onglet « Badges & Magnets » du Stock (pôle badges) s\'appelle maintenant « Badges & Dérivés », ainsi que dans les listes de familles (inventaire, réunion, formulaires).'},
   {n:66, d:'10/11/2026', tag:'admin', t:'Nettoyage du code (lot 2)', x:'Retrait de 34 styles d\'affichage (47 lignes) qui n\'étaient utilisés par aucun écran. Aucun changement visible : les 23 écrans ont été comparés avant/après, pixel par pixel, sans aucune différence.'},
   {n:65, d:'10/11/2026', tag:'admin', t:'Nettoyage du code (lot 1)', x:'Retrait de 15 fonctions qui n\'étaient plus utilisées (anciens écrans plateaux, stats du mois, scan planche…). Aucun changement visible : rien ne doit avoir bougé.'},
@@ -6875,6 +6877,27 @@ function renderInventaire(){
   el.innerHTML = section('🏭 Atelier', atelierRows) + section('🏢 Réserve', reserveRows);
 }
 
+// Pastille rouge : nombre d'articles en stock bas « non commandé » (même règle que Stock > Alertes > Non commandé), pôle affiché
+function alertesNotOrderedCount(){
+  var n = 0;
+  (S.cats || []).forEach(function(cat){
+    ['items','reserve_items'].forEach(function(dbp){
+      (cat[dbp] || []).forEach(function(item){
+        if(!item.linked && isLowStock(item) && !findInProgressOrderForItem(S.orders, item.id)) n++;
+      });
+    });
+  });
+  return n;
+}
+function updateAlertesBadge(){
+  var n = alertesNotOrderedCount();
+  ['alertes-badge-grp','alertes-badge-sub'].forEach(function(id){
+    var elB = document.getElementById(id);
+    if(!elB) return;
+    if(n > 0){ elB.textContent = n > 99 ? '99+' : n; elB.style.display = 'inline-block'; }
+    else { elB.style.display = 'none'; }
+  });
+}
 function updateInventaireBadge(){
   var n = 0;
   // Pastille : demandes d'inventaire des pôles visibles
@@ -6883,7 +6906,7 @@ function updateInventaireBadge(){
       (cat[dbp]||[]).forEach(function(item){ if(!item.linked && item.needsInventoryCheck) n++; });
     });
   });
-  ['inv-badge-grp','inv-badge-sub'].forEach(function(id){
+  ['inv-badge-sub'].forEach(function(id){
     var elB = document.getElementById(id);
     if(!elB) return;
     if(n>0){ elB.textContent = n>99?'99+':n; elB.style.display='inline-block'; }
