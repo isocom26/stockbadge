@@ -532,6 +532,9 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
 #sav-banner.show{display:flex}
 #suivi-banner{display:none;position:fixed;top:0;left:0;right:0;z-index:9999;background:var(--acc);color:#000;font-family:'Open Sans',sans-serif;font-weight:700;font-size:.82rem;padding:10px 14px;align-items:center;justify-content:space-between;gap:10px;cursor:pointer}
 #suivi-banner.show{display:flex}
+#emport-banner{display:none;position:fixed;top:0;left:0;right:0;z-index:9999;background:var(--grn);color:#fff;font-family:'Open Sans',sans-serif;font-weight:700;font-size:.82rem;padding:10px 14px;align-items:center;justify-content:space-between;gap:10px;cursor:pointer}
+#emport-banner.show{display:flex}
+#emport-banner button{background:rgba(255,255,255,.22);color:#fff;border:none;border-radius:8px;padding:6px 10px;font-weight:800;font-size:.82rem;cursor:pointer}
 #suivi-banner button{background:rgba(0,0,0,.15);color:#000;border:none;border-radius:8px;padding:6px 10px;font-weight:800;font-size:.82rem;cursor:pointer}
 #sav-banner button{background:rgba(255,255,255,.22);color:#fff;border:none;border-radius:8px;padding:6px 10px;font-weight:800;font-size:.82rem;cursor:pointer}
 #update-banner button{background:#000;color:var(--acc);border:none;border-radius:8px;padding:6px 14px;font-family:'Open Sans',sans-serif;font-weight:800;font-size:.82rem;cursor:pointer}
@@ -553,6 +556,11 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
 <div id="sav-banner" onclick="savGoToList()">
   <span id="sav-banner-text"></span>
   <button onclick="event.stopPropagation();savDismissBanner()">✕</button>
+</div>
+
+<div id="emport-banner" onclick="emportGoToList()">
+  <span id="emport-banner-text"></span>
+  <button onclick="event.stopPropagation();emportDismissBanner()">✕</button>
 </div>
 
 <div id="suivi-banner" onclick="suiviGoToList()">
@@ -2028,7 +2036,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.11.09-1710';
+var APP_VERSION = '2026.11.10-1430';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -2218,7 +2226,7 @@ document.addEventListener('DOMContentLoaded', function(){
 // chacune un décalage "top" fixe en pixels) sous leur hauteur cumulée, pour
 // ne jamais les cacher — recalculé à chaque affichage/masquage et au
 // redimensionnement (rotation de tablette).
-var TOP_BANNER_ORDER = ['pending-banner', 'sav-banner', 'suivi-banner', 'update-banner', 'backup-reminder-banner'];
+var TOP_BANNER_ORDER = ['pending-banner', 'sav-banner', 'emport-banner', 'suivi-banner', 'update-banner', 'backup-reminder-banner'];
 
 function showTopBanner(bannerOrId){
   var banner = typeof bannerOrId === 'string' ? document.getElementById(bannerOrId) : bannerOrId;
@@ -2849,6 +2857,7 @@ auth.onAuthStateChanged(function(u) {
       newsAutoShow();
       savAlertsUpdate();
       suiviAlertsUpdate();
+      emportAlertsUpdate();
     }).catch(function(err){
       if(isPermDenied(err)) forceSignOutDisabled(u.uid, 'Accès refusé : compte désactivé ou introuvable. Contacte un administrateur.');
       else { try { console.error('Lecture fiche utilisateur :', err); } catch(e){} }
@@ -2856,7 +2865,7 @@ auth.onAuthStateChanged(function(u) {
   } else {
     // Réinitialiser TOUTES les variables utilisateur pour éviter les conflits de cache
     try { if(_selfWatchRef){ _selfWatchRef.off(); _selfWatchRef = null; } } catch(e){}
-    me = null; iAm = false; isDir = false; _newsAuto = false; hideTopBanner('sav-banner'); hideTopBanner('suivi-banner');
+    me = null; iAm = false; isDir = false; _newsAuto = false; hideTopBanner('sav-banner'); hideTopBanner('suivi-banner'); hideTopBanner('emport-banner');
     me_role = 'employee'; me_perms = {}; me_machineType = 'semi'; me_pole = 'badges'; viewPole = 'badges'; permsLoaded = false;
     // Réinitialiser les variables du rapport
     rptUid = null; rptStoreUid = null;
@@ -2966,6 +2975,7 @@ function ecranAutoOpen(tries){
 // Pas de correctif technique invisible ici. tag = qui est concerné :
 //   'all' (tout le monde), 'admin' (admin/direction), 'maint' (maintenance), 'stock' (ajout de stock), 'reprint' (réimpressions)
 var NEWS = [
+  {n:64, d:'10/11/2026', tag:'all', t:'Disponible à l\'emport', x:'Sur la fiche d\'une commande terminée sans colis, nouveau bouton « 🚶 Disponible à l\'emport » : on le coche quand on dépose la commande à l\'accueil. Les personnes ayant le droit « Reçoit les alertes Disponible à l\'emport » (Admin > droits) voient un bandeau. La date d\'emport n\'est plus posée par l\'import EBP : elle est renseignée par ce bouton.'},
   {n:63, d:'09/11/2026', tag:'admin', t:'Sites : TopBadges = TOP, ISO = ISOCOM, plus de « CMD MAIL »', x:'« CMD MAIL » et « TopBadges » ne sont plus proposés comme sites. TopBadges est lu comme TOP et ISO comme ISOCOM partout. Admin › « Harmoniser les sites » : diagnostic (lecture seule) puis fusion des anciennes données, après sauvegarde.'},
   {n:62, d:'09/11/2026', tag:'all', t:'Contrôle qualité : alertes lisibles, statuts de la Recherche', x:'Contrôle qualité : les encarts d\'alerte (réimpression, pôle numérique, bouton) ne sont plus écrasés côte à côte. Recherche : les statuts s\'appellent « Attente production » et « Production en cours », comme dans le Tableau de bord.'},
   {n:61, d:'09/11/2026', tag:'all', t:'Manuel d\'utilisation refait', x:'Nouveau manuel (69 pages) : tous les chapitres, avec captures à jour. Les fenêtres de choix et de formulaire n\'affichent plus la grosse corbeille.'},
@@ -3323,7 +3333,7 @@ var RIGHTS_TREE = [
     {id:'search',     btn:'sub-search',     label:'🔍 Recherche',      actions:[]}
   ]},
   {key:'dashboard', label:'📈 Tableau de bord', def:function(P,d){return d;}, subs:[
-    {id:'dash_recherche',  btn:'dash-tab-recherche',  label:'🔍 Commandes',  actions:['suiviSaisie','suiviConf']},
+    {id:'dash_recherche',  btn:'dash-tab-recherche',  label:'🔍 Commandes',  actions:['suiviSaisie','suiviConf','emportAlert']},
     {id:'dash_synthese',   btn:'dash-tab-synthese',   label:'📋 Synthèse',   actions:[]},
     {id:'dash_aujourdhui', btn:'dash-tab-aujourdhui', label:'🏭 Aujourd\'hui', actions:[]},
     {id:'dash_capacite',   btn:'dash-tab-capacite',   label:'⚡ Capacité',   actions:[]},
@@ -3397,7 +3407,7 @@ var RIGHTS_TEMPLATES = {
   direction: {label:'👔 Direction', desc:'Accès complet sauf Admin et Ma production.', role:'direction', isProducer:false,
     tops:['production','stock','dashboard','maintenance','meeting','planning','stats','espace'],
     subs:['depiautage','reprint','qualite','search','atelier','reserve','alertes','commandes','reception','inventaire','journal','dash_recherche','dash_synthese','dash_aujourdhui','dash_capacite','dash_sav'],
-    actions:['addStock','maintenance','machCats','reprint','orders','reception','sav','maintNotif','savAlert','suiviSaisie','suiviConf','ecranAtelier','planningEdit']},
+    actions:['addStock','maintenance','machCats','reprint','orders','reception','sav','maintNotif','savAlert','emportAlert','suiviSaisie','suiviConf','ecranAtelier','planningEdit']},
   lecture: {label:'👁️ Consultation', desc:'Lecture seule : recherche, stock, tableau de bord (Commandes, Synthèse).', role:'employee', isProducer:false,
     tops:['production','stock','dashboard','planning'],
     subs:['search','atelier','reserve','alertes','dash_recherche','dash_synthese'],
@@ -8544,7 +8554,7 @@ function suiviShipDatesHtml(c){
     seen[key].n++;
   });
   if(!order.length){
-    var lvd = c && c.livraison && c.livraison.mode ? (c.livraison.shipAt || c.livraison.at) : 0;
+    var lvd = c && c.livraison && c.livraison.mode ? c.livraison.shipAt : 0;
     return lvd ? '<span style="color:var(--txt)">'+new Date(lvd).toLocaleDateString('fr-FR')+'</span>' : '<span style="color:var(--mut)">—</span>';
   }
   if(order.length === 1) return '<span style="color:var(--txt)">'+seen[order[0]].t+'</span>';
@@ -8596,8 +8606,17 @@ function dashSuiviBlockHtml(c){
     var lv = c.livraison;
     html += '<div style="margin-top:8px;padding:8px 10px;border:1.5px solid var(--brd);border-radius:10px;font-size:.8rem;display:flex;gap:8px;align-items:center">'+
       '<div style="flex:1;min-width:0">🚶 <strong>'+esc(lv.mode)+'</strong>'+(lv.note ? ' · '+esc(lv.note) : '')+
-      '<div style="font-size:.7rem;color:var(--mut)">le '+new Date(lv.shipAt || lv.at || Date.now()).toLocaleDateString('fr-FR')+(lv.byName ? ' · '+esc(lv.byName) : '')+(lv.bl ? ' · '+esc(lv.bl) : '')+'</div></div>'+
+      '<div style="font-size:.7rem;color:var(--mut)">'+(lv.shipAt ? 'le '+new Date(lv.shipAt).toLocaleDateString('fr-FR') : 'date non renseignée')+(lv.byName ? ' · '+esc(lv.byName) : '')+(lv.bl ? ' · '+esc(lv.bl) : '')+'</div></div>'+
       (canSuiviSaisie() ? '<button onclick="suiviDeleteLivraison(\''+c.id+'\')" title="Retirer" style="background:none;border:1px solid var(--brd);border-radius:8px;color:var(--mut);padding:4px 8px;cursor:pointer">🗑️</button>' : '')+'</div>';
+  }
+  // Disponible à l'emport : posé quand la commande est déposée à l'accueil (alerte aux collaborateurs autorisés)
+  if(c.emportDispo && c.emportDispo.at){
+    var ed = c.emportDispo, edd = new Date(ed.at);
+    html += '<div style="margin-top:8px;padding:8px 10px;border:1.5px solid var(--grn);border-radius:10px;font-size:.8rem;display:flex;gap:8px;align-items:center;background:rgba(5,150,105,.08)">'+
+      '<div style="flex:1;min-width:0">✅ <strong>Disponible à l\'emport</strong><div style="font-size:.7rem;color:var(--mut)">depuis le '+edd.toLocaleDateString('fr-FR')+' à '+edd.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})+(ed.byName ? ' · '+esc(ed.byName) : '')+'</div></div>'+
+      (canSuiviSaisie() ? '<button onclick="emportDispoUndo(\''+c.id+'\')" title="Retirer" style="background:none;border:1px solid var(--brd);border-radius:8px;color:var(--mut);padding:4px 8px;cursor:pointer">✕</button>' : '')+'</div>';
+  } else if(c.status === 'done' && !list.length && canSuiviSaisie()){
+    html += '<button onclick="emportDispoSet(\''+c.id+'\')" style="width:100%;margin-top:8px;padding:9px;border-radius:10px;border:none;background:var(--grn);color:#fff;font-family:Open Sans,sans-serif;font-weight:800;font-size:.84rem;cursor:pointer">🚶 Disponible à l\'emport</button>';
   }
   if(pend.length && canSuiviConf()){
     html += '<button onclick="suiviConfirm(\''+c.id+'\')" style="width:100%;margin-top:8px;padding:9px;border-radius:10px;border:none;background:var(--grn);color:#fff;font-family:Open Sans,sans-serif;font-weight:800;font-size:.84rem;cursor:pointer">✅ Confirmé (mail envoyé)</button>';
@@ -8648,6 +8667,79 @@ function dashLivSubmit(cmdId){
   fbs('commandes/'+cmdId+'/livraison', entry)
     .then(function(){ toast('✅ '+mode+' enregistré'); dashSuiviRefreshAll(cmdId); })
     .catch(function(){ toast('Erreur d\'enregistrement', 1); });
+}
+// ── Disponible à l'emport ──
+// commandes/{id}/emportDispo = {at, byName, byUid, setShip?} ; pose aussi la date de remise (livraison.shipAt) si elle n'existe pas encore.
+function emportDispoSet(cmdId){
+  if(!canSuiviSaisie()) return;
+  var c = ((S_cmdIndex && S_cmdIndex.byId) || {})[cmdId]; if(!c) return;
+  var now = Date.now(), ed = {at:now, byName:getMyName()}, upd = {};
+  if(me && me.uid) ed.byUid = me.uid;
+  if(c.livraison && c.livraison.mode){
+    if(c.livraison.mode === 'Emport' && !c.livraison.shipAt){ upd['livraison/shipAt'] = now; ed.setShip = true; }
+  } else {
+    var lv = {mode:'Emport', at:now, shipAt:now, byName:getMyName(), src:'dispo'};
+    if(me && me.uid) lv.byUid = me.uid;
+    upd['livraison'] = lv; ed.setShip = true;
+  }
+  upd['emportDispo'] = ed;
+  fbu('commandes/'+cmdId, upd)
+    .then(function(){ toast('✅ Disponible à l\'emport'); dashSuiviRefreshAll(cmdId); })
+    .catch(function(){ toast('Erreur d\'enregistrement', 1); });
+}
+function emportDispoUndo(cmdId){
+  if(!canSuiviSaisie()) return;
+  var c = ((S_cmdIndex && S_cmdIndex.byId) || {})[cmdId]; if(!c || !c.emportDispo) return;
+  if(!confirm('Retirer « Disponible à l\'emport » de cette commande ?')) return;
+  var upd = {emportDispo:null};
+  if(c.emportDispo.setShip && c.livraison){ if(c.livraison.src === 'dispo') upd['livraison'] = null; else upd['livraison/shipAt'] = null; }
+  fbu('commandes/'+cmdId, upd).then(function(){ dashSuiviRefreshAll(cmdId); }).catch(function(){ toast('Erreur de suppression', 1); });
+}
+function canEmportAlert(){ return !!(iAm || isDir || (permsLoaded && me_perms && me_perms.emportAlert === true)); }
+function emportSeenKey(){ return 'isoprod_emport_seen_' + (me && me.uid ? me.uid : 'x'); }
+function emportSeenGet(){ try { var v = localStorage.getItem(emportSeenKey()); return v==null ? null : JSON.parse(v); } catch(e){ return null; } }
+function emportSeenSet(ids){ try { localStorage.setItem(emportSeenKey(), JSON.stringify(ids)); } catch(e){} }
+function emportItems(){
+  var byId = (S_cmdIndex && S_cmdIndex.byId) || {}, out = [];
+  Object.keys(byId).forEach(function(cid){
+    var c = byId[cid]; if(c && c.emportDispo && c.emportDispo.at) out.push({id:cid+'@'+c.emportDispo.at, c:c, ed:c.emportDispo});
+  });
+  return out.sort(function(a,b){ return b.ed.at - a.ed.at; });
+}
+var _emportNotified = {};
+function emportAlertsUpdate(){
+  if(!me || !canEmportAlert()){ hideTopBanner('emport-banner'); return; }
+  var items = emportItems(), ids = items.map(function(i){ return i.id; });
+  var seen = emportSeenGet();
+  if(seen === null){ emportSeenSet(ids); seen = ids.slice(); }   // première fois sur cet appareil : l'existant est connu
+  // Mes propres dépôts ne me préviennent pas
+  items.forEach(function(i){ if(me && i.ed.byUid && i.ed.byUid === me.uid && seen.indexOf(i.id) < 0) seen.push(i.id); });
+  seen = seen.filter(function(x){ return ids.indexOf(x) >= 0; });
+  emportSeenSet(seen);
+  var unseen = items.filter(function(i){ return seen.indexOf(i.id) < 0; });
+  if(!unseen.length){ hideTopBanner('emport-banner'); return; }
+  window._emportFirst = unseen[0].c;
+  var lab = function(i){ return i.c.nom || i.c.cmd || '?'; };
+  var tx = document.getElementById('emport-banner-text');
+  if(tx) tx.textContent = unseen.length === 1 ? '🚶 Disponible à l\'emport : ' + lab(unseen[0]) : '🚶 ' + unseen.length + ' commandes disponibles à l\'emport';
+  showTopBanner('emport-banner');
+  unseen.forEach(function(i){
+    if(_emportNotified[i.id]) return; _emportNotified[i.id] = 1;
+    try { showNotif('🚶 Disponible à l\'emport', lab(i), 'emport-' + i.id); } catch(e){}
+  });
+}
+function emportMarkAllSeen(){ emportSeenSet(emportItems().map(function(i){ return i.id; })); hideTopBanner('emport-banner'); }
+function emportDismissBanner(){ emportMarkAllSeen(); }
+// Clic sur le bandeau : Tableau de bord > Commandes, recherche sur la commande concernée
+function emportGoToList(){
+  var c = window._emportFirst, g = document.getElementById('grp-dashboard');
+  emportMarkAllSeen();
+  if(g && g.style.display !== 'none'){
+    switchGroup('dashboard');
+    dashSwitchSection('recherche');
+    var q = document.getElementById('dash-search-q');
+    if(q && c){ q.value = c.cmd || c.nom || ''; if(typeof dashRunSearch === 'function') dashRunSearch(); }
+  }
 }
 function suiviDeleteLivraison(cmdId){
   if(!canSuiviSaisie()) return;
@@ -9446,6 +9538,7 @@ var PERMS_LIST = [
   {key:'sav',         label:'🛠 Peut déclarer un SAV (Tableau de bord)'},
   {key:'maintNotif',  label:'🔔 Reçoit les notifications de maintenance (rappels à faire, 1 message groupé par jour)'},
   {key:'savAlert',   label:'🔔 Reçoit les alertes SAV (bandeau + pastille quand un SAV est déclaré) — admin les reçoit toujours'},
+  {key:'emportAlert', label:'🚶 Reçoit les alertes « Disponible à l\'emport » (bandeau + notification quand une commande est déposée à l\'accueil) — admin et direction les reçoivent toujours'},
   {key:'suiviSaisie', label:'📮 Peut saisir les suivis d\'expédition (colis, n° de suivi) — admin et direction l\'ont toujours'},
   {key:'suiviConf',  label:'✅ Confirme les expéditions et reçoit l\'alerte « à confirmer » (bandeau + pastille CONF) — admin et direction l\'ont toujours'},
   {key:'planningEdit', label:'✏️ Peut modifier le Planning (absences, congés, fermetures, agenda) — admin l\'a toujours ; sans ce droit, le Planning est en consultation'},
@@ -9741,6 +9834,7 @@ function startCmdIndexListener(){
     try { cmdReopenNumPending(raw); } catch(e){}
     if(typeof savAlertsUpdate==='function') savAlertsUpdate();
     if(typeof suiviAlertsUpdate==='function') suiviAlertsUpdate();
+    if(typeof emportAlertsUpdate==='function') emportAlertsUpdate();
     if(curTab==='reprint') renderReprint();
     updateDepUrgentBadge();
     if(curTab==='report' && typeof esupRefreshSlots==='function') esupRefreshSlots();
