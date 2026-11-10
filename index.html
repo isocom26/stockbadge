@@ -624,18 +624,10 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
     <div id="view-atelier" class="view">
       <div class="sw-wrap"><span class="sw-ico">🔍</span><input type="text" id="atelier-search-input" placeholder="Rechercher un format…" oninput="filterZone('atelier')"><button class="sw-clear" id="clear-atelier-search-input" onclick="clearZoneSearch('atelier')">✕</button></div>
       <button id="quick-8054" onclick="zoneQuickSearch('atelier','8054')" style="width:100%;margin-bottom:12px;padding:9px;border-radius:10px;border:1.5px solid var(--brd);background:none;color:var(--txt);font-family:Open Sans,sans-serif;font-weight:700;font-size:0.86rem;cursor:pointer">🔖 Format 8054</button>
-      <div style="display:flex;gap:8px;margin-bottom:12px">
-        <button onclick="exportInventaireCSV('atelier')" style="flex:1;padding:10px;border-radius:10px;border:1.5px solid var(--brd);background:none;color:var(--txt);font-family:Open Sans,sans-serif;font-weight:700;font-size:0.86rem;cursor:pointer">📥 Export CSV</button>
-        <button onclick="exportInventairePDF('atelier')" style="flex:1;padding:10px;border-radius:10px;border:1.5px solid var(--acc);background:none;color:var(--acc);font-family:Open Sans,sans-serif;font-weight:700;font-size:0.86rem;cursor:pointer">📄 Export PDF</button>
-      </div>
       <div id="atelier-list"></div>
     </div>
     <div id="view-reserve" class="view">
       <div class="sw-wrap"><span class="sw-ico">🔍</span><input type="text" id="reserve-search-input" placeholder="Rechercher un format…" oninput="filterZone('reserve')"><button class="sw-clear" id="clear-reserve-search-input" onclick="clearZoneSearch('reserve')">✕</button></div>
-      <div style="display:flex;gap:8px;margin-bottom:12px">
-        <button onclick="exportInventaireCSV('reserve')" style="flex:1;padding:10px;border-radius:10px;border:1.5px solid var(--brd);background:none;color:var(--txt);font-family:Open Sans,sans-serif;font-weight:700;font-size:0.86rem;cursor:pointer">📥 Export CSV</button>
-        <button onclick="exportInventairePDF('reserve')" style="flex:1;padding:10px;border-radius:10px;border:1.5px solid var(--acc);background:none;color:var(--acc);font-family:Open Sans,sans-serif;font-weight:700;font-size:0.86rem;cursor:pointer">📄 Export PDF</button>
-      </div>
       <div id="reserve-list"></div>
     </div>
     <div id="view-detail" class="view">
@@ -777,6 +769,7 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
     <div id="view-alertes" class="view"><div id="alist"></div></div>
     <div id="view-inventaire" class="view">
       <div id="inv-pole-switch" style="display:none;gap:6px;margin-bottom:10px"><button class="mpole-btn active" id="invpole-badges" onclick="invSetPole('badges')">🏷️ Badges</button><button class="mpole-btn" id="invpole-numerique" onclick="invSetPole('numerique')">🖨️ Numérique</button></div>
+      <div id="inv-export-box"></div>
       <div id="invc-box"></div>
       <div id="inv-list"></div>
       <div id="inv-hist-section" style="margin-top:18px">
@@ -1989,7 +1982,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.11.10-1750';
+var APP_VERSION = '2026.11.10-1810';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -2947,6 +2940,7 @@ function ecranAutoOpen(tries){
 // Pas de correctif technique invisible ici. tag = qui est concerné :
 //   'all' (tout le monde), 'admin' (admin/direction), 'maint' (maintenance), 'stock' (ajout de stock), 'reprint' (réimpressions)
 var NEWS = [
+  {n:74, d:'10/11/2026', tag:'all', t:'Stock : exports déplacés dans Inventaire', x:'Les boutons d\'export CSV et PDF du stock ne sont plus dans Atelier et Réserve : ils sont dans Stock › Inventaire, bloc « Exporter le stock » (choix de la famille, puis Atelier ou Réserve).'},
   {n:73, d:'10/11/2026', tag:'all', t:'Connexion : mot de passe oublié', x:'Sur l\'écran de connexion, le lien « Mot de passe oublié ? » envoie par e-mail un lien pour choisir un nouveau mot de passe (saisir d\'abord son adresse e-mail).'},
   {n:72, d:'10/11/2026', tag:'all', t:'Onglets : clic droit « Ouvrir dans un nouvel onglet »', x:'Les onglets et sous-onglets (Stock, Production, Admin, Tableau de bord…) sont de vrais liens : clic droit ou Ctrl+clic pour ouvrir un écran dans un nouvel onglet du navigateur, ou copier son adresse. Le clic normal ne change pas.'},
   {n:71, d:'10/11/2026', tag:'all', t:'Stock › Alertes : pastille par famille', x:'Sous Alertes, chaque famille (Badges & Dérivés, Porte-clés, Pins, Divers…) affiche en rouge son nombre d\'articles en stock bas non commandés.'},
@@ -6398,10 +6392,10 @@ function pdfTableHead(extra){
 // par un seul bouton qui lançait les deux téléchargements d'un coup — le
 // navigateur bloquait ou perdait silencieusement le second fichier
 // (généralement le CSV) quand les deux partaient dans le même clic.
-function buildInventaireExportData(zone){
+function buildInventaireExportData(zone, famOpt){
   var dbp = zone==='atelier' ? 'items' : 'reserve_items';
   var zoneLabel = zone==='atelier' ? 'Atelier' : 'Réserve';
-  var fam = zoneFamille[zone] || 'badge_magnet';
+  var fam = famOpt || zoneFamille[zone] || 'badge_magnet';
   var famLbl = famLabel(fam).replace(/^\S+\s/, '').replace('&amp;','&');
   zoneLabel = zoneLabel + ' · ' + famLbl;
   var dateLabel = new Date().toLocaleDateString('fr-FR');
@@ -6440,8 +6434,8 @@ function buildInventaireExportData(zone){
   return {unit:u, zone:zone, dbp:dbp, zoneLabel:zoneLabel, fam:fam, famLbl:famLbl, dateLabel:dateLabel, catsData:catsData, expandItemRows:expandItemRows};
 }
 
-function exportInventaireCSV(zone){
-  var d = buildInventaireExportData(zone);
+function exportInventaireCSV(zone, fam){
+  var d = buildInventaireExportData(zone, fam);
   if(!d.catsData.length){ toast('Aucune référence dans cette zone', 1); return; }
 
   var csvRows = [['Catégorie','Référence','Pièces/'+d.unit,uCap(d.unit)+'s (théorique)','Pièces (théorique)',uCap(d.unit)+'s comptés','Pièces comptées','Écart (pièces)']];
@@ -6463,8 +6457,8 @@ function exportInventaireCSV(zone){
   toast('✅ CSV exporté !');
 }
 
-function exportInventairePDF(zone){
-  var d = buildInventaireExportData(zone);
+function exportInventairePDF(zone, fam){
+  var d = buildInventaireExportData(zone, fam);
   if(!d.catsData.length){ toast('Aucune référence dans cette zone', 1); return; }
   var zoneLabel = d.zoneLabel, fam = d.fam, dateLabel = d.dateLabel, catsData = d.catsData, expandItemRows = d.expandItemRows;
 
@@ -6851,10 +6845,31 @@ function invCleanStaleFlags(){
     });
   });
 }
+// Export du stock (CSV / PDF) : regroupé dans l'onglet Inventaire, par famille et par emplacement
+var invExportFam = null;
+function invExportFams(){ var p = invPole(); return STOCK_FAMS.filter(function(f){ return f[2] === p; }); }
+function invExportBoxRender(){
+  var box = document.getElementById('inv-export-box'); if(!box) return;
+  var fams = invExportFams();
+  if(!fams.length){ box.innerHTML = ''; return; }
+  if(!invExportFam || !fams.some(function(f){ return f[0] === invExportFam; })) invExportFam = fams[0][0];
+  var bs = 'flex:1;padding:10px;border-radius:10px;background:none;font-family:Open Sans,sans-serif;font-weight:700;font-size:.84rem;cursor:pointer;';
+  function btn(zone, kind){
+    var csv = kind === 'csv';
+    return '<button onclick="export'+(csv?'InventaireCSV':'InventairePDF')+'(\''+zone+'\', invExportFam)" style="'+bs+'border:1.5px solid '+(csv?'var(--brd)':'var(--acc)')+';color:'+(csv?'var(--txt)':'var(--acc)')+'">'+(csv?'📥 CSV':'📄 PDF')+'</button>';
+  }
+  box.innerHTML = '<div class="inv-card" style="margin-bottom:12px">'+
+    '<div style="font-family:Open Sans,sans-serif;font-weight:800;font-size:.9rem;margin-bottom:8px">📤 Exporter le stock</div>'+
+    '<select id="inv-export-fam" onchange="invExportFam=this.value" style="width:100%;padding:9px;border-radius:10px;border:1.5px solid var(--brd);background:var(--card);color:var(--txt);font-family:Open Sans,sans-serif;font-weight:700;font-size:.84rem;margin-bottom:8px">'+
+      fams.map(function(f){ return '<option value="'+f[0]+'"'+(f[0] === invExportFam ? ' selected' : '')+'>'+f[1]+'</option>'; }).join('')+'</select>'+
+    '<div style="font-size:.74rem;color:var(--mut);margin-bottom:4px">🏭 Atelier</div><div style="display:flex;gap:8px;margin-bottom:8px">'+btn('atelier','csv')+btn('atelier','pdf')+'</div>'+
+    '<div style="font-size:.74rem;color:var(--mut);margin-bottom:4px">🏢 Réserve</div><div style="display:flex;gap:8px">'+btn('reserve','csv')+btn('reserve','pdf')+'</div></div>';
+}
 function renderInventaire(){
   var el = document.getElementById('inv-list');
   if(!el) return;
   invApplyPole();
+  invExportBoxRender();
   invcPick();
   invcRender();
   invCleanStaleFlags();
