@@ -1986,7 +1986,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.11.10-1615';
+var APP_VERSION = '2026.11.10-1700';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -2926,6 +2926,7 @@ function ecranAutoOpen(tries){
 // Pas de correctif technique invisible ici. tag = qui est concerné :
 //   'all' (tout le monde), 'admin' (admin/direction), 'maint' (maintenance), 'stock' (ajout de stock), 'reprint' (réimpressions)
 var NEWS = [
+  {n:71, d:'10/11/2026', tag:'all', t:'Stock › Alertes : pastille par famille', x:'Sous Alertes, chaque famille (Badges & Dérivés, Porte-clés, Pins, Divers…) affiche en rouge son nombre d\'articles en stock bas non commandés.'},
   {n:70, d:'10/11/2026', tag:'all', t:'Stock : « Approvisionnement », plus de sous-onglet Réception', x:'Le sous-onglet « Commandes » du Stock (commandes aux fournisseurs) s\'appelle « Approvisionnement », pour ne plus le confondre avec les commandes clients. Le sous-onglet « Réception » disparaît : on réceptionne directement depuis Approvisionnement, avec le bouton « Réceptionner » de la commande (même fenêtre qu\'avant).'},
   {n:69, d:'10/11/2026', tag:'all', t:'Stock : « Mouvements de stock »', x:'Le sous-onglet « Journal » du Stock s\'appelle maintenant « Mouvements de stock » (même contenu).'},
   {n:68, d:'10/11/2026', tag:'all', t:'Stock : pastille rouge des alertes', x:'Une pastille rouge indique le nombre d\'articles en stock bas « non commandé » sur l\'onglet Stock et sur le sous-onglet Alertes. Elle remplace sur l\'onglet Stock celle des inventaires, qui reste sur le sous-onglet Inventaire.'},
@@ -3720,7 +3721,10 @@ function zoneFamilleTabsHtml(zone){
   var fam = zoneFamille[zone] || 'badge_magnet';
   function pill(val, label){
     var active = fam===val;
-    return '<button onclick="switchZoneFamille(\''+zone+'\',\''+val+'\')" style="flex:1;padding:8px;border-radius:9px;border:1.5px solid '+(active?'var(--acc)':'var(--brd)')+';background:'+(active?'var(--acc)':'none')+';color:'+(active?'#000':'var(--mut)')+';font-family:Open Sans,sans-serif;font-weight:700;font-size:0.82rem;cursor:pointer">'+label+'</button>';
+    // Sous Alertes : pastille rouge = articles en stock bas « non commandé » de la famille
+    var nb = '';
+    if(zone==='alertes'){ var n = alertesNotOrderedCount(val); if(n>0) nb = ' <span style="display:inline-block;min-width:18px;padding:1px 6px;border-radius:9px;background:var(--red);color:#fff;font-size:.68rem;font-weight:800;line-height:1.3">'+(n>99?'99+':n)+'</span>'; }
+    return '<button onclick="switchZoneFamille(\''+zone+'\',\''+val+'\')" style="flex:1;padding:8px;border-radius:9px;border:1.5px solid '+(active?'var(--acc)':'var(--brd)')+';background:'+(active?'var(--acc)':'none')+';color:'+(active?'#000':'var(--mut)')+';font-family:Open Sans,sans-serif;font-weight:700;font-size:0.82rem;cursor:pointer">'+label+nb+'</button>';
   }
   return '<div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap">'+famsInView().map(function(f){ return pill(f[0], f[1]); }).join('')+'</div>';
 }
@@ -6854,9 +6858,10 @@ function renderInventaire(){
 }
 
 // Pastille rouge : nombre d'articles en stock bas « non commandé » (même règle que Stock > Alertes > Non commandé), pôle affiché
-function alertesNotOrderedCount(){
+function alertesNotOrderedCount(fam){
   var n = 0;
   (S.cats || []).forEach(function(cat){
+    if(fam && catFamille(cat) !== fam) return;
     ['items','reserve_items'].forEach(function(dbp){
       (cat[dbp] || []).forEach(function(item){
         if(!item.linked && isLowStock(item) && !findInProgressOrderForItem(S.orders, item.id)) n++;
