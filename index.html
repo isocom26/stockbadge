@@ -1985,7 +1985,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.11.10-1920';
+var APP_VERSION = '2026.11.10-1945';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -2943,6 +2943,7 @@ function ecranAutoOpen(tries){
 // Pas de correctif technique invisible ici. tag = qui est concerné :
 //   'all' (tout le monde), 'admin' (admin/direction), 'maint' (maintenance), 'stock' (ajout de stock), 'reprint' (réimpressions)
 var NEWS = [
+  {n:78, d:'10/11/2026', tag:'admin', t:'Statistiques : l\'encart « Année vs année précédente » compte le mois en cours', x:'L\'encart en avance / en retard inclut maintenant le mois en cours : production réelle jusqu\'à hier contre le même mois de l\'an dernier ramené au prorata des jours ouvrés écoulés (estimation, à partir de 3 jours ouvrés). Le tableau mois par mois ne change pas.'},
   {n:77, d:'10/11/2026', tag:'admin', t:'Planning : choisir qui apparaît', x:'Dans Admin › Droits, la fiche de chaque compte a une case « Apparaît dans le Planning (absences, congés) ». Décochée (tablettes, écrans, comptes partagés), le compte disparaît des listes du Planning. Par défaut tout le monde apparaît, comme avant.'},
   {n:76, d:'10/11/2026', tag:'maint', t:'Maintenance : fiche machine en tableaux', x:'Dans la fiche d\'une machine, les rappels (fréquence, assigné, dernier fait, prochain) et l\'historique des interventions (date, type, description, par, coût, total) s\'affichent en tableaux ; rappels en retard en haut. Cartes conservées sur téléphone.'},
   {n:75, d:'10/11/2026', tag:'maint', t:'Maintenance : vue en tableau', x:'Les machines s\'affichent en tableau (statut, rappels échus ou prochain rappel, dernière intervention, nombre d\'interventions sur 30 jours). Les machines en panne ou avec un rappel échu sont en haut, surlignées ; clic sur un en-tête pour trier. Sur téléphone, les cartes sont conservées.'},
@@ -17603,12 +17604,32 @@ function statsYearCompareCalc(mN, mN1, year, lastMonth, histo, excl){
   }
   return {rows:rows, cumN:cumN, cumN1:cumN1, diff:cumN-cumN1, pct:statsPct(cumN, cumN1), lastMonth:lastMonth};
 }
+// Mois en cours, comparé au même mois de N-1 AU PRORATA des jours ouvrés écoulés (N-1 n'existe qu'au total du mois avant juillet 2026).
+// n = production réelle du 1er du mois à hier ; p1 = total du même mois en N-1 ; days = jours ouvrés écoulés ; total = jours ouvrés du mois.
+// Renvoie null si l'estimation serait trop fragile (moins de 3 jours ouvrés écoulés, pas de base N-1).
+var STATS_PART_MIN_DAYS = 3;
+function statsPartialCompare(n, p1, days, total){
+  if(!(days >= STATS_PART_MIN_DAYS) || !(total > 0) || !(p1 > 0)) return null;
+  var d = Math.min(days, total);
+  return {n:n||0, exp:Math.round(p1 * d / total), p1:p1, days:d, total:total};
+}
 var STATS_MOIS_COURTS = ['janv.','févr.','mars','avr.','mai','juin','juil.','août','sept.','oct.','nov.','déc.'];
 var EBP_TAG = ' <span title="Ventes EBP" style="font-size:.6rem;font-weight:700;color:var(--acc)">EBP</span>';
 function statsYearCompareHtml(calc, year, curMonth){
   var fr = function(v){ return v.toLocaleString('fr-FR'); };
   var h = '';
-  if(calc.lastMonth < 0){
+  var part = calc.part || null;
+  if(part){
+    // Encart : mois complets + mois en cours (production réelle jusqu'à hier) contre N-1 au prorata des jours ouvrés
+    var cN = calc.cumN + part.n, cP = calc.cumN1 + part.exp, dF = cN - cP, pc = statsPct(cN, cP);
+    var upP = dF >= 0, colP = upP ? 'var(--grn)' : 'var(--red)';
+    var jusqua = STATS_MOIS_COURTS[curMonth]+' ('+part.days+' j ouvrés sur '+part.total+')';
+    h += '<div style="background:var(--card);border:1.5px solid '+colP+';border-radius:12px;padding:12px;margin-bottom:10px;text-align:center">'
+      +'<div style="font-family:Open Sans,sans-serif;font-weight:800;font-size:1.05rem;color:'+colP+'">'+(upP?'↑ En avance':'↓ En retard')+' de '+fr(Math.abs(dF))+' pcs'+(pc===null?'':' ('+(upP?'+':'−')+Math.abs(pc)+' %')+(pc===null?'':')')+'</div>'
+      +'<div style="font-size:.76rem;color:var(--mut);margin-top:4px">Cumul janv. → '+jusqua+' : '+fr(cN)+' pcs en '+year+' contre '+fr(cP)+' pcs en '+(year-1)+'</div>'
+      +'<div style="font-size:.7rem;color:var(--mut);margin-top:3px">Estimation : '+STATS_MOIS_COURTS[curMonth]+' '+(year-1)+' ('+fr(part.p1)+' pcs) est ramené au prorata des jours ouvrés écoulés ; '+STATS_MOIS_COURTS[curMonth]+' '+year+' = production réelle jusqu\'à hier.</div>'
+    +'</div>';
+  } else if(calc.lastMonth < 0){
     h += '<div style="font-size:.82rem;color:var(--mut);margin-bottom:10px">Aucun mois complet pour l\'instant cette année : le cumul sera disponible le mois prochain.</div>';
   } else if(calc.cumN1 <= 0){
     h += '<div style="font-size:.82rem;color:var(--mut);margin-bottom:10px">Pas encore de données '+(year-1)+' pour comparer. Cumul '+year+' (janv. → '+STATS_MOIS_COURTS[calc.lastMonth]+') : <b>'+fr(calc.cumN)+' pcs</b>.</div>';
@@ -17633,7 +17654,7 @@ function statsYearCompareHtml(calc, year, curMonth){
       +'<td style="padding:5px 2px;color:var(--mut)">'+(r.n1?fr(r.n1):'—')+(r.n1&&r.srcN1==='ebp'?EBP_TAG:'')+'</td>'
       +'<td style="padding:5px 2px">'+ecart+'</td></tr>';
   });
-  h += '</table></div><div style="font-size:.7rem;color:var(--mut);margin-top:6px">Le mois en cours n\'est pas compté dans l\'avance / le retard (il serait incomplet face à un mois entier).'
+  h += '</table></div><div style="font-size:.7rem;color:var(--mut);margin-top:6px">'+(part ? 'Le mois en cours est compté dans l\'encart au prorata des jours ouvrés (estimation) ; sa ligne ci-dessus reste la production réelle du mois.' : 'Le mois en cours n\'est pas compté dans l\'avance / le retard (moins de '+STATS_PART_MIN_DAYS+' jours ouvrés écoulés, ou pas de base N-1).')
     + (calc.rows.some(function(r){ return r.srcN==='ebp' || r.srcN1==='ebp'; }) ? '<br><span style="color:var(--acc);font-weight:700">EBP</span> = ventes EBP (volumes vendus). Avant juillet 2026, l\'app n\'a pas toute la production : on affiche les ventes. À partir de juillet 2026, ce sont les pièces produites dans l\'app.' : '')
     + '</div>';
   return h;
@@ -17651,21 +17672,32 @@ function statsLoadYearCompare(){
   box.innerHTML = '<div style="text-align:center;color:var(--mut);padding:12px;font-size:.82rem">🔍 Chargement de deux années…</div>';
   var fromKey = (year-1)+'-01-01', toKey = year+'-12-31';
   var histoP = fbg('stats_histo').then(function(sn){ return sn.val() || null; }).catch(function(){ return null; });
+  // Mois en cours : production réelle du 1er à hier (aujourd'hui exclu, journée incomplète), pour l'encart au prorata
+  var ymCur = (curMonth >= 0 && curMonth <= 11) ? year+'-'+String(curMonth+1).padStart(2,'0') : null;
+  var firstKey = ymCur ? ymCur+'-01' : null, ydayKey = ymCur ? dashDateKey(new Date(now.getFullYear(), now.getMonth(), now.getDate()-1)) : null;
+  var partOk = !!(ymCur && ydayKey >= firstKey);
   fbg('users').then(function(us){
     var users = us.val() || {};
-    var acc = {};
+    var acc = {}, accCur = {};
     return Promise.all(Object.keys(users).map(function(uid){
       var u = users[uid];
       var hasProd = u.role === 'admin' || (u.perms && u.perms.production);
       if(!hasProd || (pf && uid !== pf)) return null;
       var path = (u.role === 'admin' ? 'reports_admin/' : 'reports/') + uid;
       return fbgRange(path, rptWeekKey(new Date(new Date(fromKey+'T00:00:00').getTime() - 6*86400000)), toKey).then(function(snap){
-        statsMonthsFromReports(snap.val() || {}, fromKey, toKey, acc);
+        var data = snap.val() || {};
+        statsMonthsFromReports(data, fromKey, toKey, acc);
+        if(partOk) statsMonthsFromReports(data, firstKey, ydayKey, accCur);
       });
-    })).then(function(){ return Promise.all([acc, histoP]); });
+    })).then(function(){ return Promise.all([acc, histoP, accCur]); });
   }).then(function(res){
-    var acc = res[0], histo = res[1];
+    var acc = res[0], histo = res[1], accCur = res[2];
     var calc = statsYearCompareCalc(acc, acc, year, lastMonth, histo, statsHistoExcl());
+    if(partOk){
+      var days = 0, total = 0, dd = new Date(year, curMonth, 1);
+      while(dd.getMonth() === curMonth){ if(dashIsWorkingDay(dd)){ total++; if(dashDateKey(dd) <= ydayKey) days++; } dd.setDate(dd.getDate()+1); }
+      calc.part = statsPartialCompare(accCur[ymCur] || 0, calc.rows[curMonth].n1, days, total);
+    }
     box.innerHTML = statsYearCompareHtml(calc, year, curMonth === 99 ? -1 : curMonth);
   }).catch(function(){
     box.innerHTML = '<div style="color:var(--red);font-size:.82rem;padding:8px">❌ Chargement impossible — réessaie.</div>';
