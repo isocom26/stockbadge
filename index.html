@@ -1985,7 +1985,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.11.10-1840';
+var APP_VERSION = '2026.11.10-1900';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -2943,6 +2943,7 @@ function ecranAutoOpen(tries){
 // Pas de correctif technique invisible ici. tag = qui est concerné :
 //   'all' (tout le monde), 'admin' (admin/direction), 'maint' (maintenance), 'stock' (ajout de stock), 'reprint' (réimpressions)
 var NEWS = [
+  {n:76, d:'10/11/2026', tag:'maint', t:'Maintenance : fiche machine en tableaux', x:'Dans la fiche d\'une machine, les rappels (fréquence, assigné, dernier fait, prochain) et l\'historique des interventions (date, type, description, par, coût, total) s\'affichent en tableaux ; rappels en retard en haut. Cartes conservées sur téléphone.'},
   {n:75, d:'10/11/2026', tag:'maint', t:'Maintenance : vue en tableau', x:'Les machines s\'affichent en tableau (statut, rappels échus ou prochain rappel, dernière intervention, nombre d\'interventions sur 30 jours). Les machines en panne ou avec un rappel échu sont en haut, surlignées ; clic sur un en-tête pour trier. Sur téléphone, les cartes sont conservées.'},
   {n:74, d:'10/11/2026', tag:'all', t:'Stock : exports déplacés dans Inventaire', x:'Les boutons d\'export CSV et PDF du stock ne sont plus dans Atelier et Réserve : ils sont dans Stock › Inventaire, bloc « Exporter le stock » (choix de la famille, puis Atelier ou Réserve).'},
   {n:73, d:'10/11/2026', tag:'all', t:'Connexion : mot de passe oublié', x:'Sur l\'écran de connexion, le lien « Mot de passe oublié ? » envoie par e-mail un lien pour choisir un nouveau mot de passe (saisir d\'abord son adresse e-mail).'},
@@ -13749,7 +13750,7 @@ function renderMachHistory(m){
     return;
   }
 
-  el.innerHTML = interventions.map(function(i){
+  var cardsHtml = interventions.map(function(i){
     var d = i.date ? new Date(i.date).toLocaleDateString('fr-FR') : '—';
     var isPresta = i.intervenant_type === 'prestataire';
     var coutTotal = (parseFloat(i.prix_prestation)||0) + (parseFloat(i.prix_pieces)||0);
@@ -13767,6 +13768,21 @@ function renderMachHistory(m){
         (coutTotal>0?' · 💰 <strong style="color:var(--txt)">'+coutTotal.toFixed(2)+' €</strong>':'')+'</div>'+
     '</div>';
   }).join('');
+  el.innerHTML = '<div class="maint-tbl">'+machHistoryTableHtml(interventions)+'</div><div class="maint-cards">'+cardsHtml+'</div>';
+}
+function machHistoryTableHtml(interventions){
+  var total = 0;
+  var th = ['DATE','TYPE','DESCRIPTION','PAR','COÛT'].map(function(h){ return '<th style="'+MACH_TH+'">'+h+'</th>'; }).join('');
+  var tr = interventions.map(function(i){
+    var c = (parseFloat(i.prix_prestation)||0) + (parseFloat(i.prix_pieces)||0); total += c;
+    return '<tr style="border-bottom:1px solid var(--brd)">'+
+      '<td style="padding:9px;white-space:nowrap">'+(i.date ? new Date(i.date).toLocaleDateString('fr-FR') : '—')+'</td>'+
+      '<td style="padding:9px;font-weight:700;white-space:nowrap">'+esc(i.type||'')+(i.intervenant_type==='prestataire' ? ' <span style="font-size:.68rem;padding:2px 7px;border-radius:5px;background:rgba(59,130,246,.12);color:#1d4ed8">Prestataire</span>' : '')+'</td>'+
+      '<td style="padding:9px">'+esc(i.desc||'')+'</td>'+
+      '<td style="padding:9px">'+esc(i.by||'—')+'</td>'+
+      '<td style="padding:9px;text-align:right;white-space:nowrap">'+(c>0 ? c.toFixed(2)+' €' : '—')+'</td></tr>';
+  }).join('');
+  return '<div class="dash-tbl-wrap"><table style="width:100%;min-width:620px;border-collapse:collapse;font-size:.8rem"><thead><tr style="text-align:left;border-bottom:1.5px solid var(--brd)">'+th+'</tr></thead><tbody>'+tr+'</tbody><tfoot><tr><td colspan="4" style="padding:9px;text-align:right;font-weight:800">Total</td><td style="padding:9px;text-align:right;font-weight:800;white-space:nowrap">'+total.toFixed(2)+' €</td></tr></tfoot></table></div>';
 }
 
 // ── Ajouter intervention ──
@@ -16316,7 +16332,7 @@ function renderMachReminders(m){
     el.innerHTML = '<div style="color:var(--mut);font-size:.8rem;padding:10px 12px;background:var(--card);border-radius:10px;border:1.5px dashed var(--brd);text-align:center">Aucun rappel configuré</div>';
     return;
   }
-  el.innerHTML = reminders.map(function(r){
+  var cardsHtml = reminders.map(function(r){
     var status = getMachReminderStatus(r);
     var isDue = status === 'due';
     var freq = REMINDER_FREQS.find(function(f){ return f.days === r.freqDays; });
@@ -16344,6 +16360,30 @@ function renderMachReminders(m){
         : '')+
     '</div>';
   }).join('');
+  // PC / tablette : tableau ; téléphone : cartes (bascule par CSS, comme la liste des machines)
+  el.innerHTML = '<div class="maint-tbl">'+machRemindersTableHtml(reminders)+'</div><div class="maint-cards">'+cardsHtml+'</div>';
+}
+var MACH_TH = 'padding:7px 9px;color:var(--mut);font-family:Open Sans,sans-serif;font-size:0.71rem;font-weight:800;letter-spacing:.03em;white-space:nowrap';
+function machRemindersTableHtml(reminders){
+  var canEdit = canMaintain() || iAm || isDir;
+  var rows = reminders.map(function(r){
+    var due = getMachReminderStatus(r) === 'due';
+    return {r:r, due:due, next:(r.lastDoneAt ? r.lastDoneAt + r.freqDays*86400000 : 0)};
+  }).sort(function(a,b){ return ((b.due?1:0)-(a.due?1:0)) || (a.next-b.next); });
+  var th = ['RAPPEL','FRÉQUENCE','ASSIGNÉ À','DERNIER FAIT','PROCHAIN'].concat(canEdit ? [''] : []).map(function(h){ return '<th style="'+MACH_TH+'">'+h+'</th>'; }).join('');
+  var tr = rows.map(function(x){
+    var r = x.r;
+    var freq = REMINDER_FREQS.find(function(f){ return f.days === r.freqDays; });
+    return '<tr style="border-bottom:1px solid var(--brd);'+(x.due?'background:rgba(239,68,68,.07)':'')+'">'+
+      '<td style="padding:9px;font-weight:700">'+esc(r.desc)+'</td>'+
+      '<td style="padding:9px;white-space:nowrap">'+(freq ? freq.label : r.freqDays+' jours')+'</td>'+
+      '<td style="padding:9px">'+esc(r.assignedTo||'Non assigné')+'</td>'+
+      '<td style="padding:9px;white-space:nowrap">'+(r.lastDoneAt ? new Date(r.lastDoneAt).toLocaleDateString('fr-FR') : 'Jamais')+'</td>'+
+      '<td style="padding:9px;white-space:nowrap">'+(x.due ? '<span style="font-weight:800;color:var(--red)">🔔 À faire</span>' : '<span style="color:var(--grn);font-weight:700">'+new Date(x.next).toLocaleDateString('fr-FR')+'</span>')+'</td>'+
+      (canEdit ? '<td style="padding:9px;white-space:nowrap;text-align:right"><button style="padding:5px 10px;border-radius:8px;border:none;background:var(--grn);color:#000;font-family:Open Sans,sans-serif;font-weight:700;font-size:.78rem;cursor:pointer" onclick="markReminderDone(\''+r.id+'\')">✅ Fait</button> <button style="padding:5px 8px;border-radius:8px;border:1px solid var(--red);background:none;color:var(--red);font-size:.75rem;cursor:pointer" onclick="askDelReminder(\''+r.id+'\')">🗑</button></td>' : '')+
+    '</tr>';
+  }).join('');
+  return '<div class="dash-tbl-wrap"><table style="width:100%;min-width:620px;border-collapse:collapse;font-size:.8rem"><thead><tr style="text-align:left;border-bottom:1.5px solid var(--brd)">'+th+'</tr></thead><tbody>'+tr+'</tbody></table></div>';
 }
 
 function openAddReminder(){
