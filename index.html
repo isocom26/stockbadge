@@ -89,6 +89,7 @@ header{background:var(--sur);border-bottom:1px solid var(--brd);padding:12px 16p
 .tab-groups-bar{display:flex;gap:4px;padding:8px 12px;border-bottom:1px solid var(--brd);background:var(--sur);position:sticky;top:53px;z-index:100;overflow-x:auto;scrollbar-width:none}
 .tab-groups-bar::-webkit-scrollbar{display:none}
 .tab-group-btn{font-family:Open Sans,sans-serif;font-weight:700;font-size:0.78rem;letter-spacing:.04em;text-transform:uppercase;padding:7px 13px;border-radius:10px;border:1.5px solid transparent;cursor:pointer;white-space:nowrap;background:none;color:var(--mut);transition:all .15s;flex-shrink:0}
+.tab-group-btn,.tab-sub-btn{text-decoration:none;display:inline-block;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 .tab-group-btn.active{background:var(--acc);color:#000;border-color:var(--acc)}
 .tab-sub-bar{display:flex;gap:4px;padding:6px 12px;border-bottom:1px solid var(--brd);background:var(--bg);position:sticky;top:93px;z-index:99;overflow-x:auto;scrollbar-width:none}
 .tab-sub-bar::-webkit-scrollbar{display:none}
@@ -586,36 +587,36 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
   </header>
   <!-- BARRE 1 : Groupes -->
 <div class="tab-groups-bar">
-  <button class="tab-group-btn active" id="grp-production" onclick="switchGroup('production')">🏭 Production</button>
-  <button class="tab-group-btn ao" id="grp-dashboard" style="display:none" onclick="switchGroup('dashboard')">📈 Tableau de bord</button>
-  <button class="tab-group-btn" id="grp-stock" onclick="switchGroup('stock')">📦 Stock<span id="alertes-badge-grp" class="tab-badge" style="display:none">0</span></button>
-  <button class="tab-group-btn ao" id="grp-maintenance" style="display:none" onclick="switchGroup('maintenance')">🔩 Maintenance</button>
-  <button class="tab-group-btn ao" id="grp-meeting" style="display:none" onclick="switchGroup('meeting')">📅 Réunions</button>
-  <button class="tab-group-btn ao" id="grp-planning" style="display:none" onclick="switchGroup('planning')">🗓️ Planning</button>
-  <button class="tab-group-btn ao" id="grp-stats" style="display:none" onclick="switchGroup('stats')">📊 Statistiques</button>
-  <button class="tab-group-btn ao" id="grp-espace" style="display:none" onclick="switchGroup('espace')">📋 Mon Espace</button>
-  <button class="tab-group-btn ao" id="grp-admin" style="display:none" onclick="switchGroup('admin')">🔧 Admin</button>
+  <a href="#/production" data-route="production" class="tab-group-btn active" id="grp-production" onclick="if(tabLinkNew(event))return true;switchGroup('production');return false">🏭 Production</a>
+  <a href="#/dashboard" data-route="dashboard" class="tab-group-btn ao" id="grp-dashboard" style="display:none" onclick="if(tabLinkNew(event))return true;switchGroup('dashboard');return false">📈 Tableau de bord</a>
+  <a href="#/stock" data-route="stock" class="tab-group-btn" id="grp-stock" onclick="if(tabLinkNew(event))return true;switchGroup('stock');return false">📦 Stock<span id="alertes-badge-grp" class="tab-badge" style="display:none">0</span></a>
+  <a href="#/maintenance" data-route="maintenance" class="tab-group-btn ao" id="grp-maintenance" style="display:none" onclick="if(tabLinkNew(event))return true;switchGroup('maintenance');return false">🔩 Maintenance</a>
+  <a href="#/meeting" data-route="meeting" class="tab-group-btn ao" id="grp-meeting" style="display:none" onclick="if(tabLinkNew(event))return true;switchGroup('meeting');return false">📅 Réunions</a>
+  <a href="#/planning" data-route="planning" class="tab-group-btn ao" id="grp-planning" style="display:none" onclick="if(tabLinkNew(event))return true;switchGroup('planning');return false">🗓️ Planning</a>
+  <a href="#/stats" data-route="stats" class="tab-group-btn ao" id="grp-stats" style="display:none" onclick="if(tabLinkNew(event))return true;switchGroup('stats');return false">📊 Statistiques</a>
+  <a href="#/espace" data-route="espace" class="tab-group-btn ao" id="grp-espace" style="display:none" onclick="if(tabLinkNew(event))return true;switchGroup('espace');return false">📋 Mon Espace</a>
+  <a href="#/admin" data-route="admin" class="tab-group-btn ao" id="grp-admin" style="display:none" onclick="if(tabLinkNew(event))return true;switchGroup('admin');return false">🔧 Admin</a>
 </div>
 <!-- BARRE 2 : Sous-onglets du groupe actif -->
 <div class="tab-sub-bar" id="sub-bar-stock" style="display:none">
-  <button class="tab-sub-btn active" id="sub-atelier" onclick="switchSubTab('atelier',this)">🏭 Atelier</button>
-  <button class="tab-sub-btn" id="sub-reserve" onclick="switchSubTab('reserve',this)">🏢 Réserve</button>
-  <button class="tab-sub-btn" id="sub-alertes" onclick="switchSubTab('alertes',this)">⚠️ Alertes<span id="alertes-badge-sub" class="tab-badge" style="display:none">0</span></button>
-  <button class="tab-sub-btn ao" id="sub-commandes" style="display:none" onclick="switchSubTab('commandes',this)">🛒 Approvisionnement</button>
-  <button class="tab-sub-btn ao" id="sub-inventaire" style="display:none" onclick="switchSubTab('inventaire',this)">📋 Inventaire<span id="inv-badge-sub" class="tab-badge" style="display:none">0</span></button>
-  <button class="tab-sub-btn ao" id="sub-journal" style="display:none" onclick="switchSubTab('journal',this)">🔄 Mouvements de stock</button>
+  <a href="#/atelier" data-route="atelier" class="tab-sub-btn active" id="sub-atelier" onclick="if(tabLinkNew(event))return true;switchSubTab('atelier',this);return false">🏭 Atelier</a>
+  <a href="#/reserve" data-route="reserve" class="tab-sub-btn" id="sub-reserve" onclick="if(tabLinkNew(event))return true;switchSubTab('reserve',this);return false">🏢 Réserve</a>
+  <a href="#/alertes" data-route="alertes" class="tab-sub-btn" id="sub-alertes" onclick="if(tabLinkNew(event))return true;switchSubTab('alertes',this);return false">⚠️ Alertes<span id="alertes-badge-sub" class="tab-badge" style="display:none">0</span></a>
+  <a href="#/commandes" data-route="commandes" class="tab-sub-btn ao" id="sub-commandes" style="display:none" onclick="if(tabLinkNew(event))return true;switchSubTab('commandes',this);return false">🛒 Approvisionnement</a>
+  <a href="#/inventaire" data-route="inventaire" class="tab-sub-btn ao" id="sub-inventaire" style="display:none" onclick="if(tabLinkNew(event))return true;switchSubTab('inventaire',this);return false">📋 Inventaire<span id="inv-badge-sub" class="tab-badge" style="display:none">0</span></a>
+  <a href="#/journal" data-route="journal" class="tab-sub-btn ao" id="sub-journal" style="display:none" onclick="if(tabLinkNew(event))return true;switchSubTab('journal',this);return false">🔄 Mouvements de stock</a>
 </div>
 <div class="tab-sub-bar" id="sub-bar-production">
-  <button class="tab-sub-btn active" id="sub-report" onclick="switchSubTab('report',this)">📋 Ma production</button>
-  <button class="tab-sub-btn" id="sub-depiautage" onclick="switchSubTab('depiautage',this)">✂️ Dépiautage</button>
-  <button class="tab-sub-btn" id="sub-reprint" onclick="switchSubTab('reprint',this)">🖨️ Réimp.</button>
-  <button class="tab-sub-btn" id="sub-qualite" onclick="switchSubTab('qualite',this)">🔍 Contrôle Qualité</button>
-  <button class="tab-sub-btn" id="sub-search" onclick="switchSubTab('search',this)">🔍 Recherche</button>
+  <a href="#/report" data-route="report" class="tab-sub-btn active" id="sub-report" onclick="if(tabLinkNew(event))return true;switchSubTab('report',this);return false">📋 Ma production</a>
+  <a href="#/depiautage" data-route="depiautage" class="tab-sub-btn" id="sub-depiautage" onclick="if(tabLinkNew(event))return true;switchSubTab('depiautage',this);return false">✂️ Dépiautage</a>
+  <a href="#/reprint" data-route="reprint" class="tab-sub-btn" id="sub-reprint" onclick="if(tabLinkNew(event))return true;switchSubTab('reprint',this);return false">🖨️ Réimp.</a>
+  <a href="#/qualite" data-route="qualite" class="tab-sub-btn" id="sub-qualite" onclick="if(tabLinkNew(event))return true;switchSubTab('qualite',this);return false">🔍 Contrôle Qualité</a>
+  <a href="#/search" data-route="search" class="tab-sub-btn" id="sub-search" onclick="if(tabLinkNew(event))return true;switchSubTab('search',this);return false">🔍 Recherche</a>
 </div>
 <div class="tab-sub-bar" id="sub-bar-admin" style="display:none">
-  <button class="tab-sub-btn active" id="sub-admin-droits" onclick="switchSubTab('admin_droits',this)">👥 Droits</button>
-  <button class="tab-sub-btn" id="sub-admin-interventions" onclick="switchSubTab('admin_interventions',this)">🛠️ Interventions</button>
-  <button class="tab-sub-btn" id="sub-admin-reglages" onclick="switchSubTab('admin_reglages',this)">⚙️ Réglages</button>
+  <a href="#/admin_droits" data-route="admin_droits" class="tab-sub-btn active" id="sub-admin-droits" onclick="if(tabLinkNew(event))return true;switchSubTab('admin_droits',this);return false">👥 Droits</a>
+  <a href="#/admin_interventions" data-route="admin_interventions" class="tab-sub-btn" id="sub-admin-interventions" onclick="if(tabLinkNew(event))return true;switchSubTab('admin_interventions',this);return false">🛠️ Interventions</a>
+  <a href="#/admin_reglages" data-route="admin_reglages" class="tab-sub-btn" id="sub-admin-reglages" onclick="if(tabLinkNew(event))return true;switchSubTab('admin_reglages',this);return false">⚙️ Réglages</a>
 </div>
   <main>
     <div id="view-atelier" class="view">
@@ -1046,11 +1047,11 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
   </div>
 
   <div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap">
-    <button id="dash-tab-recherche" onclick="dashSwitchSection('recherche')" class="maint-sub-btn" style="flex:1">🔍 Commandes</button>
-    <button id="dash-tab-synthese" onclick="dashSwitchSection('synthese')" class="maint-sub-btn active" style="flex:1">📋 Synthèse</button>
-    <button id="dash-tab-aujourdhui" onclick="dashSwitchSection('aujourdhui')" class="maint-sub-btn" style="flex:1">🏭 Aujourd'hui</button>
-    <button id="dash-tab-capacite" onclick="dashSwitchSection('capacite')" class="maint-sub-btn" style="flex:1">⚡ Capacité</button>
-    <button id="dash-tab-sav" onclick="dashSwitchSection('sav')" class="maint-sub-btn" style="flex:1">🛠 SAV</button>
+    <a href="#/dashboard/recherche" data-route="dashboard/recherche" id="dash-tab-recherche" onclick="if(tabLinkNew(event))return true;dashSwitchSection('recherche');return false" class="maint-sub-btnNone" style="flex:1;text-align:center;text-decoration:none">🔍 Commandes</a>
+    <a href="#/dashboard/synthese" data-route="dashboard/synthese" id="dash-tab-synthese" onclick="if(tabLinkNew(event))return true;dashSwitchSection('synthese');return false" class="maint-sub-btn active" style="flex:1;text-align:center;text-decoration:none">📋 Synthèse</a>
+    <a href="#/dashboard/aujourdhui" data-route="dashboard/aujourdhui" id="dash-tab-aujourdhui" onclick="if(tabLinkNew(event))return true;dashSwitchSection('aujourdhui');return false" class="maint-sub-btnNone" style="flex:1;text-align:center;text-decoration:none">🏭 Aujourd'hui</a>
+    <a href="#/dashboard/capacite" data-route="dashboard/capacite" id="dash-tab-capacite" onclick="if(tabLinkNew(event))return true;dashSwitchSection('capacite');return false" class="maint-sub-btnNone" style="flex:1;text-align:center;text-decoration:none">⚡ Capacité</a>
+    <a href="#/dashboard/sav" data-route="dashboard/sav" id="dash-tab-sav" onclick="if(tabLinkNew(event))return true;dashSwitchSection('sav');return false" class="maint-sub-btnNone" style="flex:1;text-align:center;text-decoration:none">🛠 SAV</a>
   </div>
 
   <div id="dash-panel-synthese"></div>
@@ -1986,7 +1987,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.11.10-1700';
+var APP_VERSION = '2026.11.10-1720';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -2672,6 +2673,7 @@ function renderAfterPermsKnown(){
   applyTabPerms();
   applyPoleMenus();
   var prodRedirected = redirectIfProductionHidden();
+  if(!_routeApplied && !prodRedirected) setTimeout(applyRouteFromHash, 0);
   updateRpNotif();
   renderCurrentStock();
   checkBackupReminder();
@@ -2926,6 +2928,7 @@ function ecranAutoOpen(tries){
 // Pas de correctif technique invisible ici. tag = qui est concerné :
 //   'all' (tout le monde), 'admin' (admin/direction), 'maint' (maintenance), 'stock' (ajout de stock), 'reprint' (réimpressions)
 var NEWS = [
+  {n:72, d:'10/11/2026', tag:'all', t:'Onglets : clic droit « Ouvrir dans un nouvel onglet »', x:'Les onglets et sous-onglets (Stock, Production, Admin, Tableau de bord…) sont de vrais liens : clic droit ou Ctrl+clic pour ouvrir un écran dans un nouvel onglet du navigateur, ou copier son adresse. Le clic normal ne change pas.'},
   {n:71, d:'10/11/2026', tag:'all', t:'Stock › Alertes : pastille par famille', x:'Sous Alertes, chaque famille (Badges & Dérivés, Porte-clés, Pins, Divers…) affiche en rouge son nombre d\'articles en stock bas non commandés.'},
   {n:70, d:'10/11/2026', tag:'all', t:'Stock : « Approvisionnement », plus de sous-onglet Réception', x:'Le sous-onglet « Commandes » du Stock (commandes aux fournisseurs) s\'appelle « Approvisionnement », pour ne plus le confondre avec les commandes clients. Le sous-onglet « Réception » disparaît : on réceptionne directement depuis Approvisionnement, avec le bouton « Réceptionner » de la commande (même fenêtre qu\'avant).'},
   {n:69, d:'10/11/2026', tag:'all', t:'Stock : « Mouvements de stock »', x:'Le sous-onglet « Journal » du Stock s\'appelle maintenant « Mouvements de stock » (même contenu).'},
@@ -3637,6 +3640,7 @@ function emoji(cat){ var n=(cat.name||'').toLowerCase(); return n.includes('badg
 function switchTab(name) {
   curTab = name;
   updateGroupNav(name);
+  if(name!=='dashboard' && TAB_GROUP_MAP[name]) setRouteHash(name);
   document.querySelectorAll('.tab').forEach(function(t){
     var tc = t.getAttribute('onclick');
     if(tc) t.classList.toggle('active', tc.indexOf("'"+name+"'") >= 0);
@@ -15754,6 +15758,31 @@ var TAB_GROUP_MAP = {
   dashboard:'dashboard'
 };
 
+// ── Onglets = vrais liens (clic droit « ouvrir dans un nouvel onglet ») ──
+// Adresse de la forme  index.html#/alertes  ou  #/dashboard/sav . Clic gauche normal : même comportement qu'avant.
+function tabLinkNew(e){ return !!(e && (e.ctrlKey || e.metaKey || e.shiftKey || e.altKey || e.button === 1)); }
+function setRouteHash(r){
+  try{
+    if(location.hash === '#ecran') return;
+    var h = '#/' + r;
+    if(location.hash !== h) history.replaceState(null, '', location.pathname + location.search + h);
+  }catch(e){}
+}
+var _routeApplied = false;
+function applyRouteFromHash(){
+  if(_routeApplied) return; _routeApplied = true;
+  var m = /^#\/(\w+)(?:\/(\w+))?$/.exec(location.hash || '');
+  if(!m) return;
+  var key = m[1] + (m[2] ? '/' + m[2] : '');
+  var a = document.querySelector('a[data-route="' + key + '"]');
+  if(!a || a.style.display === 'none') return;   // pas de droit sur cet écran : on reste sur l'écran par défaut
+  try{
+    if(m[1] === 'dashboard' && m[2]){ switchGroup('dashboard'); dashSwitchSection(m[2]); }
+    else if(a.classList.contains('tab-group-btn')) switchGroup(m[1]);
+    else switchSubTab(m[1], a);
+  }catch(e){}
+}
+
 function switchGroup(group){
   activeGroup = group;
   // Groupes directs (pas de sous-barre)
@@ -22636,6 +22665,7 @@ function dashAujVisible(){
 try{ setInterval(function(){ if(dashAujVisible()) dashRefreshDay(); }, 30000); }catch(e){}
 
 function dashSwitchSection(name){
+  setRouteHash('dashboard/'+name);
   // Pôle numérique : pas de « Aujourd'hui » ni « Capacité » (postes et capacité badges)
   var numV = (viewPole === 'numerique');
   dashApplyRights();
