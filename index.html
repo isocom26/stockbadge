@@ -903,7 +903,7 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
   </div>
   <!-- Sous-onglets Maintenance -->
   <div id="maint-subs" style="display:flex;gap:6px;margin-bottom:14px;overflow-x:auto;padding-bottom:4px"></div>
-  <div id="maint-cats-wrap" style="display:none;margin-bottom:12px"><button class="btn bsec" style="font-size:.78rem;padding:6px 12px" onclick="openMachCats()">🗂️ Catégories de machines</button></div>
+  <div id="maint-cats-wrap" style="display:none;margin-bottom:12px"><button class="btn bsec" style="font-size:.78rem;padding:6px 12px" onclick="openMachCats()">🗂️ Catégories de machines</button> <button class="btn bsec" id="maint-catchup-btn" style="font-size:.78rem;padding:6px 12px;display:none" onclick="maintCatchUpOpen()">🛠 Rattraper les rappels faits</button></div>
   <!-- Bouton intervention groupée -->
   <div id="maint-group-block" style="background:var(--card);border:1.5px solid var(--brd);border-radius:14px;padding:14px;margin-bottom:14px;display:none">
     <div style="font-family:Open Sans,sans-serif;font-weight:800;font-size:0.95rem;margin-bottom:10px">⚡ Intervention groupée</div>
@@ -1985,7 +1985,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.11.10-1945';
+var APP_VERSION = '2026.11.17-1230';
 var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -2943,6 +2943,8 @@ function ecranAutoOpen(tries){
 // Pas de correctif technique invisible ici. tag = qui est concerné :
 //   'all' (tout le monde), 'admin' (admin/direction), 'maint' (maintenance), 'stock' (ajout de stock), 'reprint' (réimpressions)
 var NEWS = [
+  {n:80, d:'17/11/2026', tag:'maint', t:'Maintenance : l\'onglet Plateaux en tableaux', x:'Les formats, les configurations, la liste des plateaux et têtes et l\'historique des interventions s\'affichent en tableaux (comme les machines) ; éléments à problème en rouge. Cartes conservées sur téléphone.'},
+  {n:79, d:'17/11/2026', tag:'maint', t:'Maintenance : « Fait » sur un rappel ajoute l\'intervention', x:'Quand on touche « Fait » sur un rappel d\'une machine, l\'intervention est ajoutée à l\'historique : « Dernière intervention » et « 30 derniers jours » se mettent à jour. Les « Fait » déjà cochés depuis le 13/11 peuvent être rattrapés (admin) avec le bouton « Rattraper les rappels faits ».'},
   {n:78, d:'10/11/2026', tag:'admin', t:'Statistiques : l\'encart « Année vs année précédente » compte le mois en cours', x:'L\'encart en avance / en retard inclut maintenant le mois en cours : production réelle jusqu\'à hier contre le même mois de l\'an dernier ramené au prorata des jours ouvrés écoulés (estimation, à partir de 3 jours ouvrés). Le tableau mois par mois ne change pas.'},
   {n:77, d:'10/11/2026', tag:'admin', t:'Planning : choisir qui apparaît', x:'Dans Admin › Droits, la fiche de chaque compte a une case « Apparaît dans le Planning (absences, congés) ». Décochée (tablettes, écrans, comptes partagés), le compte disparaît des listes du Planning. Par défaut tout le monde apparaît, comme avant.'},
   {n:76, d:'10/11/2026', tag:'maint', t:'Maintenance : fiche machine en tableaux', x:'Dans la fiche d\'une machine, les rappels (fréquence, assigné, dernier fait, prochain) et l\'historique des interventions (date, type, description, par, coût, total) s\'affichent en tableaux ; rappels en retard en haut. Cartes conservées sur téléphone.'},
@@ -13532,6 +13534,7 @@ function maintPole(){
 function maintApplyPole(){
   machCatsRenderTabs();
   var cw = document.getElementById('maint-cats-wrap'); if(cw) cw.style.display = canMachCats() ? '' : 'none';
+  var ub = document.getElementById('maint-catchup-btn'); if(ub) ub.style.display = (iAm||isDir) ? '' : 'none';
   var p = maintPole();
   Object.keys(MAINT_SUBS).forEach(function(k){
     MAINT_SUBS[k].forEach(function(sub){ var b = document.getElementById('msub-'+sub); if(b) b.style.display = (k === p) ? '' : 'none'; });
@@ -14083,6 +14086,27 @@ function getReminderDueDate(r){
   return 'Dans '+diff+' jour(s)';
 }
 
+// Comptages d'un format / d'une configuration (plateaux, têtes, alertes) pour les tableaux
+function pltEmpCounts(emp){
+  var nbPl = Object.keys(emp.plateaux||{}).length, nbTe = Object.keys(emp.tetes||{}).length, al = 0;
+  Object.values(emp.plateaux||{}).concat(Object.values(emp.tetes||{})).forEach(function(x){
+    if((x.status||'ok') !== 'ok' || getReminderStatus(x) === 'due') al++;
+  });
+  return {nbPl:nbPl, nbTe:nbTe, alerts:al};
+}
+function pltAlertCell(n){
+  return n ? '<span style="font-weight:800;color:var(--red)">🔔 '+n+' alerte'+(n>1?'s':'')+'</span>' : '<span style="color:var(--mut)">—</span>';
+}
+// Tableau générique : heads = titres, rows = [{onclick, hot, cells:[html,…], cls, key}]
+function pltTableHtml(heads, rows, minW){
+  var th = heads.map(function(h){ return '<th style="'+MACH_TH+'">'+h+'</th>'; }).join('');
+  var tr = rows.map(function(r){
+    return '<tr'+(r.cls?' class="'+r.cls+'"':'')+(r.key?' data-key="'+r.key+'"':'')+(r.onclick?' onclick="'+r.onclick+'"':'')+' style="cursor:pointer;border-bottom:1px solid var(--brd);'+(r.hot?'background:rgba(239,68,68,.07)':'')+'">'+
+      r.cells.map(function(c){ return '<td style="padding:9px">'+c+'</td>'; }).join('')+'</tr>';
+  }).join('');
+  return '<div class="dash-tbl-wrap"><table style="width:100%;min-width:'+(minW||480)+'px;border-collapse:collapse;font-size:.8rem"><thead><tr style="text-align:left;border-bottom:1.5px solid var(--brd)">'+th+'</tr></thead><tbody>'+tr+'</tbody></table></div>';
+}
+
 // ── NIVEAU 1 : Liste des formats ──
 function renderPlateauxList(el, can){
   el.innerHTML = '';
@@ -14142,7 +14166,16 @@ function renderPlateauxList(el, can){
     grid.appendChild(card);
   });
 
-  el.appendChild(grid);
+  var wrapT = document.createElement('div'); wrapT.className = 'maint-tbl';
+  wrapT.innerHTML = pltTableHtml(['FORMAT','CONFIGURATIONS','PLATEAUX','TÊTES','ALERTES'], S_plateaux.map(function(fmt){
+    var emps = fmt.emplacements||{}, nbPl = 0, nbTe = 0, al = 0;
+    Object.values(emps).forEach(function(emp){ var c = pltEmpCounts(emp); nbPl += c.nbPl; nbTe += c.nbTe; al += c.alerts; });
+    return {onclick:"openPlateauFormat('"+fmt.id+"')", hot:al>0, cells:[
+      '<div style="font-family:Open Sans,sans-serif;font-weight:800">'+esc(fmt.nom)+'</div>',
+      Object.keys(emps).length, nbPl, nbTe, pltAlertCell(al)]};
+  }), 520);
+  var wrapC = document.createElement('div'); wrapC.className = 'maint-cards'; wrapC.appendChild(grid);
+  el.appendChild(wrapT); el.appendChild(wrapC);
 }
 
 // ── NIVEAU 2 : Emplacements d'un format ──
@@ -14173,9 +14206,13 @@ function openPlateauFormat(formatId){
   if(!Object.keys(emps).length){
     html += '<div style="color:var(--mut);font-size:.82rem;text-align:center;padding:16px">Aucune configuration.'+(can?' Ajoutez des emplacements.':'')+'</div>';
   } else {
+    var cardsStart = html.length, tblRows = [];
     Object.keys(emps).sort().forEach(function(empId){
       var emp = emps[empId];
       var nb = emp.nombre||4;
+      var cn = pltEmpCounts(emp);
+      tblRows.push({onclick:"openPlateauEmplacement('"+formatId+"','"+empId+"')", hot:cn.alerts>0, cells:[
+        '<div style="font-family:Open Sans,sans-serif;font-weight:800">'+nb+' emplacements</div>', cn.nbPl, cn.nbTe, pltAlertCell(cn.alerts)]});
       var alertCount = 0;
       Object.values(emp.plateaux||{}).forEach(function(p){
         if((p.status||'ok')!=='ok'||getReminderStatus(p)==='due') alertCount++;
@@ -14199,6 +14236,8 @@ function openPlateauFormat(formatId){
         '</div>'+
       '</div>';
     });
+    var cardsHtml = html.slice(cardsStart);
+    html = html.slice(0, cardsStart) + '<div class="maint-tbl">'+pltTableHtml(['CONFIGURATION','PLATEAUX','TÊTES','ALERTES'], tblRows, 460)+'</div><div class="maint-cards">'+cardsHtml+'</div>';
   }
 
   document.getElementById('maint-det-content').innerHTML = html;
@@ -14324,7 +14363,8 @@ function renderElementList(items, type, formatId, empId, can){
   }
   // Stocker les params pour chaque élément
   if(!window._pltParams) window._pltParams = {};
-  return items.map(function(item){
+  var tblRows = [];
+  var cardsHtml = items.map(function(item){
     var st = getPlateauSt(item.status);
     var isDue = getReminderStatus(item) === 'due';
     var borderColor = (isDue || item.status !== 'ok') ? 'var(--red)' : 'var(--brd)';
@@ -14338,6 +14378,12 @@ function renderElementList(items, type, formatId, empId, can){
     // Stocker les params
     var key = 'p_'+item.id;
     window._pltParams[key] = {f:formatId, e:empId, i:item.id, t:type};
+    tblRows.push({cls:'plt-el-card', key:key, hot:(isDue || (item.status||'ok') !== 'ok'), cells:[
+      '<div style="font-family:Open Sans,sans-serif;font-weight:800">'+typeName+' N°'+item.numero+'</div>',
+      '<span style="font-size:.74rem;font-weight:800;padding:3px 9px;border-radius:99px;background:'+st.bg+';color:'+st.color+'">'+st.label+'</span>',
+      item.rappelFreqDays ? (isDue ? '<span style="font-weight:800;color:var(--red)">🔔 '+getReminderDueDate(item)+'</span>' : getReminderDueDate(item)) : '<span style="color:var(--mut)">—</span>',
+      item.lastEntretienAt ? new Date(item.lastEntretienAt).toLocaleDateString('fr-FR') : (item.rappelFreqDays ? '<span style="color:var(--mut)">Jamais</span>' : '<span style="color:var(--mut)">—</span>'),
+      item.notes ? esc(item.notes).substring(0,70)+(item.notes.length>70?'…':'') : '<span style="color:var(--mut)">—</span>']});
     return '<div class="plt-el-card" data-key="'+key+'" style="background:var(--card);border:1.5px solid '+borderColor+';border-radius:10px;padding:12px;margin-bottom:8px;cursor:pointer">'+
       '<div style="display:flex;justify-content:space-between;align-items:center">'+
         '<div>'+
@@ -14352,7 +14398,9 @@ function renderElementList(items, type, formatId, empId, can){
       '</div>'+
     '</div>';
   }).join('');
+  return '<div class="maint-tbl">'+pltTableHtml([typeName0(type).toUpperCase(),'STATUT','RAPPEL','DERNIER ENTRETIEN','NOTES'], tblRows, 600)+'</div><div class="maint-cards">'+cardsHtml+'</div>';
 }
+function typeName0(type){ return type==='plateau' ? 'Plateau' : 'Tête'; }
 
 
 // ── NIVEAU 4 : Détail d'un plateau ou d'une tête ──
@@ -14423,7 +14471,7 @@ function renderPlateauHistory(item){
     return;
   }
 
-  el.innerHTML = interventions.map(function(i){
+  var cardsHtml = interventions.map(function(i){
     var d = i.date ? new Date(i.date).toLocaleDateString('fr-FR') : '—';
     var isPresta = i.intervenant_type === 'prestataire';
     var coutTotal = (parseFloat(i.prix_prestation)||0) + (parseFloat(i.prix_pieces)||0);
@@ -14441,6 +14489,7 @@ function renderPlateauHistory(item){
         (coutTotal>0?' · 💰 <strong style="color:var(--txt)">'+coutTotal.toFixed(2)+' €</strong>':'')+'</div>'+
     '</div>';
   }).join('');
+  el.innerHTML = '<div class="maint-tbl">'+machHistoryTableHtml(interventions)+'</div><div class="maint-cards">'+cardsHtml+'</div>';
 }
 
 // ── Ajouter une intervention sur un plateau/tête (même formulaire complet
@@ -16445,12 +16494,84 @@ function openAddReminder(){
   });
 }
 
+// Type d'intervention proposé d'après le libellé du rappel (nettoyage → « Nettoyage », sinon « Entretien général »)
+function remIntervType(desc){ return /nettoy|aspir|souffl|d[ée]poussi/i.test(desc||'') ? 'Nettoyage' : 'Entretien général'; }
+
+// « Fait » sur un rappel : met à jour le rappel ET ajoute l'intervention à l'historique de la machine
+// (sinon « Dernière intervention » et « 30 derniers jours » ignoraient les entretiens périodiques).
 function markReminderDone(rid){
-  fbu('machines/'+curMachId+'/reminders/'+rid, {lastDoneAt:Date.now()}).then(function(){
-    toast('✅ Rappel marqué comme fait !');
+  var mid = curMachId, now = Date.now();
+  var m0 = getMach(mid), rem = m0 && m0.reminders && m0.reminders[rid];
+  var day = new Date(now).toDateString();
+  var dup = !!(m0 && m0.interventions && Object.values(m0.interventions).some(function(i){ return i.fromReminder === rid && i.date && new Date(i.date).toDateString() === day; }));
+  var jobs = [fbu('machines/'+mid+'/reminders/'+rid, {lastDoneAt:now})];
+  if(rem && !dup){
+    jobs.push(fbs('machines/'+mid+'/interventions/'+gid(), {
+      type:remIntervType(rem.desc), desc:rem.desc||'Rappel périodique', date:now, by:getMyName(),
+      intervenant_type:'interne', status_machine:(m0.status||'ok'), fromReminder:rid
+    }));
+    jobs.push(fbu('machines/'+mid, {lastIntervAt:now}));
+  }
+  Promise.all(jobs).then(function(){
+    toast(rem && !dup ? '✅ Rappel fait — intervention ajoutée à l\'historique' : '✅ Rappel marqué comme fait !');
     updateMaintBadge();
-    var m = getMach(curMachId); if(m) renderMachReminders(m);
+    var m = getMach(mid); if(m){ renderMachDet(m); renderMachReminders(m); renderMachHistory(m); }
   });
+}
+
+// ── Rattrapage (admin) : rappels cochés « Fait » depuis le 13/11/2026 sans intervention dans l'historique ──
+var MAINT_CATCHUP_FROM = new Date(2026, 10, 13).getTime();
+function maintCatchUpItems(){
+  var out = [];
+  (S_mach||[]).forEach(function(m){
+    var ivs = m.interventions ? Object.values(m.interventions) : [];
+    var lastBy = ivs.slice().sort(function(a,b){ return (b.date||0)-(a.date||0); })[0];
+    Object.keys(m.reminders||{}).forEach(function(rid){
+      var r = m.reminders[rid];
+      if(!r || !r.lastDoneAt || r.lastDoneAt < MAINT_CATCHUP_FROM) return;
+      var day = new Date(r.lastDoneAt).toDateString(), dsc = String(r.desc||'').trim().toLowerCase();
+      var has = ivs.some(function(i){ return i.fromReminder === rid || (i.date && new Date(i.date).toDateString() === day && String(i.desc||'').trim().toLowerCase() === dsc); });
+      if(has) return;
+      out.push({mid:m.id, mname:m.name||'', rid:rid, desc:r.desc||'', at:r.lastDoneAt, by:(lastBy && lastBy.by) || ''});
+    });
+  });
+  out.sort(function(a,b){ return (a.at-b.at) || a.mname.localeCompare(b.mname); });
+  return out;
+}
+function maintCatchUpOpen(){
+  var items = maintCatchUpItems();
+  document.getElementById('cf-title').textContent = '🛠 Rattraper les rappels faits';
+  var cfBtn = document.querySelector('#m-confirm .btn.bdan');
+  if(!items.length){
+    document.getElementById('cf-msg').innerHTML = 'Aucun rappel « Fait » depuis le 13/11/2026 sans intervention dans l\'historique : rien à rattraper.';
+    if(cfBtn){ cfBtn.textContent = 'OK'; cfBtn.style.background = 'var(--acc)'; cfBtn.style.color = '#000'; }
+    cfCb = function(){ cm('m-confirm'); };
+    om('m-confirm'); return;
+  }
+  var inp = 'background:var(--sur);border:1.5px solid var(--brd);border-radius:6px;color:var(--txt);font-size:.78rem;padding:4px 7px;width:100%;box-sizing:border-box;margin-top:3px';
+  document.getElementById('cf-msg').innerHTML =
+    '<div style="font-size:.8rem;color:var(--mut);margin-bottom:8px;text-align:left">Ces rappels ont été cochés « Fait » mais n\'ont pas d\'intervention dans l\'historique. Décochez ce que vous ne voulez pas créer ; le nom est modifiable.</div>'+
+    '<div style="max-height:46vh;overflow:auto;text-align:left">'+items.map(function(it, k){
+      return '<div style="border:1px solid var(--brd);border-radius:8px;padding:7px 9px;margin-bottom:6px"><label style="display:flex;gap:8px;align-items:flex-start;font-size:.8rem;cursor:pointer"><input type="checkbox" id="mcu-on-'+k+'" checked style="margin-top:3px"><span><b>'+esc(it.mname)+'</b> — '+esc(it.desc)+'<br><span style="color:var(--mut)">Fait le '+new Date(it.at).toLocaleDateString('fr-FR')+' · type : '+remIntervType(it.desc)+'</span></span></label>'+
+        '<div style="font-size:.7rem;color:var(--mut);margin-top:5px">Fait par :</div><input id="mcu-by-'+k+'" value="'+esc(it.by)+'" placeholder="Nom de la personne" style="'+inp+'"></div>';
+    }).join('')+'</div>';
+  if(cfBtn){ cfBtn.textContent = '✅ Créer les interventions'; cfBtn.style.background = 'var(--acc)'; cfBtn.style.color = '#000'; }
+  cfCb = function(){
+    var jobs = [], last = {}, n = 0;
+    items.forEach(function(it, k){
+      var on = document.getElementById('mcu-on-'+k); if(!on || !on.checked) return;
+      var by = (document.getElementById('mcu-by-'+k).value || '').trim() || getMyName();
+      var m = getMach(it.mid); n++;
+      jobs.push(fbs('machines/'+it.mid+'/interventions/'+gid(), {
+        type:remIntervType(it.desc), desc:it.desc||'Rappel périodique', date:it.at, by:by,
+        intervenant_type:'interne', status_machine:((m && m.status) || 'ok'), fromReminder:it.rid
+      }));
+      last[it.mid] = Math.max(last[it.mid] || (m && m.lastIntervAt) || 0, it.at);
+    });
+    Object.keys(last).forEach(function(mid){ jobs.push(fbu('machines/'+mid, {lastIntervAt:last[mid]})); });
+    Promise.all(jobs).then(function(){ cm('m-confirm'); toast('✅ '+n+' intervention(s) ajoutée(s) à l\'historique'); updateMaintBadge(); });
+  };
+  om('m-confirm');
 }
 
 function askDelReminder(rid){
