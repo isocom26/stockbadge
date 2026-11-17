@@ -1985,7 +1985,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.11.17-1510';
+var APP_VERSION = '2026.11.17-1515';
 var MANUEL_URL = 'manuel-isoprod.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -2943,7 +2943,7 @@ function ecranAutoOpen(tries){
 // Pas de correctif technique invisible ici. tag = qui est concerné :
 //   'all' (tout le monde), 'admin' (admin/direction), 'maint' (maintenance), 'stock' (ajout de stock), 'reprint' (réimpressions)
 var NEWS = [
-  {n:83, d:'10/11/2026', tag:'all', t:'Commandes mail et CMC : nouvelle nomenclature', x:'Étiquette SITE2026-CDE MAIL NOM DU CLIENT AAAAMMJJ+HHMM : le site est lu au début, le nom du client s\'affiche comme avant et la date + heure sert de numéro de commande (affichée « 20261104 1703 »). L\'ancienne écriture reste reconnue, avec un avertissement « ancienne nomenclature » et la recherche d\'un doublon. Rapprochement EBP adapté. Outil Admin d\'harmonisation des sites : une commande et son SAV ne sont plus pris pour un conflit.'},
+  {n:83, d:'17/11/2026', tag:'all', t:'Dépiautage : formats avec « _ » reconnus', x:'Les formats comme MAG32_MAT-FOIL, B45_FOND-ARGENT ou MAG32_FOND-OR sont maintenant lus au scan / collage du QR (ils étaient ignorés, seul le MAG32 classique ressortait).'},
   {n:82, d:'17/11/2026', tag:'stock', t:'Stock : colisage par fournisseur dans les commandes', x:'Dans « Modifier le composant », chaque fournisseur a un champ « Colisage » (pièces par carton, ex. 600) et une note (ex. 6 sachets × 100). Dans « Nouvelle commande », le colisage du fournisseur choisi s\'affiche sous le produit ; si la quantité n\'est pas un multiple, un avertissement propose d\'arrondir au carton supérieur. N\'a aucun effet sur le stock ni sur les comptes par carton.'},
   {n:81, d:'17/11/2026', tag:'all', t:'Manuel d\'utilisation mis à jour', x:'Nouveau manuel (72 pages) : mot de passe oublié, clic droit sur les onglets, exports dans Inventaire, pastilles par famille dans les alertes, Maintenance en tableaux, comparaison avec l\'an dernier dans les Statistiques. Le fichier s\'appelle désormais manuel-isoprod.pdf.'},
   {n:80, d:'17/11/2026', tag:'maint', t:'Maintenance : l\'onglet Plateaux en tableaux', x:'Les formats, les configurations, la liste des plateaux et têtes et l\'historique des interventions s\'affichent en tableaux (comme les machines) ; éléments à problème en rouge. Cartes conservées sur téléphone.'},
