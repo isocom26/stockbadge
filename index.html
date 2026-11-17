@@ -1985,8 +1985,8 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.11.17-1230';
-var MANUEL_URL = 'manuel-stockbadge-pro.pdf';
+var APP_VERSION = '2026.11.17-1245';
+var MANUEL_URL = 'manuel-isoprod.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
 var MAN_ZMAX = 4;
@@ -2943,6 +2943,7 @@ function ecranAutoOpen(tries){
 // Pas de correctif technique invisible ici. tag = qui est concerné :
 //   'all' (tout le monde), 'admin' (admin/direction), 'maint' (maintenance), 'stock' (ajout de stock), 'reprint' (réimpressions)
 var NEWS = [
+  {n:81, d:'17/11/2026', tag:'all', t:'Manuel d\'utilisation mis à jour', x:'Nouveau manuel (72 pages) : mot de passe oublié, clic droit sur les onglets, exports dans Inventaire, pastilles par famille dans les alertes, Maintenance en tableaux, comparaison avec l\'an dernier dans les Statistiques. Le fichier s\'appelle désormais manuel-isoprod.pdf.'},
   {n:80, d:'17/11/2026', tag:'maint', t:'Maintenance : l\'onglet Plateaux en tableaux', x:'Les formats, les configurations, la liste des plateaux et têtes et l\'historique des interventions s\'affichent en tableaux (comme les machines) ; éléments à problème en rouge. Cartes conservées sur téléphone.'},
   {n:79, d:'17/11/2026', tag:'maint', t:'Maintenance : « Fait » sur un rappel ajoute l\'intervention', x:'Quand on touche « Fait » sur un rappel d\'une machine, l\'intervention est ajoutée à l\'historique : « Dernière intervention » et « 30 derniers jours » se mettent à jour. Les « Fait » déjà cochés depuis le 13/11 peuvent être rattrapés (admin) avec le bouton « Rattraper les rappels faits ».'},
   {n:78, d:'10/11/2026', tag:'admin', t:'Statistiques : l\'encart « Année vs année précédente » compte le mois en cours', x:'L\'encart en avance / en retard inclut maintenant le mois en cours : production réelle jusqu\'à hier contre le même mois de l\'an dernier ramené au prorata des jours ouvrés écoulés (estimation, à partir de 3 jours ouvrés). Le tableau mois par mois ne change pas.'},
