@@ -1630,7 +1630,7 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
     </div>
     <div class="ff" id="ord-s-other-wrap" style="display:none">
       <label>Nom du nouveau fournisseur</label>
-      <input type="text" id="ord-s-other" placeholder="ex: GAMAX">
+      <input type="text" id="ord-s-other" placeholder="ex: GAMAX" oninput="obColisRefreshAll()">
     </div>
     <div class="ff"><label>Date de réception prévue <span style="color:var(--mut);font-size:.75rem">(approximative, modifiable ensuite)</span></label>
       <input type="date" id="ord-date">
@@ -1985,7 +1985,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.11.17-1250';
+var APP_VERSION = '2026.11.17-1330';
 var MANUEL_URL = 'manuel-isoprod.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -2943,6 +2943,7 @@ function ecranAutoOpen(tries){
 // Pas de correctif technique invisible ici. tag = qui est concerné :
 //   'all' (tout le monde), 'admin' (admin/direction), 'maint' (maintenance), 'stock' (ajout de stock), 'reprint' (réimpressions)
 var NEWS = [
+  {n:82, d:'17/11/2026', tag:'stock', t:'Stock : colisage par fournisseur dans les commandes', x:'Dans « Modifier le composant », chaque fournisseur a un champ « Colisage » (pièces par carton, ex. 600) et une note (ex. 6 sachets × 100). Dans « Nouvelle commande », le colisage du fournisseur choisi s\'affiche sous le produit ; si la quantité n\'est pas un multiple, un avertissement propose d\'arrondir au carton supérieur. N\'a aucun effet sur le stock ni sur les comptes par carton.'},
   {n:81, d:'17/11/2026', tag:'all', t:'Manuel d\'utilisation mis à jour', x:'Nouveau manuel (72 pages) : mot de passe oublié, clic droit sur les onglets, exports dans Inventaire, pastilles par famille dans les alertes, Maintenance en tableaux, comparaison avec l\'an dernier dans les Statistiques. Le fichier s\'appelle désormais manuel-isoprod.pdf.'},
   {n:80, d:'17/11/2026', tag:'maint', t:'Maintenance : l\'onglet Plateaux en tableaux', x:'Les formats, les configurations, la liste des plateaux et têtes et l\'historique des interventions s\'affichent en tableaux (comme les machines) ; éléments à problème en rouge. Cartes conservées sur téléphone.'},
   {n:79, d:'17/11/2026', tag:'maint', t:'Maintenance : « Fait » sur un rappel ajoute l\'intervention', x:'Quand on touche « Fait » sur un rappel d\'une machine, l\'intervention est ajoutée à l\'historique : « Dernière intervention » et « 30 derniers jours » se mettent à jour. Les « Fait » déjà cochés depuis le 13/11 peuvent être rattrapés (admin) avec le bouton « Rattraper les rappels faits ».'},
@@ -4191,6 +4192,7 @@ function openOrderModal(){
   document.getElementById('ord-date').value='';
   populateSupplierSelect();
   buildOB();
+  obColisRefreshAll();
   om('m-order');
 }
 
@@ -4229,7 +4231,55 @@ function ordSupplierChanged(){
   var wrap = document.getElementById('ord-s-other-wrap');
   if(!sel || !wrap) return;
   wrap.style.display = sel.value==='__other__' ? '' : 'none';
+  obColisRefreshAll();
 }
+
+// ── Colisage dans « Nouvelle commande » (facultatif, par fournisseur ; n'agit que sur l'affichage) ──
+var obItemsById = {};
+function obSupplierName(){
+  var sel = document.getElementById('ord-s'); if(!sel) return '';
+  return sel.value === '__other__' ? String((document.getElementById('ord-s-other')||{}).value||'').trim() : sel.value;
+}
+// Colisage du composant pour le fournisseur choisi ; sans fournisseur choisi : seulement s'il n'y en a qu'un
+function itemColisage(item, supName){
+  var fl = itemFourns(item).filter(function(f){ return f.colis > 0; });
+  if(!fl.length) return null;
+  var key = refNorm(supName||''), f = null;
+  if(key) f = fl.filter(function(x){ return refNorm(x.nom) === key; })[0];
+  else if(fl.length === 1) f = fl[0];
+  return f ? {pcs:f.colis, note:f.colisNote||''} : null;
+}
+function obColisUpdate(iid){
+  var item = obItemsById[iid]; if(!item) return;
+  var col = itemColisage(item, obSupplierName());
+  var pc = document.getElementById('obpc-'+iid), lbl = document.getElementById('obl-'+iid), wn = document.getElementById('obw-'+iid), inp = document.getElementById('obq-'+iid);
+  if(pc){
+    if(col){ pc.textContent = '📦 Colisage : '+col.pcs.toLocaleString('fr-FR')+' pcs / carton'+(col.note ? ' — '+col.note : ''); pc.style.color = 'var(--acc)'; pc.style.fontWeight = '700'; pc.style.display = 'block'; }
+    else { pc.textContent = pc.dataset.base || ''; pc.style.color = 'var(--mut)'; pc.style.fontWeight = ''; pc.style.display = pc.dataset.base ? 'block' : 'none'; }
+  }
+  if(lbl) lbl.textContent = col ? 'pcs commandées (colisage '+col.pcs.toLocaleString('fr-FR')+')' : (lbl.dataset.base || 'pcs commandées');
+  if(wn){
+    wn.innerHTML = '';
+    var q = inp ? (parseInt(inp.value,10) || 0) : 0;
+    if(col && q > 0){
+      if(q % col.pcs === 0){
+        wn.innerHTML = '<span style="color:var(--grn);font-weight:700">✓ '+(q/col.pcs).toLocaleString('fr-FR')+' carton'+(q/col.pcs>1?'s':'')+' complet'+(q/col.pcs>1?'s':'')+'</span>';
+      } else {
+        var up = Math.ceil(q/col.pcs)*col.pcs;
+        wn.innerHTML = '<span style="color:#b45309;font-weight:700">⚠ Pas un multiple de '+col.pcs.toLocaleString('fr-FR')+'</span> '+
+          '<button type="button" onclick="obColisRound(\''+iid+'\')" style="margin-left:4px;font-size:.66rem;padding:2px 7px;border-radius:6px;border:1px solid #b45309;background:none;color:#b45309;cursor:pointer;font-weight:700">Arrondir à '+up.toLocaleString('fr-FR')+' ('+(up/col.pcs).toLocaleString('fr-FR')+' ctn)</button>';
+      }
+    }
+  }
+}
+function obColisRound(iid){
+  var item = obItemsById[iid], inp = document.getElementById('obq-'+iid); if(!item || !inp) return;
+  var col = itemColisage(item, obSupplierName()); if(!col) return;
+  var q = parseInt(inp.value,10) || 0; if(q <= 0) return;
+  inp.value = String(Math.ceil(q/col.pcs)*col.pcs);
+  obColisUpdate(iid);
+}
+function obColisRefreshAll(){ Object.keys(obItemsById).forEach(obColisUpdate); }
 
 // Filtre la liste de produits par nom, sans jamais toucher aux cases déjà
 // cochées — masque juste les lignes non correspondantes, et masque une
@@ -4250,6 +4300,7 @@ function filterOB(){
 function buildOB(){
   var el = document.getElementById('ob-list');
   el.innerHTML = '';
+  obItemsById = {};
   if(!S.cats.length){
     el.innerHTML = '<p style="color:var(--mut);font-size:.85rem;padding:16px;text-align:center">Aucune reference disponible.</p>';
     return;
@@ -4277,6 +4328,7 @@ function buildOB(){
     } else {
       items.forEach(function(item){
         var pp = item.ppc || 0;
+        obItemsById[item.id] = item;
         // Row
         var row = document.createElement('div');
         row.id = 'obrow-' + item.id;
@@ -4297,12 +4349,13 @@ function buildOB(){
         nm.style.cssText = 'font-size:.9rem;font-weight:500;color:var(--txt);display:block;margin-bottom:2px';
         nm.textContent = item.name;
         txt.appendChild(nm);
-        if(pp){
-          var pc = document.createElement('span');
-          pc.style.cssText = 'font-size:.72rem;color:var(--mut);display:block;margin-bottom:3px';
-          pc.textContent = pp.toLocaleString('fr-FR') + ' pcs / ' + catUnit(cat);
-          txt.appendChild(pc);
-        }
+        // Ligne « pcs / carton » (valeur habituelle du stock) — remplacée par le colisage du fournisseur s'il est renseigné
+        var pc = document.createElement('span');
+        pc.id = 'obpc-' + item.id;
+        pc.style.cssText = 'font-size:.72rem;color:var(--mut);display:' + (pp ? 'block' : 'none') + ';margin-bottom:3px';
+        pc.dataset.base = pp ? (pp.toLocaleString('fr-FR') + ' pcs / ' + catUnit(cat)) : '';
+        pc.textContent = pc.dataset.base;
+        txt.appendChild(pc);
         // Alert badge on its own line
         if(isLowStock(item)){
           var badge = document.createElement('span');
@@ -4331,11 +4384,18 @@ function buildOB(){
         inp.setAttribute('type', 'text');
         inp.setAttribute('inputmode', 'numeric');
         inp.setAttribute('pattern', '[0-9]*');
+        inp.addEventListener('input', (function(iid){ return function(){ obColisUpdate(iid); }; })(item.id));
         inpWrap.appendChild(inp);
         var lbl = document.createElement('div');
+        lbl.id = 'obl-' + item.id;
         lbl.style.cssText = 'font-size:.64rem;color:var(--mut);text-align:right';
-        lbl.textContent = 'pcs commandées' + (pp ? ' (≈' + pp.toLocaleString('fr-FR') + ' ' + uPpc(catUnit(cat)) + ' hab.)' : '');
+        lbl.dataset.base = 'pcs commandées' + (pp ? ' (≈' + pp.toLocaleString('fr-FR') + ' ' + uPpc(catUnit(cat)) + ' hab.)' : '');
+        lbl.textContent = lbl.dataset.base;
         inpWrap.appendChild(lbl);
+        var wn = document.createElement('div');
+        wn.id = 'obw-' + item.id;
+        wn.style.cssText = 'font-size:.66rem;text-align:right;max-width:230px';
+        inpWrap.appendChild(wn);
         ctrl.appendChild(inpWrap);
         row.appendChild(ctrl);
         catDiv.appendChild(row);
@@ -5181,7 +5241,8 @@ function itemFourns(item){
     item.fournisseurs.forEach(function(f){
       if(!f) return;
       var nom = String(f.nom||'').trim(), ref = String(f.ref||'').trim();
-      if(nom || ref) out.push({nom:nom, ref:ref});
+      var col = parseInt(f.colis,10) > 0 ? parseInt(f.colis,10) : 0, cn = String(f.colisNote||'').trim();
+      if(nom || ref || col) out.push({nom:nom, ref:ref, colis:col, colisNote:cn});
     });
   }
   if(!out.length && item){
@@ -5208,20 +5269,24 @@ function itemFoursRender(){
   box.innerHTML = itemFourState.map(function(f, i){
     var names = itemFourNames.slice();
     if(f.nom && names.indexOf(f.nom) < 0) names.push(f.nom);
-    return '<div style="display:flex;gap:6px;align-items:center;margin-bottom:6px">'+
+    return '<div style="margin-bottom:10px"><div style="display:flex;gap:6px;align-items:center;margin-bottom:4px">'+
       '<select onchange="itemFourState['+i+'].nom=this.value" style="flex:1;min-width:0'+(i===0?';font-weight:700':'')+'"><option value="">'+(i===0?'Fournisseur principal':'Autre fournisseur')+'</option>'+
         names.map(function(n){ return '<option value="'+esc(n)+'"'+(n===f.nom?' selected':'')+'>'+esc(n)+'</option>'; }).join('')+'</select>'+
       '<input type="text" value="'+esc(f.ref||'')+'" placeholder="Réf. fournisseur" autocomplete="off" oninput="itemFourState['+i+'].ref=this.value" style="flex:1;min-width:0'+(i===0?';font-weight:700':'')+'">'+
       (itemFourState.length>1 ? '<button type="button" onclick="itemFoursRemove('+i+')" style="background:none;border:none;color:var(--red);font-size:1.1rem;cursor:pointer;padding:0 4px">✕</button>' : '')+
-    '</div>';
+    '</div>'+
+    '<div style="display:flex;gap:6px;align-items:center"><span style="font-size:.72rem;color:var(--mut);white-space:nowrap">📦 Colisage</span>'+
+      '<input type="number" min="0" value="'+(f.colis||'')+'" placeholder="pcs/ctn" inputmode="numeric" oninput="itemFourState['+i+'].colis=this.value" style="width:110px;flex:none">'+
+      '<input type="text" value="'+esc(f.colisNote||'')+'" placeholder="ex. 6 sachets × 100" autocomplete="off" oninput="itemFourState['+i+'].colisNote=this.value" style="flex:1;min-width:0">'+
+    '</div></div>';
   }).join('');
 }
-function itemFoursAdd(){ itemFourState.push({nom:'', ref:''}); itemFoursRender(); }
+function itemFoursAdd(){ itemFourState.push({nom:'', ref:'', colis:0, colisNote:''}); itemFoursRender(); }
 function itemFoursRemove(i){ if(itemFourState.length<=1) return; itemFourState.splice(i,1); itemFoursRender(); }
 function itemRefsLoad(item){
   document.getElementById('item-refiso').value = (item&&item.refIso)||'';
-  itemFourState = itemFourns(item).map(function(f){ return {nom:f.nom, ref:f.ref}; });
-  if(!itemFourState.length) itemFourState = [{nom:'', ref:''}];
+  itemFourState = itemFourns(item).map(function(f){ return {nom:f.nom, ref:f.ref, colis:f.colis||0, colisNote:f.colisNote||''}; });
+  if(!itemFourState.length) itemFourState = [{nom:'', ref:'', colis:0, colisNote:''}];
   itemFoursRender();
   ensureDefaultSuppliers().then(function(data){
     itemFourNames = Object.keys(data||{}).map(function(k){ return data[k].nom; }).filter(Boolean).sort(function(a,b){ return a.localeCompare(b,'fr'); });
@@ -5230,7 +5295,13 @@ function itemRefsLoad(item){
 }
 // Lecture du formulaire : liste complète + recopie du principal dans les champs historiques (fournisseur / refFourn).
 function itemRefsRead(){
-  var list = itemFourState.map(function(f){ return {nom:String(f.nom||'').trim(), ref:String(f.ref||'').trim()}; }).filter(function(f){ return f.nom || f.ref; });
+  // Colisage (facultatif, par fournisseur) : n'est écrit que s'il est renseigné — aucun impact sur le stock
+  var list = itemFourState.map(function(f){
+    var o = {nom:String(f.nom||'').trim(), ref:String(f.ref||'').trim()};
+    var c = parseInt(f.colis,10); if(c > 0) o.colis = c;
+    var n = String(f.colisNote||'').trim(); if(n) o.colisNote = n;
+    return o;
+  }).filter(function(f){ return f.nom || f.ref || f.colis; });
   return {refIso:document.getElementById('item-refiso').value.trim(), fournisseurs:list,
           fournisseur:(list[0]&&list[0].nom)||'', refFourn:(list[0]&&list[0].ref)||''};
 }
