@@ -1295,6 +1295,20 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
     <div id="admin-statuts-list"></div>
   </div>
 
+  <!-- Listes réglables -->
+  <div id="admin-listes-block" style="display:none;background:var(--card);border:1.5px solid var(--brd);border-radius:14px;padding:14px;margin-bottom:16px">
+    <div style="font-family:Open Sans,sans-serif;font-weight:800;font-size:0.95rem;margin-bottom:6px">🗂 Listes réglables</div>
+    <div style="font-size:.78rem;color:var(--mut);margin-bottom:6px">Motifs de SAV, modes d'emport, types d'événements du planning. On peut ajouter, réordonner et masquer ; on ne supprime pas (l'historique reste lisible). « Autre » est toujours présent.</div>
+    <div id="admin-listes-list"></div>
+  </div>
+
+  <!-- Familles de stock -->
+  <div id="admin-familles-block" style="display:none;background:var(--card);border:1.5px solid var(--brd);border-radius:14px;padding:14px;margin-bottom:16px">
+    <div style="font-family:Open Sans,sans-serif;font-weight:800;font-size:0.95rem;margin-bottom:6px">📦 Familles de stock</div>
+    <div style="font-size:.78rem;color:var(--mut);margin-bottom:6px">Renommer une famille ou en ajouter une (pôle et unité de conditionnement à choisir à la création : ils ne se changent plus ensuite). On ne supprime pas une famille : le stock existant y reste rattaché.</div>
+    <div id="admin-familles-list"></div>
+  </div>
+
   <!-- Sites -->
   <div id="admin-sites-block" style="display:none;background:var(--card);border:1.5px solid var(--brd);border-radius:14px;padding:14px;margin-bottom:16px">
     <div style="font-family:Open Sans,sans-serif;font-weight:800;font-size:0.95rem;margin-bottom:6px">🏷 Sites</div>
@@ -2006,7 +2020,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.11.19-1340-beta';
+var APP_VERSION = '2026.11.19-1415-beta';
 var MANUEL_URL = 'manuel-isoprod.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -2349,10 +2363,13 @@ var zoneFamille = {atelier:'badge_magnet', reserve:'badge_magnet', alertes:'badg
 // « gourdes » (ancienne famille de test) est regroupée avec « mugs » dans Sublimation : les données ne sont pas modifiées
 function catFamille(cat){ var f = (cat && cat.famille) || 'badge_magnet'; return f === 'gourdes' ? 'mugs' : f; }
 // Familles de stock : badges (historique) et pôle numérique (Mugs, Gourdes, Totebags). Champ additif « famille » sur la catégorie.
+// Familles de stock : [clé, libellé, pôle, unité]. Valeurs d'origine ci-dessous ; elles peuvent être complétées / renommées depuis Admin > Réglages (Firebase : settings/familles).
 var STOCK_FAMS = [
-  ['badge_magnet','🏷️ Badges & Dérivés','badges'], ['porte_cle','🔑 Porte-clés','badges'], ['pins','📌 Pins','badges'], ['divers','📦 Divers','badges'],
-  ['mugs','🖨️ Sublimation','numerique'], ['rollup','🧻 Roll up','numerique'], ['totebag','👜 Tote bags','numerique']
+  ['badge_magnet','🏷️ Badges & Dérivés','badges','carton'], ['porte_cle','🔑 Porte-clés','badges','sachet'], ['pins','📌 Pins','badges','sachet'], ['divers','📦 Divers','badges','piece'],
+  ['mugs','🖨️ Sublimation','numerique','piece'], ['rollup','🧻 Roll up','numerique','piece'], ['totebag','👜 Tote bags','numerique','piece']
 ];
+var FAM_DEFAULTS = STOCK_FAMS.map(function(f){ return f.slice(); });
+var S_familles = null;
 function famPole(f){ for(var i=0;i<STOCK_FAMS.length;i++){ if(STOCK_FAMS[i][0]===f) return STOCK_FAMS[i][2]; } return 'badges'; }
 function famLabel(f){ for(var i=0;i<STOCK_FAMS.length;i++){ if(STOCK_FAMS[i][0]===f) return STOCK_FAMS[i][1]; } return '🏷️ Badges & Dérivés'; }
 function catPole(cat){ return famPole(catFamille(cat)); }
@@ -2399,7 +2416,7 @@ function stockApplyPole(){
 }
 // Unité de conditionnement d'après la famille : Porte-clés et Pins = sachet ; Badges & Magnets = carton (comportement historique).
 // Purement un libellé : les données stockées (qty, ppc, lots) ne changent pas.
-function famUnit(fam){ return (fam==='porte_cle' || fam==='pins') ? 'sachet' : ((fam==='divers' || famPole(fam)==='numerique') ? 'piece' : 'carton'); }
+function famUnit(fam){ for(var i=0;i<STOCK_FAMS.length;i++){ if(STOCK_FAMS[i][0]===fam && STOCK_FAMS[i][3]) return STOCK_FAMS[i][3]; } return (fam==='porte_cle' || fam==='pins') ? 'sachet' : ((fam==='divers' || famPole(fam)==='numerique') ? 'piece' : 'carton'); }
 function catUnit(cat){ return famUnit(catFamille(cat)); }
 function catUnitOf(cid){
   var c = (typeof S !== 'undefined' && ((S.allCats && S.allCats.length) ? S.allCats : S.cats) || []).find(function(x){ return x.id === cid; });
@@ -2747,7 +2764,7 @@ auth.onAuthStateChanged(function(u) {
     document.getElementById('abadge').style.display = (iAm||isDir) ? 'inline' : 'none';
     document.getElementById('abadge').textContent = iAm ? 'Admin' : 'Direction';
     saveQuickProfile(u.email, u.displayName);
-    if (!inited) { inited = true; refBoot(); startSitesListener(); startStatutsListener(); startDB(); startMachListener(); startRpListener(); startCmdIndexListener(); startCustomFormatsListener(); startInvcListener(); startCompListener(); startGammesListener(); startEtapesSupListener(); startTranspListener(); startOrphListener(); startAutoImportListener(); startQtyRulesListener(); startPoleCfgListener(); startMachCatsListener(); startPlanListener(); startAlertSeenListener(); }
+    if (!inited) { inited = true; refBoot(); startSitesListener(); startStatutsListener(); startListesListener(); startDB(); startMachListener(); startRpListener(); startCmdIndexListener(); startCustomFormatsListener(); startInvcListener(); startCompListener(); startGammesListener(); startEtapesSupListener(); startTranspListener(); startOrphListener(); startAutoImportListener(); startQtyRulesListener(); startPoleCfgListener(); startMachCatsListener(); startPlanListener(); startAlertSeenListener(); }
     if (location.hash === '#ecran') setTimeout(function(){ ecranAutoOpen(0); }, 400);
 
     // Rendu immédiat depuis le cache local, si on a déjà vu cet utilisateur
@@ -3716,7 +3733,7 @@ function switchTab(name) {
   if (name==='stats') openStatsTab();
   if (name==='dashboard' && permsLoaded){ openDashboardTab(); dashSwitchSection('recherche'); } // ouverture directe sur « Commandes »
   if (name!=='dashboard') document.body.classList.remove('dash-commandes-wide');
-  if (name.indexOf('admin_')===0) { renderPrestataires(); renderSuppliers(); renderCustomFormatsList(); renderGammesList(); siteAdminRender(); statutAdminRender(); renderEtapesSupAdmin(); renderTranspAdmin(); renderQtyRulesAdmin(); renderPoleCfgAdmin(); renderDashboardSettings(); if(name==='admin_interventions') admForgottenRefresh(); }
+  if (name.indexOf('admin_')===0) { renderPrestataires(); renderSuppliers(); renderCustomFormatsList(); renderGammesList(); siteAdminRender(); statutAdminRender(); listesAdminRender(); famAdminRender(); renderEtapesSupAdmin(); renderTranspAdmin(); renderQtyRulesAdmin(); renderPoleCfgAdmin(); renderDashboardSettings(); if(name==='admin_interventions') admForgottenRefresh(); }
   if (name==='qualite') openQualiteTab();
 }
 
@@ -6089,7 +6106,8 @@ function statutAdminRender(){
   block.style.display = isDir ? '' : 'none'; if(!isDir) return;
   var el = document.getElementById('admin-statuts-list'); if(!el || el.contains(document.activeElement)) return;
   var inp = 'background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.82rem;padding:6px 8px;outline:none';
-  var hexOf = function(c){ return /^#[0-9a-f]{6}$/i.test(c||'') ? c : '#d97706'; };
+  var VARHEX = {'var(--acc)':'#d97706','var(--red)':'#dc2626','var(--grn)':'#059669','var(--blu)':'#2563eb'};
+  var hexOf = function(c){ return /^#[0-9a-f]{6}$/i.test(c||'') ? c : (VARHEX[c] || '#d97706'); };
   var row = function(key, name, emoji, color, rule, extra, resetBtn){
     return '<div style="padding:9px 0;border-top:1px solid var(--brd)"><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">'+
       '<input type="text" value="'+esc(emoji)+'" maxlength="4" title="Emoji" onchange="statutAdminSet(\''+key+'\',\'emoji\',this.value)" style="width:48px;text-align:center;'+inp+'">'+
@@ -6146,6 +6164,122 @@ function statutSetManual(cmdId, key){
     toast(key ? '✅ Statut manuel posé' : 'Statut manuel retiré');
     setTimeout(function(){ try{ S_dash.commandes = dashCommandesArray(); if(typeof dashRunSearch === 'function') dashRunSearch(); var b = document.getElementById('dash-statut-block'), c = (S_dash.commandes||[]).find(function(x){ return x.id === cmdId; }); if(b && c) b.innerHTML = statutDetailBlockHtml(c); }catch(e){} }, 400);
   }).catch(function(){ toast('Erreur d\'enregistrement', 1); });
+}
+// ── Listes réglables (Admin > Réglages) : motifs de SAV, modes d'emport, types d'événements du planning + familles de stock ──
+// Valeurs d'origine dans le code ; si Firebase (settings/listes/…, settings/familles) en contient, ce sont elles qui servent.
+// Rien ne se supprime : un élément se masque (il reste lisible dans l'historique). L'élément « fixe » (Autre) est toujours présent, en dernier.
+var LISTES_DEF = {
+  savMotifs:   {titre:'Motifs de SAV', fixed:'Autre', def:['Défaut d\'impression', 'Erreur de format', 'Casse / transport', 'Erreur client', 'Manque de quantité', 'Autre']},
+  emportModes: {titre:'Modes d\'emport / de livraison (suivi d\'expédition)', fixed:'Autre', def:['Emport', 'Livraison par nos soins', 'Enlèvement par le transporteur du client', 'Autre']},
+  planKinds:   {titre:'Types d\'événements du planning', fixed:'autre', keyed:true, def:[['reunion', '🗓️ Réunion'], ['info', 'ℹ️ Info'], ['autre', '📌 Autre']]}
+};
+var S_listes = {};
+function listeItems(name){
+  var d = LISTES_DEF[name]; if(!d) return [];
+  var st = S_listes && S_listes[name], arr = [];
+  if(st){ arr = (Array.isArray(st) ? st : Object.keys(st).sort(function(a, b){ return a - b; }).map(function(k){ return st[k]; })).filter(function(x){ return x && x.k != null && String(x.k) !== ''; }).map(function(x){ return {k:String(x.k), l:String(x.l != null ? x.l : x.k), actif:x.actif !== false}; }); }
+  if(!arr.length) arr = d.def.map(function(x){ return Array.isArray(x) ? {k:x[0], l:x[1], actif:true} : {k:x, l:x, actif:true}; });
+  var fixed = null, rest = [];
+  arr.forEach(function(x){ if(x.k === d.fixed) fixed = x; else rest.push(x); });
+  if(!fixed){ var def = d.def.filter(function(x){ return (Array.isArray(x) ? x[0] : x) === d.fixed; })[0]; fixed = {k:d.fixed, l:Array.isArray(def) ? def[1] : d.fixed, actif:true}; }
+  fixed.actif = true; rest.push(fixed);
+  return rest;
+}
+function listeActive(name){ return listeItems(name).filter(function(x){ return x.actif; }); }
+function savMotifs(){ return listeActive('savMotifs').map(function(x){ return x.k; }); }
+function emportModes(){ return listeActive('emportModes').map(function(x){ return x.k; }); }
+var PLAN_KINDS = {reunion:'🗓️ Réunion', info:'ℹ️ Info', autre:'📌 Autre'};   // table de lecture (TOUS les types, même masqués), reconstruite en place
+function planKindsRebuild(){ Object.keys(PLAN_KINDS).forEach(function(k){ delete PLAN_KINDS[k]; }); listeItems('planKinds').forEach(function(x){ PLAN_KINDS[x.k] = x.l; }); }
+function planKindKeys(current){ var k = listeActive('planKinds').map(function(x){ return x.k; }); if(current && k.indexOf(current) < 0 && PLAN_KINDS[current]) k.push(current); return k; }
+function startListesListener(){
+  db.ref('settings/listes').on('value', function(snap){ S_listes = snap.val() || {}; planKindsRebuild(); try{ listesAdminRender(); }catch(e){} });
+  db.ref('settings/familles').on('value', function(snap){ famApply(snap.val()); try{ famAdminRender(); }catch(e){} });
+}
+function listeSave(name, items){
+  if(!isDir) return Promise.resolve();
+  var arr = items.map(function(x){ return {k:x.k, l:x.l, actif:x.actif !== false}; });
+  return fbs('settings/listes/'+name, arr).catch(function(){ toast('Erreur d\'enregistrement (règles Firebase à autoriser sur « settings/listes » ?)', 1); });
+}
+function listesAdminRender(){
+  var block = document.getElementById('admin-listes-block'); if(!block) return;
+  block.style.display = isDir ? '' : 'none'; if(!isDir) return;
+  var el = document.getElementById('admin-listes-list'); if(!el || el.contains(document.activeElement)) return;
+  var inp = 'background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.8rem;padding:6px 8px;outline:none', btn = 'padding:3px 8px;border-radius:6px;border:1.5px solid var(--brd);background:none;color:var(--txt);font-size:.72rem;cursor:pointer';
+  var h = '';
+  Object.keys(LISTES_DEF).forEach(function(name){
+    var d = LISTES_DEF[name], items = listeItems(name), inFb = !!(S_listes && S_listes[name]);
+    h += '<div style="padding:10px 0;border-top:1px solid var(--brd)"><div style="font-weight:700;font-size:.82rem">'+esc(d.titre)+' <span style="font-weight:400;font-size:.68rem;color:var(--mut)">'+(inFb ? '· dans Firebase' : '· encore dans le code')+'</span></div>';
+    items.forEach(function(x, i){
+      var fixed = x.k === d.fixed;
+      h += '<div style="display:flex;gap:6px;align-items:center;margin-top:5px;'+(x.actif ? '' : 'opacity:.55')+'">'+
+        (d.keyed && !fixed ? '<input type="text" value="'+esc(x.l)+'" maxlength="40" onchange="listeRename(\''+name+'\','+i+',this.value)" style="flex:1;min-width:0;'+inp+'">' : '<span style="flex:1;font-size:.8rem">'+esc(x.l)+(fixed ? ' <span style="color:var(--mut);font-size:.68rem">(toujours présent)</span>' : '')+'</span>')+
+        (fixed ? '' : '<button type="button" style="'+btn+'" onclick="listeMove(\''+name+'\','+i+',-1)">▲</button><button type="button" style="'+btn+'" onclick="listeMove(\''+name+'\','+i+',1)">▼</button>'+
+          '<label style="font-size:.72rem"><input type="checkbox" '+(x.actif ? 'checked ' : '')+'onchange="listeToggle(\''+name+'\','+i+',this.checked)"> Actif</label>')+'</div>';
+    });
+    h += '<div style="display:flex;gap:6px;margin-top:7px"><input type="text" id="liste-new-'+name+'" maxlength="40" placeholder="Ajouter…" style="flex:1;min-width:0;'+inp+'"><button type="button" onclick="listeAdd(\''+name+'\')" style="padding:6px 12px;border-radius:8px;border:none;background:var(--acc);color:#000;font-weight:700;font-size:.78rem;cursor:pointer">➕</button></div></div>';
+  });
+  h += '<button type="button" onclick="listesSeedAll()" style="width:100%;margin-top:6px;padding:8px;border-radius:8px;border:1.5px solid var(--brd);background:var(--sur);color:var(--txt);font-weight:700;font-size:.78rem;cursor:pointer">📤 Enregistrer toutes ces listes dans Firebase</button>';
+  el.innerHTML = h;
+}
+function listeMove(name, i, dir){
+  var it = listeItems(name), j = i + dir, last = it.length - 1;   // la dernière entrée (fixe) ne bouge pas
+  if(j < 0 || j >= last || i >= last) return;
+  var t = it[i]; it[i] = it[j]; it[j] = t; listeSave(name, it);
+}
+function listeToggle(name, i, on){ var it = listeItems(name); if(!it[i] || it[i].k === LISTES_DEF[name].fixed) return; it[i].actif = !!on; listeSave(name, it); }
+function listeRename(name, i, val){ var it = listeItems(name); val = String(val||'').trim(); if(!it[i] || !val) return; it[i].l = val; listeSave(name, it); }
+function listeAdd(name){
+  var el = document.getElementById('liste-new-'+name), v = el ? el.value.trim() : ''; if(!v) return;
+  var d = LISTES_DEF[name], it = listeItems(name);
+  if(it.some(function(x){ return x.l.toLowerCase() === v.toLowerCase() || x.k.toLowerCase() === v.toLowerCase(); })){ toast('Cet élément existe déjà', 1); return; }
+  var fixed = it.pop();   // on insère avant l'élément fixe
+  it.push({k:d.keyed ? 'k'+gid().slice(-6) : v, l:v, actif:true}); it.push(fixed);
+  listeSave(name, it).then(function(){ toast('✅ Ajouté'); if(el) el.value = ''; });
+}
+function listesSeedAll(){
+  if(!isDir) return;
+  var jobs = Object.keys(LISTES_DEF).filter(function(n){ return !(S_listes && S_listes[n]); }).map(function(n){ return listeSave(n, listeItems(n)); });
+  if(!(S_familles && S_familles.length)) jobs.push(fbs('settings/familles', FAM_DEFAULTS.map(function(f){ return {k:f[0], label:f[1], pole:f[2], unit:f[3]}; })).catch(function(){ toast('Erreur d\'enregistrement des familles', 1); }));
+  Promise.all(jobs).then(function(){ toast('✅ Listes enregistrées dans Firebase'); });
+}
+// ── Familles de stock : libellés et ajout (jamais de suppression : le stock existant y reste rattaché) ──
+function famApply(raw){
+  var arr = raw ? (Array.isArray(raw) ? raw : Object.keys(raw).sort(function(a, b){ return a - b; }).map(function(k){ return raw[k]; })) : [];
+  arr = arr.filter(function(x){ return x && x.k && x.label; });
+  S_familles = arr.length ? arr : null;
+  var src = arr.length ? arr.map(function(x){ return [String(x.k), String(x.label), x.pole === 'numerique' ? 'numerique' : 'badges', x.unit || '']; }) : FAM_DEFAULTS.map(function(f){ return f.slice(); });
+  // les familles d'origine ne disparaissent jamais, même si la liste Firebase est incomplète
+  FAM_DEFAULTS.forEach(function(f){ if(!src.some(function(x){ return x[0] === f[0]; })) src.push(f.slice()); });
+  STOCK_FAMS.length = 0; src.forEach(function(f){ STOCK_FAMS.push(f); });
+  INVC_FAM_ORDER.length = 0; STOCK_FAMS.forEach(function(f){ INVC_FAM_ORDER.push(f[0]); });
+  Object.keys(INVC_FAM_LABEL).forEach(function(k){ delete INVC_FAM_LABEL[k]; }); STOCK_FAMS.forEach(function(f){ INVC_FAM_LABEL[f[0]] = f[1]; });
+  MTG_FAM_ORDER.length = 0; STOCK_FAMS.forEach(function(f){ MTG_FAM_ORDER.push([f[0], f[1]]); });
+  Object.keys(MTG_FAM_PLAIN).forEach(function(k){ delete MTG_FAM_PLAIN[k]; }); STOCK_FAMS.forEach(function(f){ MTG_FAM_PLAIN[f[0]] = String(f[1]).replace(/^\S+\s+/, ''); });
+}
+function famSave(arr){ return fbs('settings/familles', arr).catch(function(){ toast('Erreur d\'enregistrement (règles Firebase à autoriser sur « settings/familles » ?)', 1); }); }
+function famCurrentList(){ return STOCK_FAMS.map(function(f){ return {k:f[0], label:f[1], pole:f[2], unit:f[3]||''}; }); }
+function famAdminRender(){
+  var block = document.getElementById('admin-familles-block'); if(!block) return;
+  block.style.display = isDir ? '' : 'none'; if(!isDir) return;
+  var el = document.getElementById('admin-familles-list'); if(!el || el.contains(document.activeElement)) return;
+  var inp = 'background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.8rem;padding:6px 8px;outline:none';
+  var pl = {badges:'Pôle badges', numerique:'Pôle numérique'}, un = {carton:'carton', sachet:'sachet', piece:'pièce'};
+  el.innerHTML = STOCK_FAMS.map(function(f, i){
+    return '<div style="display:flex;gap:6px;align-items:center;margin-top:5px"><input type="text" value="'+esc(f[1])+'" maxlength="40" onchange="famRename('+i+',this.value)" style="flex:1;min-width:0;'+inp+'"><span style="font-size:.7rem;color:var(--mut);white-space:nowrap">'+pl[f[2]]+' · '+(un[famUnit(f[0])]||'')+'</span></div>';
+  }).join('')+
+  '<div style="border-top:1px solid var(--brd);margin-top:10px;padding-top:10px;display:flex;gap:6px;flex-wrap:wrap"><input type="text" id="fam-new-label" maxlength="40" placeholder="Nouvelle famille (ex. 🧲 Aimants)" style="flex:1 1 170px;min-width:0;'+inp+'">'+
+  '<select id="fam-new-pole" style="'+inp+'"><option value="badges">Pôle badges</option><option value="numerique">Pôle numérique</option></select>'+
+  '<select id="fam-new-unit" style="'+inp+'"><option value="carton">Carton</option><option value="sachet">Sachet</option><option value="piece">Pièce</option></select>'+
+  '<button type="button" onclick="famAdd()" style="padding:7px 14px;border-radius:8px;border:none;background:var(--acc);color:#000;font-weight:700;font-size:.8rem;cursor:pointer">➕ Ajouter</button></div>';
+}
+function famRename(i, val){ if(!isDir) return; val = String(val||'').trim(); var l = famCurrentList(); if(!l[i] || !val) return; l[i].label = val; famSave(l).then(function(){ toast('✅ Enregistré'); }); }
+function famAdd(){
+  if(!isDir) return;
+  var lab = String((document.getElementById('fam-new-label')||{}).value||'').trim(), pole = (document.getElementById('fam-new-pole')||{}).value || 'badges', unit = (document.getElementById('fam-new-unit')||{}).value || 'carton';
+  if(!lab){ toast('Donne un nom à la famille', 1); return; }
+  var l = famCurrentList(); if(l.some(function(x){ return x.label.toLowerCase() === lab.toLowerCase(); })){ toast('Cette famille existe déjà', 1); return; }
+  l.push({k:'f_'+gid().slice(-8), label:lab, pole:pole, unit:unit});
+  famSave(l).then(function(){ toast('✅ Famille ajoutée'); });
 }
 function srchRenderChips(counts){
   var el = document.getElementById('search-cmd-filters');
@@ -7170,8 +7304,8 @@ function startInvcListener(){
   });
 }
 // Ordre d'affichage des formats : Badges & Magnets (ronds du plus petit au plus grand : 25 mm → 100 mm, puis les autres formats), puis Porte-clés, Pins, Divers.
-var INVC_FAM_ORDER = ['badge_magnet','porte_cle','pins','divers','mugs','rollup','totebag'];
-var INVC_FAM_LABEL = {badge_magnet:'🏷️ Badges & Dérivés', porte_cle:'🔑 Porte-clés', pins:'📌 Pins', divers:'📦 Divers', mugs:'🖨️ Sublimation', rollup:'🧻 Roll up', totebag:'👜 Tote bags'};
+var INVC_FAM_ORDER = STOCK_FAMS.map(function(f){ return f[0]; });   // dérivés de STOCK_FAMS (recalculés quand les familles changent)
+var INVC_FAM_LABEL = {}; STOCK_FAMS.forEach(function(f){ INVC_FAM_LABEL[f[0]] = f[1]; });
 function invcCatCmp(a, b){
   var fa = INVC_FAM_ORDER.indexOf(catFamille(a)), fb = INVC_FAM_ORDER.indexOf(catFamille(b));
   if(fa < 0) fa = 99; if(fb < 0) fb = 99;
@@ -8790,7 +8924,7 @@ function dashSuiviBlockHtml(c){
       (c.livraison && c.livraison.mode ? '' : '<button id="dash-liv-open-btn" onclick="dashLivOpenForm()" style="width:100%;margin-top:8px;padding:9px;border-radius:10px;border:1.5px dashed var(--brd);background:none;color:var(--mut);font-family:Open Sans,sans-serif;font-weight:800;font-size:.84rem;cursor:pointer">🚶 Emport / autre mode (sans colis)</button>')+
       '<div id="dash-liv-form" style="display:none;margin-top:8px">'+
         '<select id="dash-liv-mode" style="width:100%;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.85rem;padding:8px;margin-bottom:8px">'+
-          ['Emport','Livraison par nos soins','Enlèvement par le transporteur du client','Autre'].map(function(m){ return '<option value="'+esc(m)+'">'+esc(m)+'</option>'; }).join('')+'</select>'+
+          emportModes().map(function(m){ return '<option value="'+esc(m)+'">'+esc(m)+'</option>'; }).join('')+'</select>'+
         '<input type="text" id="dash-liv-note" maxlength="80" placeholder="Précision (facultatif)" autocomplete="off" style="width:100%;box-sizing:border-box;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.9rem;padding:9px;margin-bottom:8px">'+
         '<label style="display:block;font-size:.74rem;color:var(--mut);margin-bottom:4px">Date de remise / départ</label>'+
         '<input type="date" id="dash-liv-date" value="'+suiviTodayIso()+'" max="'+suiviTodayIso()+'" style="width:100%;box-sizing:border-box;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.9rem;padding:9px;margin-bottom:8px">'+
@@ -13384,7 +13518,7 @@ function mtgRecalcChargeParPoste(){
 // ── Alertes "non commandées" auto (État des stocks) : réutilise exactement
 // la même logique que l'onglet Alertes (stock bas + aucune commande en
 // cours), regroupée par famille pour la lisibilité dans la réunion.
-var MTG_FAM_ORDER = [['badge_magnet','🏷️ Badges & Dérivés'],['porte_cle','🔑 Porte-clés'],['pins','📌 Pins'],['divers','📦 Divers'],['mugs','🖨️ Sublimation'],['rollup','🧻 Roll up'],['totebag','👜 Tote bags']];
+var MTG_FAM_ORDER = STOCK_FAMS.map(function(f){ return [f[0], f[1]]; });
 
 // Familles présentées selon le pôle de la réunion. Pôle numérique activé : chaque réunion ne montre que ses familles ;
 // désactivé : réunion badges inchangée (toutes les familles).
@@ -13431,7 +13565,7 @@ function mtgNotOrderedAlertsHtml(pole){
 
 // Libellés sans emoji pour le PDF : la police standard de jsPDF ne sait
 // pas afficher les emoji (ils ressortent en caractères illisibles).
-var MTG_FAM_PLAIN = {badge_magnet:'Badges & Dérivés', porte_cle:'Porte-clés', pins:'Pins', divers:'Divers', mugs:'Sublimation', rollup:'Roll up', totebag:'Tote bags'};
+var MTG_FAM_PLAIN = {}; STOCK_FAMS.forEach(function(f){ MTG_FAM_PLAIN[f[0]] = String(f[1]).replace(/^\S+\s+/, ''); });
 
 // toLocaleString('fr-FR') insère une espace fine insécable comme séparateur
 // de milliers ; cette espace-là n'existe pas non plus dans la police du
@@ -15726,9 +15860,7 @@ function siteAdminRender(){
     var k = esc(e.key || siteKeyOf(e.code)), dis = fromCode ? ' disabled' : '';
     return '<div style="padding:8px 0;border-top:1px solid var(--brd);'+(e.actif ? '' : 'opacity:.6')+'">'+
       '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><strong style="min-width:70px">'+esc(e.code)+'</strong>'+
-      '<label style="font-size:.74rem"><input type="checkbox" '+(e.actif ? 'checked ' : '')+dis+' onchange="siteAdminSet(\''+k+'\',\'actif\',this.checked)"> Actif</label>'+
-      '<label style="font-size:.74rem" title="Le suivi d\'expédition demande une confirmation faite à la main pour ce site"><input type="checkbox" '+(e.confirm ? 'checked ' : '')+dis+' onchange="siteAdminSet(\''+k+'\',\'confirm\',this.checked)"> Confirmation client manuelle</label>'+
-      '<label style="font-size:.74rem" title="Commandes passées par mail : étiquette à nomenclature (SITE2026-CDE MAIL NOM AAAAMMJJ+HHMM)"><input type="checkbox" '+(e.nomen ? 'checked ' : '')+dis+' onchange="siteAdminSet(\''+k+'\',\'nomen\',this.checked)"> Commandes mail (nomenclature)</label></div>'+
+      '<label style="font-size:.74rem"><input type="checkbox" '+(e.actif ? 'checked ' : '')+dis+' onchange="siteAdminSet(\''+k+'\',\'actif\',this.checked)"> Actif</label></div>'+
       '<input type="text" value="'+esc(e.alias.join(', '))+'" placeholder="Autres écritures de ce site (séparées par des virgules)"'+dis+' onchange="siteAdminSet(\''+k+'\',\'alias\',this.value)" style="width:100%;margin-top:6px;'+inp+'"></div>';
   }).join('');
   if(!fromCode) h += '<div style="border-top:1px solid var(--brd);padding-top:10px;margin-top:4px;display:flex;gap:8px;flex-wrap:wrap"><input type="text" id="site-new-code" maxlength="12" placeholder="Nouveau site (ex. ABC)" style="flex:1 1 140px;'+inp+';text-transform:uppercase"><button type="button" onclick="siteAdminAdd()" style="flex:0 0 auto;padding:7px 14px;border-radius:8px;border:none;background:var(--acc);color:#000;font-family:Open Sans,sans-serif;font-weight:700;font-size:.8rem;cursor:pointer">➕ Ajouter</button></div>';
@@ -24421,7 +24553,6 @@ function dashRunSearch(){
 // Plusieurs SAV possibles par commande. Aucun lien avec les réimpressions
 // (volontairement séparés pour l'instant). Les commandes sans "savs"
 // (toutes les anciennes) se comportent exactement comme avant.
-var DASH_SAV_MOTIFS = ['Défaut d\'impression','Erreur de format','Casse / transport','Erreur client','Manque de quantité','Autre'];
 
 function dashSavList(c){
   var m = c && c.savs;
@@ -24550,7 +24681,7 @@ function dashSavBlockHtml(c){
     html += '<button id="dash-sav-open-btn" onclick="dashSavOpenForm()" style="width:100%;padding:9px;border-radius:10px;border:1.5px dashed var(--acc);background:none;color:var(--acc);font-family:Open Sans,sans-serif;font-weight:700;font-size:.84rem;cursor:pointer;margin-top:6px">🛠 Déclarer un SAV</button>'+
       '<div id="dash-sav-form" style="display:none;margin-top:8px">'+
         '<select id="dash-sav-motif" style="width:100%;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.85rem;padding:8px;margin-bottom:8px">'+
-          DASH_SAV_MOTIFS.map(function(m){ return '<option value="'+esc(m)+'">'+esc(m)+'</option>'; }).join('')+
+          savMotifs().map(function(m){ return '<option value="'+esc(m)+'">'+esc(m)+'</option>'; }).join('')+
         '</select>'+
         '<textarea id="dash-sav-note" rows="3" placeholder="Note (facultatif)" style="width:100%;box-sizing:border-box;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.85rem;padding:8px;margin-bottom:8px;font-family:inherit"></textarea>';
     var fmts = (c.formats||[]).map(function(f){ return f.format; }).filter(Boolean);
@@ -24574,7 +24705,7 @@ function dashSavSubmit(cmdId){
   var motifEl = document.getElementById('dash-sav-motif');
   var noteEl = document.getElementById('dash-sav-note');
   var motif = motifEl ? motifEl.value : 'Autre';
-  if(DASH_SAV_MOTIFS.indexOf(motif) < 0) motif = 'Autre';
+  if(!listeItems('savMotifs').some(function(x){ return x.k === motif; })) motif = 'Autre';
   var note = noteEl ? noteEl.value.trim() : '';
   var formats = [];
   document.querySelectorAll('#dash-sav-formats input:checked').forEach(function(i){ formats.push(i.value); });
@@ -24696,7 +24827,6 @@ function saveDashboardSettings(){
 // ══════════════════════════════════════════════════
 var S_plan = {conges:{}, fermetures:{}, agenda:{}, weekStart:null, mode:'week', monthStart:null};
 var PLAN_JOURS = ['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'];
-var PLAN_KINDS = {reunion:'🗓️ Réunion', info:'ℹ️ Info', autre:'📌 Autre'};
 function canPlanEdit(){ return !!(iAm || (permsLoaded && me_perms && me_perms.planningEdit === true)); }
 function startPlanListener(){
   ['conges','fermetures','agenda'].forEach(function(k){
@@ -24873,7 +25003,7 @@ function planEventForm(dateKey, id){
   if(!canPlanEdit()) return;
   var e = id ? (S_plan.agenda[id] || {}) : {};
   planModal(id ? 'Modifier l\'événement' : 'Nouvel événement',
-    planInp('Type', '<select id="pe-kind" style="'+PLAN_INP+'">'+Object.keys(PLAN_KINDS).map(function(k){ return '<option value="'+k+'"'+((e.kind||'info') === k ? ' selected' : '')+'>'+PLAN_KINDS[k]+'</option>'; }).join('')+'</select>')+
+    planInp('Type', '<select id="pe-kind" style="'+PLAN_INP+'">'+planKindKeys(e.kind).map(function(k){ return '<option value="'+k+'"'+((e.kind||'info') === k ? ' selected' : '')+'>'+esc(PLAN_KINDS[k])+'</option>'; }).join('')+'</select>')+
     planInp('Titre', '<input id="pe-title" type="text" value="'+esc(e.title||'')+'" placeholder="Ex : Réunion de production" style="'+PLAN_INP+'">')+
     planInp('Date', '<input id="pe-date" type="date" value="'+esc(e.date || dateKey || '')+'" style="'+PLAN_INP+'">')+
     planInp('Heure (facultatif)', '<input id="pe-time" type="time" value="'+esc(e.time||'')+'" style="'+PLAN_INP+'">')+
