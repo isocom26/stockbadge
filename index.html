@@ -1985,7 +1985,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.11.17-1515';
+var APP_VERSION = '2026.11.19-1000';
 var MANUEL_URL = 'manuel-isoprod.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -2726,7 +2726,7 @@ auth.onAuthStateChanged(function(u) {
     document.getElementById('abadge').style.display = (iAm||isDir) ? 'inline' : 'none';
     document.getElementById('abadge').textContent = iAm ? 'Admin' : 'Direction';
     saveQuickProfile(u.email, u.displayName);
-    if (!inited) { inited = true; startDB(); startMachListener(); startRpListener(); startCmdIndexListener(); startCustomFormatsListener(); startInvcListener(); startCompListener(); startGammesListener(); startEtapesSupListener(); startTranspListener(); startOrphListener(); startQtyRulesListener(); startPoleCfgListener(); startMachCatsListener(); startPlanListener(); startAlertSeenListener(); }
+    if (!inited) { inited = true; startDB(); startMachListener(); startRpListener(); startCmdIndexListener(); startCustomFormatsListener(); startInvcListener(); startCompListener(); startGammesListener(); startEtapesSupListener(); startTranspListener(); startOrphListener(); startAutoImportListener(); startQtyRulesListener(); startPoleCfgListener(); startMachCatsListener(); startPlanListener(); startAlertSeenListener(); }
     if (location.hash === '#ecran') setTimeout(function(){ ecranAutoOpen(0); }, 400);
 
     // Rendu immédiat depuis le cache local, si on a déjà vu cet utilisateur
@@ -2943,6 +2943,7 @@ function ecranAutoOpen(tries){
 // Pas de correctif technique invisible ici. tag = qui est concerné :
 //   'all' (tout le monde), 'admin' (admin/direction), 'maint' (maintenance), 'stock' (ajout de stock), 'reprint' (réimpressions)
 var NEWS = [
+  {n:85, d:'19/11/2026', tag:'all', t:'Expéditions : import automatique depuis le Drive', x:'Un script Google dépose chaque soir les fichiers EBP / Chronopost / Colissimo ; IsoProd les traite dès qu\'un utilisateur autorisé a l\'application ouverte (même résultat qu\'un import manuel « Enregistrer »). Le journal s\'affiche en haut de la fenêtre d\'import.'},
   {n:83, d:'17/11/2026', tag:'all', t:'Dépiautage : formats avec « _ » reconnus', x:'Les formats comme MAG32_MAT-FOIL, B45_FOND-ARGENT ou MAG32_FOND-OR sont maintenant lus au scan / collage du QR (ils étaient ignorés, seul le MAG32 classique ressortait).'},
   {n:82, d:'17/11/2026', tag:'stock', t:'Stock : colisage par fournisseur dans les commandes', x:'Dans « Modifier le composant », chaque fournisseur a un champ « Colisage » (pièces par carton, ex. 600) et une note (ex. 6 sachets × 100). Dans « Nouvelle commande », le colisage du fournisseur choisi s\'affiche sous le produit ; si la quantité n\'est pas un multiple, un avertissement propose d\'arrondir au carton supérieur. N\'a aucun effet sur le stock ni sur les comptes par carton.'},
   {n:81, d:'17/11/2026', tag:'all', t:'Manuel d\'utilisation mis à jour', x:'Nouveau manuel (72 pages) : mot de passe oublié, clic droit sur les onglets, exports dans Inventaire, pastilles par famille dans les alertes, Maintenance en tableaux, comparaison avec l\'an dernier dans les Statistiques. Le fichier s\'appelle désormais manuel-isoprod.pdf.'},
@@ -8856,10 +8857,11 @@ function suiviDeleteColis(cmdId, kid){
 // commandes/{id}/livraison = {mode, bl, at, byName} (emport / autre mode sans colis).
 // ══════════════════════════════════════════════════════════════
 var SIMP = {info:[], carrier:[], ebp:{}, rows:[], emports:[], blLinks:[], ebpLoaded:false, view:''};
+var S_orphReady = false;
 var S_orph = {};   // suiviOrphelins/{id} = {transp, num, bl, ref, client, at, byName} : colis d'un fichier transporteur pas encore rattachés
 function startOrphListener(){
   db.ref('suiviOrphelins').on('value', function(snap){
-    S_orph = snap.val() || {};
+    S_orph = snap.val() || {}; S_orphReady = true;
     simpOrphUpdateCount();
     if(document.getElementById('m-suivi-import') && document.getElementById('m-suivi-import').classList.contains('open')) simpRender();
   });
@@ -9335,7 +9337,7 @@ var SIMP_STATE = {
 };
 function simpRender(){
   var el = document.getElementById('simp-body'); if(!el) return;
-  var h = '';
+  var h = simpAimpLogHtml();
   if(SIMP.info.length) h += '<div style="font-size:.78rem;margin-bottom:8px">'+SIMP.info.map(function(i){ return '<div style="color:'+(i.ok?'var(--grn)':'var(--red)')+'">'+(i.ok?'✔ ':'✖ ')+esc(i.txt)+'</div>'; }).join('')+'</div>';
   if(SIMP.srcs && Object.keys(SIMP.srcs).length){
     h += '<div style="font-size:.74rem;color:var(--mut);margin-bottom:8px">'+(SIMP.missing && SIMP.missing.length ? 'Pas encore chargé : '+SIMP.missing.join(', ')+' · ' : '')+'<a href="#" onclick="event.preventDefault();simpReset()" style="color:var(--mut);text-decoration:underline">Tout effacer et recommencer</a></div>';
@@ -9440,8 +9442,9 @@ function simpBlWrites(){
   SIMP.rows.forEach(function(r){ if(r.on && r.orderId) add(r.bl, r.orderId); });
   return list;
 }
-function simpApply(){
-  if(!canSuiviSaisie()) return;
+function simpApply(opt){
+  var auto = !!(opt && opt.auto);
+  if(!canSuiviSaisie()) return Promise.resolve(null);
   var byId = (S_cmdIndex && S_cmdIndex.byId) || {}, now = Date.now(), perOrder = {}, nCol = 0, nEmp = 0, nHp = 0, side = [];
   var me_name = getMyName(), already = {}, nFix = 0;
   var byNum = simpOrphByNum(), clear = [];
@@ -9455,6 +9458,8 @@ function simpApply(){
     if(r.on && r.orderId && byId[r.orderId] && !r.hp){
       (perOrder[r.orderId] = perOrder[r.orderId] || {})['colis/'+gid()] = simpColisEntry(r.transp, r.num, r.bl, byId[r.orderId], now, 'import', r.shipAt, SIMP.hist); nCol++;
       if(byNum[key]) clear.push(byNum[key].id);   // il était mis de côté : il est maintenant rattaché
+    } else if(auto && (r.state === 'noebp' || r.state === 'needebp')){
+      return;   // import auto : EBP pas encore à jour pour ce BL — on ne met rien de côté, le prochain passage réessaiera
     } else if(!already[key] && !SIMP.hist){   // import historique : les colis sans commande sont ignorés
       var o = {transp:r.transp, num:r.num, bl:r.bl||'', ref:r.ref||'', client:r.client||'', at:now, byName:me_name};
       if(r.shipAt) o.shipAt = r.shipAt;
@@ -9469,11 +9474,80 @@ function simpApply(){
     (perOrder[x.orderId] = perOrder[x.orderId] || {})['livraison'] = {mode:x.mode, bl:x.bl, at:now, byName:me_name}; nEmp++;
   });
   var ids = Object.keys(perOrder);
-  if(!ids.length && !side.length){ toast('Rien à enregistrer', 1); return; }
+  if(!ids.length && !side.length){ if(!auto) toast('Rien à enregistrer', 1); return Promise.resolve({nCol:0, nEmp:0, nSide:0, nHp:0, nFix:0}); }
   var jobs = ids.map(function(id){ return fbu('commandes/'+id, perOrder[id]); }).concat(side.map(function(o){ return fbs('suiviOrphelins/'+gid(), o); })).concat(clear.map(function(id){ return fbd('suiviOrphelins/'+id); }));
-  Promise.all(jobs)
-    .then(function(){ toast('✅ '+nCol+' colis, '+nEmp+' emport(s)'+(nFix ? ', '+nFix+' date(s) d\'expédition corrigée(s)' : '')+(side.length-nHp ? ', '+(side.length-nHp)+' mis de côté à rattacher' : '')+(nHp ? ', '+nHp+' hors production' : '')+' enregistrés'); cm('m-suivi-import'); S_dash.commandes = dashCommandesArray(); if(typeof dashRunSearch === 'function') dashRunSearch(); })
-    .catch(function(){ toast('Erreur d\'enregistrement de l\'import', 1); });
+  return Promise.all(jobs)
+    .then(function(){ if(auto){ S_dash.commandes = dashCommandesArray(); if(typeof dashRunSearch === 'function') dashRunSearch(); return {nCol:nCol, nEmp:nEmp, nSide:side.length-nHp, nHp:nHp, nFix:nFix}; }
+      toast('✅ '+nCol+' colis, '+nEmp+' emport(s)'+(nFix ? ', '+nFix+' date(s) d\'expédition corrigée(s)' : '')+(side.length-nHp ? ', '+(side.length-nHp)+' mis de côté à rattacher' : '')+(nHp ? ', '+nHp+' hors production' : '')+' enregistrés'); cm('m-suivi-import'); S_dash.commandes = dashCommandesArray(); if(typeof dashRunSearch === 'function') dashRunSearch(); })
+    .catch(function(e){ if(auto) throw e; toast('Erreur d\'enregistrement de l\'import', 1); });
+}
+
+// ── Import automatique depuis le Drive (script Google Apps Script → Firebase) ──
+// Le script dépose le dernier fichier de chaque type dans suiviImportsAuto/pending/{ebp|chrono|coli}
+// ({name, mod, b64}) puis met à jour suiviImportsAuto/ping. Le premier utilisateur autorisé qui a l'app ouverte
+// traite les fichiers exactement comme un import manuel « Enregistrer » sans rien modifier, puis écrit le journal.
+var AUTOIMP = {running:false, t:0, log:{}};
+function aimpToFile(o){
+  var bin = atob(o.b64||''), u8 = new Uint8Array(bin.length);
+  for(var i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+  return new File([u8], o.name || 'fichier', {lastModified:o.mod || Date.now()});
+}
+function autoImportSchedule(){
+  if(AUTOIMP.t) clearTimeout(AUTOIMP.t);
+  AUTOIMP.t = setTimeout(function(){ AUTOIMP.t = 0; autoImportCheck(); }, 4000);
+}
+function autoImportCheck(){
+  if(AUTOIMP.running) return;
+  if(!canSuiviSaisie() || !S_orphReady){ if((AUTOIMP.retry = (AUTOIMP.retry||0)+1) < 12) setTimeout(autoImportCheck, 4000); return; }   // droits / colis à rattacher pas encore chargés : on réessaie
+  if(!S_cmdIndex || !Object.keys(S_cmdIndex.byId||{}).length) return;
+  var m = document.getElementById('m-suivi-import'); if(m && m.classList.contains('open')) return;   // import manuel en cours
+  AUTOIMP.running = true;
+  var release = function(){ AUTOIMP.running = false; return fbd('suiviImportsAuto/claim').catch(function(){}); };
+  fbg('suiviImportsAuto/pending').then(function(snap){
+    var p0 = snap.val() || {};
+    if(!Object.keys(p0).length){ AUTOIMP.running = false; return; }
+    // un seul poste traite à la fois (verrou valable 3 min)
+    return fbtx('suiviImportsAuto/claim', function(cur){ return (cur && Date.now() - (cur.at||0) < 180000) ? undefined : {by:getMyName(), at:Date.now()}; }).then(function(res){
+      if(!res || !res.committed){ AUTOIMP.running = false; return; }
+      return fbg('suiviImportsAuto/pending').then(function(sn2){
+        var p = sn2.val() || {}, keys = Object.keys(p);
+        if(!keys.length) return release();
+        var files = keys.map(function(k){ return aimpToFile(p[k]); }), names = keys.map(function(k){ return p[k].name; });
+        SIMP.srcs = {}; SIMP.errs = []; SIMP.info = []; SIMP.carrier = []; SIMP.ebp = {}; SIMP.rows = []; SIMP.emports = []; SIMP.blLinks = []; SIMP.ebpLoaded = false; SIMP.view = ''; SIMP.missing = []; SIMP.hist = false;
+        return simpHandleFiles(files).then(function(){
+          // Il faut l'EBP ET au moins un fichier transporteur ensemble, sinon on attend le prochain dépôt
+          if(!SIMP.ebpLoaded || !SIMP.carrier.length){ simpReset(); return release(); }
+          var errs = (SIMP.errs||[]).map(function(e){ return e.txt; });
+          return simpApply({auto:true}).then(function(r){
+            r = r || {nCol:0, nEmp:0, nSide:0, nHp:0, nFix:0};
+            var entry = {at:Date.now(), src:'app', by:getMyName(), files:names, nCol:r.nCol, nEmp:r.nEmp, nSide:r.nSide, nHp:r.nHp, nFix:r.nFix};
+            if(errs.length) entry.errs = errs;
+            return fbs('suiviImportsAuto/log/'+gid(), entry).then(function(){ return Promise.all(keys.map(function(k){ return fbd('suiviImportsAuto/pending/'+k); })); }).then(function(){
+              if(r.nCol || r.nSide || r.nEmp) toast('📥 Import auto Drive : '+r.nCol+' colis rattachés'+(r.nSide ? ', '+r.nSide+' à rattacher' : ''));
+              simpReset(); return release();
+            });
+          });
+        });
+      });
+    });
+  }).catch(function(e){ console.log('Import auto Drive :', e); AUTOIMP.running = false; fbd('suiviImportsAuto/claim').catch(function(){}); });
+}
+function startAutoImportListener(){
+  db.ref('suiviImportsAuto/ping').on('value', function(){ autoImportSchedule(); });
+  db.ref('suiviImportsAuto/log').limitToLast(8).on('value', function(snap){
+    AUTOIMP.log = snap.val() || {};
+    var m = document.getElementById('m-suivi-import'); if(m && m.classList.contains('open')) simpRender();
+  });
+}
+function simpAimpLogHtml(){
+  var L = Object.keys(AUTOIMP.log||{}).map(function(k){ return AUTOIMP.log[k]; }).sort(function(a, b){ return (b.at||0)-(a.at||0); }).slice(0, 5);
+  if(!L.length) return '';
+  var fmt = function(t){ var d = new Date(t); return d.toLocaleDateString('fr-FR', {day:'2-digit', month:'2-digit'})+' '+d.toLocaleTimeString('fr-FR', {hour:'2-digit', minute:'2-digit'}); };
+  return '<div style="font-size:.72rem;color:var(--mut);margin-bottom:10px;padding:8px 10px;border:1px solid var(--bdr);border-radius:8px"><b style="color:var(--txt)">📥 Imports automatiques du Drive</b>'+
+    L.map(function(e){
+      var txt = e.src === 'script' ? esc(e.msg||'') : '✔ '+(e.nCol||0)+' colis rattachés'+(e.nSide ? ', '+e.nSide+' à rattacher' : '')+(e.nEmp ? ', '+e.nEmp+' emport(s)' : '')+(e.nFix ? ', '+e.nFix+' date(s) corrigée(s)' : '')+(e.errs && e.errs.length ? ' · ⚠ '+esc(e.errs.join(' ; ')) : '');
+      return '<div style="margin-top:3px"><span style="color:var(--txt)">'+fmt(e.at||0)+'</span> — '+txt+'</div>';
+    }).join('')+'</div>';
 }
 
 // ── Colis à rattacher (mis de côté) ──
@@ -9892,6 +9966,7 @@ function startCmdIndexListener(){
       if(c.site && c.cmd){ var kk = looseSiteKey(c.site)+'||'+looseMatchKey(c.cmd); bySiteCmd[kk] = c; idBySiteCmd[kk] = id; }
     });
     S_cmdIndex = {byId:byId, bySiteCmd:bySiteCmd, idBySiteCmd:idBySiteCmd};
+    if(!AUTOIMP.first){ AUTOIMP.first = true; autoImportSchedule(); }
     cmdFixPoles(raw);
     try { cmdReopenNumPending(raw); } catch(e){}
     if(typeof savAlertsUpdate==='function') savAlertsUpdate();
