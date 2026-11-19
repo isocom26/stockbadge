@@ -393,9 +393,6 @@ body.dash-commandes-wide main{max-width:1500px}
 .mtg-num-row label{font-size:.78rem;color:var(--mut);flex-shrink:0}
 .mtg-task-text{font-size:.66rem;line-height:1.25;word-break:break-word}
 /* MAINTENANCE */
-.ms-ok{background:rgba(16,185,129,.15);color:var(--grn);border:1px solid var(--grn)}
-.ms-waiting{background:rgba(217,119,6,.15);color:var(--acc);border:1px solid var(--acc)}
-.ms-hs{background:rgba(239,68,68,.15);color:var(--red);border:1px solid var(--red)}
 .interv-type{font-family:Open Sans,sans-serif;font-weight:700;font-size:0.95rem}
 .interv-desc{font-size:.85rem;color:var(--txt);margin-bottom:6px}
 /* TOAST */
@@ -2009,7 +2006,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.11.19-1315-beta';
+var APP_VERSION = '2026.11.19-1340-beta';
 var MANUEL_URL = 'manuel-isoprod.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -3333,7 +3330,6 @@ function esc(s){
 }
 
 var TABS_PERMS=[{key:'production'},{key:'commandes'},{key:'maintenance'},{key:'meeting'},{key:'stats'},{key:'dashboard'},{key:'admin'},{key:'journal'},{key:'inventaire'}];
-var TABS_LABELS={'production':'🏭 Production (onglet entier, avec Recherche)','commandes':'🛒 Approvisionnement','stats':'📊 Statistiques','reprint':'🖨️ Réimpressions','maintenance':'🔩 Maintenance','meeting':'📅 Réunion','qualite':'🔍 Contrôle Qualité','dashboard':'📈 Tableau de bord','admin':'🔧 Admin','journal':'🔄 Mouvements de stock','inventaire':'📋 Inventaire (comptage)'};
 // ── ARBRE DES DROITS : onglet principal → sous-onglets → droits d'action ──
 // Stockage (tout est additif, rien n'est migré) :
 //   perms.tabs_<onglet>  : accès à l'onglet principal (existant)
@@ -6719,151 +6715,8 @@ function pdfTableHead(extra){
   return Object.assign({fillColor:PDF_C.accLight, textColor:PDF_C.txt, fontStyle:'bold'}, extra||{});
 }
 
-// ── ALERTES ──
-// ── EXPORT INVENTAIRE (CSV et PDF, feuille à remplir à la main) ──
-// Les deux exports partagent la même construction de données ; ils sont
-// déclenchés par deux boutons séparés (comme dans Statistiques) plutôt que
-// par un seul bouton qui lançait les deux téléchargements d'un coup — le
-// navigateur bloquait ou perdait silencieusement le second fichier
-// (généralement le CSV) quand les deux partaient dans le même clic.
-function buildInventaireExportData(zone, famOpt){
-  var dbp = zone==='atelier' ? 'items' : 'reserve_items';
-  var zoneLabel = zone==='atelier' ? 'Atelier' : 'Réserve';
-  var fam = famOpt || zoneFamille[zone] || 'badge_magnet';
-  var famLbl = famLabel(fam).replace(/^\S+\s/, '').replace('&amp;','&');
-  zoneLabel = zoneLabel + ' · ' + famLbl;
-  var dateLabel = new Date().toLocaleDateString('fr-FR');
 
-  var catsData = S.cats
-    .filter(function(cat){ return catFamille(cat)===fam; })
-    // Les lignes liées sont exclues : la vraie référence est déjà exportée
-    // une fois, depuis sa catégorie d'origine — l'inclure ici compterait le
-    // même stock deux fois sur la feuille d'inventaire.
-    .map(function(cat){ return {cat:cat, items:(cat[dbp]||[]).filter(function(i){return !i.linked;}).slice().sort(function(a,b){return a.name.localeCompare(b.name);})}; })
-    .filter(function(c){ return c.items.length; });
 
-  // Éclate un article en une ligne par taille de carton quand plusieurs
-  // tailles coexistent — une seule colonne "comptés" ne peut pas recevoir
-  // deux nombres différents, donc chaque taille doit avoir sa propre ligne.
-  // Ajoute une ligne "TOTAL" en plus pour vérifier que la somme retombe juste,
-  // et une ligne "carton ouvert" sous chaque taille comptée, pour noter les
-  // pièces en vrac d'un carton déjà entamé (retiré du compte de cartons mais
-  // pas forcément entièrement utilisé).
-  var u = famUnit(fam);
-  function expandItemRows(item){
-    var out = [];
-    if(item.batches && item.batches.length > 1){
-      item.batches.forEach(function(b){
-        out.push({name: item.name+' — '+u+' de '+b.ppc.toLocaleString('fr-FR')+' pcs', ppc:b.ppc, qty:b.qty, pcs:b.qty*b.ppc, isTotal:false});
-        out.push({name: item.name+' — '+u+' de '+b.ppc.toLocaleString('fr-FR')+' pcs OUVERT (pièces en vrac)', ppc:'—', qty:'—', pcs:'—', isOpen:true});
-      });
-      out.push({name: item.name+' — TOTAL (toutes tailles, '+u+'s pleins + vrac)', ppc:'—', qty:item.qty||0, pcs:itemTotalPieces(item), isTotal:true});
-      return out;
-    }
-    out.push({name:item.name, ppc:currentPpc(item)||'—', qty:item.qty||0, pcs:itemTotalPieces(item), isTotal:false});
-    out.push({name:item.name+' — '+u+' OUVERT (pièces en vrac)', ppc:'—', qty:'—', pcs:'—', isOpen:true});
-    return out;
-  }
-
-  return {unit:u, zone:zone, dbp:dbp, zoneLabel:zoneLabel, fam:fam, famLbl:famLbl, dateLabel:dateLabel, catsData:catsData, expandItemRows:expandItemRows};
-}
-
-function exportInventaireCSV(zone, fam){
-  var d = buildInventaireExportData(zone, fam);
-  if(!d.catsData.length){ toast('Aucune référence dans cette zone', 1); return; }
-
-  var csvRows = [['Catégorie','Référence','Pièces/'+d.unit,uCap(d.unit)+'s (théorique)','Pièces (théorique)',uCap(d.unit)+'s comptés','Pièces comptées','Écart (pièces)']];
-  d.catsData.forEach(function(c){
-    c.items.forEach(function(item){
-      d.expandItemRows(item).forEach(function(r){
-        var cartonsComptesCell = r.isTotal ? '(somme ci-dessus)' : (r.isOpen ? 'N/A' : '');
-        var piecesComptesCell  = r.isTotal ? '(somme ci-dessus)' : '';
-        csvRows.push([c.cat.name, r.name, r.ppc, r.qty, r.pcs, cartonsComptesCell, piecesComptesCell, '']);
-      });
-    });
-  });
-  var csv = 'Inventaire '+d.zoneLabel+' - '+d.dateLabel+'\n'+csvRows.map(function(r){return r.join(';');}).join('\n');
-  var blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
-  var url = URL.createObjectURL(blob);
-  var a = document.createElement('a');
-  a.href = url; a.download = 'inventaire_'+d.zone+'_'+d.fam+'_'+d.dateLabel.replace(/\//g,'-')+'.csv';
-  a.click(); URL.revokeObjectURL(url);
-  toast('✅ CSV exporté !');
-}
-
-function exportInventairePDF(zone, fam){
-  var d = buildInventaireExportData(zone, fam);
-  if(!d.catsData.length){ toast('Aucune référence dans cette zone', 1); return; }
-  var zoneLabel = d.zoneLabel, fam = d.fam, dateLabel = d.dateLabel, catsData = d.catsData, expandItemRows = d.expandItemRows;
-
-  // ── PDF (fond clair, pensé pour être imprimé et rempli au stylo) ──
-  var jsPDF = window.jspdf ? window.jspdf.jsPDF : null;
-  if(!jsPDF){ toast('⚠️ PDF indisponible', 1); return; }
-  var doc = new jsPDF({unit:'pt', format:'a4', orientation:'landscape'});
-  var pageW = doc.internal.pageSize.getWidth();
-  var margin = 30;
-  function drawHead(){ return pdfHeader(doc, pageW, 'Inventaire — '+zoneLabel, 'Date : '+dateLabel); }
-  var y = drawHead();
-
-  catsData.forEach(function(c){
-    if(y > 470){ doc.addPage(); y = drawHead(); }
-    pdfSectionTitle(doc, c.cat.name, margin, y+12);
-    y += 20;
-
-    var totalRowIndexes = [];
-    var openRowIndexes = [];
-    var body = [];
-    c.items.forEach(function(item){
-      expandItemRows(item).forEach(function(r){
-        if(r.isTotal) totalRowIndexes.push(body.length);
-        if(r.isOpen) openRowIndexes.push(body.length);
-        body.push([
-          r.name,
-          typeof r.ppc==='number' ? r.ppc.toLocaleString('fr-FR') : r.ppc,
-          r.qty+'',
-          r.pcs.toLocaleString('fr-FR'),
-          r.isTotal ? '(somme ci-dessus)' : (r.isOpen ? 'N/A' : ''),
-          r.isTotal ? '(somme ci-dessus)' : '',
-          ''
-        ]);
-      });
-    });
-
-    doc.autoTable({
-      startY: y,
-      margin: {left:margin, right:margin},
-      head: [['Référence','Pcs/'+d.unit,uCap(d.unit)+'s (théo.)','Pièces (théo.)',uCap(d.unit)+'s comptés','Pièces comptées','Écart']],
-      body: body,
-      theme: 'grid',
-      styles: {fontSize:9, cellPadding:5, textColor:PDF_C.txt, lineColor:PDF_C.brd},
-      headStyles: pdfTableHead(),
-      columnStyles: {
-        4: {minCellWidth:80}, // comptés — colonne large pour écrire
-        5: {minCellWidth:80}, // Pièces comptées
-        6: {minCellWidth:60}  // Écart
-      },
-      didParseCell: function(data){
-        // Lignes "TOTAL" : repère visuel pour vérifier la somme
-        if(totalRowIndexes.indexOf(data.row.index) >= 0 && data.section==='body'){
-          data.cell.styles.fontStyle = 'bold';
-          data.cell.styles.fillColor = PDF_C.accLight;
-        }
-        // Lignes "carton ouvert" : repère distinct (pièces en vrac à noter)
-        if(openRowIndexes.indexOf(data.row.index) >= 0 && data.section==='body'){
-          data.cell.styles.fontStyle = 'italic';
-          data.cell.styles.fillColor = [224, 233, 250];
-          data.cell.styles.textColor = PDF_C.blu;
-        }
-      },
-      didDrawPage: function(data){ y = data.cursor.y; }
-    });
-    y = doc.lastAutoTable.finalY + 20;
-  });
-
-  pdfFooterAllPages(doc);
-  doc.save('inventaire_'+zone+'_'+fam+'_'+dateLabel.replace(/\//g,'-')+'.pdf');
-  toast('✅ PDF exporté !');
-}
 
 // ── MUET DES ALERTES (admin uniquement) ──
 function mutePath(f){ return 'categories/'+f.cat.id+'/'+f.dbp+'/'+f.item.id; }
@@ -11925,7 +11778,6 @@ var rptUid = null;       // selector value: real uid, or '__admin__' sentinel fo
 var rptStoreUid = null;  // actual uid used for Firebase path (admin's own sheet stored under admin's uid + /admin_self flag)
 var rptWeekStart = null; // Monday of current week (Date)
 var rptUsers = {};       // cache of uid -> user data
-var rptData = {};        // cache of weekKey -> data
 var rptDayFilter = -1;   // -1 = whole week, 0-4 = specific day index
 
 function rptMondayOf(d){
@@ -14008,8 +13860,6 @@ function mtgBuildPDFNum(results, verso, machinesRaw){
 // ── MAINTENANCE ──
 var S_mach = [];
 var curMachId = null;
-var editMachId = null;
-var editIntervId = null;
 
 
 // ══════════════════════════════════════════════════
@@ -14018,7 +13868,6 @@ var editIntervId = null;
 
 var curMaintSub = 'auto'; // sous-onglet actif
 var curMachId = null;
-var curPlateauId = null;
 
 // Catégories de machines : base dans le code + réglages enregistrés (settings/machCats/{pôle}/{clé} : label, icon, order, hidden, custom).
 // Le type d'une machine (machine.type) ne change jamais : renommer une catégorie ne touche que son libellé.
