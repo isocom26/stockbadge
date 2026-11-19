@@ -1198,6 +1198,7 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
         <button type="button" onclick="adminRefUpload()" style="flex:1 1 140px;padding:9px;border-radius:8px;border:1.5px solid var(--brd);background:var(--sur);color:var(--txt);font-family:Open Sans,sans-serif;font-weight:700;font-size:.82rem;cursor:pointer">📤 Copier vers Firebase</button>
         <button type="button" onclick="adminRefCheck()" style="flex:1 1 140px;padding:9px;border-radius:8px;border:1.5px solid var(--brd);background:var(--sur);color:var(--txt);font-family:Open Sans,sans-serif;font-weight:700;font-size:.82rem;cursor:pointer">🔎 Vérifier</button>
         <button type="button" onclick="adminRefStatus()" style="flex:1 1 140px;padding:9px;border-radius:8px;border:1.5px solid var(--brd);background:var(--sur);color:var(--txt);font-family:Open Sans,sans-serif;font-weight:700;font-size:.82rem;cursor:pointer">ℹ️ Source actuelle</button>
+        <button type="button" onclick="adminRefImportPick()" style="flex:1 1 100%;padding:9px;border-radius:8px;border:1.5px solid var(--acc);background:var(--sur);color:var(--txt);font-family:Open Sans,sans-serif;font-weight:700;font-size:.82rem;cursor:pointer">📥 Mettre à jour les références EBP depuis Base_Articles_EBP.xlsx</button>
       </div>
       <div id="ref-result" style="font-size:.78rem;margin-top:8px"></div>
     </div>
@@ -2020,7 +2021,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.11.19-1500';
+var APP_VERSION = '2026.11.19-1640';
 var MANUEL_URL = 'manuel-isoprod.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -2981,6 +2982,7 @@ function ecranAutoOpen(tries){
 // Pas de correctif technique invisible ici. tag = qui est concerné :
 //   'all' (tout le monde), 'admin' (admin/direction), 'maint' (maintenance), 'stock' (ajout de stock), 'reprint' (réimpressions)
 var NEWS = [
+  {n:91, d:'19/11/2026', tag:'all', t:'Admin : mise à jour des références EBP depuis Excel', x:'Admin > Interventions > Catalogue : on peut charger « Base_Articles_EBP.xlsx » ; l\'application montre ce qui est nouveau, modifié ou retiré avant d\'appliquer, et garde une sauvegarde de l\'ancienne liste.'},
   {n:90, d:'19/11/2026', tag:'all', t:'Admin : sites, statuts, listes et familles réglables', x:'Admin > Réglages : on peut maintenant ajouter ou masquer un site, renommer les statuts de commande (nom, emoji, couleur) et en ajouter de manuels, régler les motifs de SAV, les modes d\'emport et les types d\'événements du planning, renommer ou ajouter une famille de stock. Admin > Interventions : le catalogue des formats et des références EBP est copié dans Firebase. Rien ne change dans l\'utilisation courante.'},
   {n:89, d:'19/11/2026', tag:'all', t:'Suivi d\'expédition : lignes d\'import plus sobres', x:'Pour un colis venu d\'un import (manuel ou automatique), la fiche n\'affiche plus « par ALEX » ni « par Import automatique » : seulement les dates d\'ajout et de confirmation. Les colis saisis à la main gardent le nom de la personne.'},
   {n:88, d:'19/11/2026', tag:'all', t:'Expéditions : bordereaux Colissimo TopBadges (PDF)', x:'Les bordereaux de dépôt Colissimo des commandes TopBadges (PDF) se lisent comme les autres fichiers : la référence « TOP-006062 » du bordereau retrouve la commande, le colis est créé avec son lien de suivi et sa date d\'expédition. Dans « Importer les expéditions », ajoute simplement le PDF ; avec l\'import automatique du Drive, il est repris tout seul dès qu\'il arrive.'},
@@ -5477,6 +5479,98 @@ function adminRefCheck(){
     cmp('références EBP', snap.ebpRefs.map(function(r){ return r.join('|'); }), refArr(d.ebpRefs).map(function(r){ r = refArr(r); return [r[0]||'', r[1]||'', r[2]||'', r[3]||''].join('|'); }));
     el.innerHTML = out.join('<br>')+'<br><strong>'+(allOk ? '✅ Firebase contient exactement le catalogue du code.' : '⚠ Des différences : re-copie, ou dis-le-moi.')+'</strong>';
   }).catch(function(e){ el.textContent = 'Lecture impossible : '+(e && e.message || ''); });
+}
+// ── Mise à jour des références EBP depuis « Base_Articles_EBP.xlsx » (Admin > Interventions > Catalogue) ──
+// Colonnes lues par leur titre : « Code article », « Nom (Code fournisseur -> Fournisseur) », « Libellé », « Libellé (Code article -> Articles par fournisseurs) ».
+var REF_IMPORT = null;
+function refParseBaseRows(aoa){
+  var hi = -1, c = null;
+  for(var i = 0; i < Math.min(aoa.length, 10); i++){
+    var cc = {code:-1, sup:-1, lib:-1, des:-1};
+    (aoa[i] || []).forEach(function(v, j){
+      var t = String(v == null ? '' : v).toLowerCase().trim();
+      if(/^code article/.test(t)){ if(cc.code < 0) cc.code = j; }
+      else if(/^libell/.test(t)){ if(/->|articles par fournisseurs/.test(t)){ if(cc.des < 0) cc.des = j; } else if(cc.lib < 0) cc.lib = j; }
+      else if(/fournisseur/.test(t)){ if(cc.sup < 0) cc.sup = j; }
+    });
+    if(cc.code >= 0 && cc.lib >= 0){ hi = i; c = cc; break; }
+  }
+  if(hi < 0) return {refs:[], skipped:0, dups:0, headerFound:false};
+  var cell = function(row, j){ return j >= 0 && row[j] != null ? String(row[j]).replace(/\s+/g, ' ').trim() : ''; };
+  var refs = [], seen = {}, skipped = 0, dups = 0;
+  for(var k = hi + 1; k < aoa.length; k++){
+    var row = aoa[k] || [], code = cell(row, c.code);
+    if(!code){ skipped++; continue; }
+    if(seen[code]){ dups++; continue; }
+    seen[code] = 1;
+    refs.push([code, cell(row, c.lib), cell(row, c.sup), cell(row, c.des)]);
+  }
+  return {refs:refs, skipped:skipped, dups:dups, headerFound:true, hasSup:c.sup >= 0, hasDes:c.des >= 0};
+}
+function refImportDiff(next){
+  var cur = {}; EBP_REFS.forEach(function(r){ cur[r[0]] = r; });
+  var nw = [], mod = [], same = 0, seen = {};
+  next.forEach(function(r){
+    seen[r[0]] = 1; var o = cur[r[0]];
+    if(!o) nw.push(r); else if(o[1] !== r[1] || o[2] !== r[2] || (o[3] || '') !== r[3]) mod.push([o, r]); else same++;
+  });
+  return {nw:nw, mod:mod, same:same, gone:EBP_REFS.filter(function(r){ return !seen[r[0]]; })};
+}
+function adminRefImportPick(){
+  if(!iAm){ toast('Réservé à l\'administrateur', 1); return; }
+  var inp = document.getElementById('ref-import-file');
+  if(!inp){
+    inp = document.createElement('input'); inp.type = 'file'; inp.id = 'ref-import-file'; inp.accept = '.xlsx,.xls'; inp.style.display = 'none';
+    inp.onchange = function(){ if(inp.files && inp.files[0]) adminRefImportRead(inp.files[0]); inp.value = ''; };
+    document.body.appendChild(inp);
+  }
+  inp.click();
+}
+function adminRefImportRead(file){
+  var el = document.getElementById('ref-result'); if(el) el.textContent = 'Lecture du fichier…';
+  invcLoadXlsx().then(function(){
+    var fr = new FileReader();
+    fr.onload = function(){
+      try{
+        var wb = window.XLSX.read(fr.result, {type:'array'});
+        var aoa = window.XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], {header:1, defval:''});
+        var p = refParseBaseRows(aoa);
+        if(!p.headerFound || p.refs.length < 20){ if(el) el.innerHTML = '❌ Fichier non reconnu : colonnes attendues « Code article » et « Libellé » (export « Base Articles EBP »). Rien n\'a été modifié.'; REF_IMPORT = null; return; }
+        REF_IMPORT = {refs:p.refs, diff:refImportDiff(p.refs), file:file.name, dups:p.dups, hasSup:p.hasSup, hasDes:p.hasDes};
+        adminRefImportShow();
+      }catch(e){ if(el) el.textContent = 'Fichier illisible.'; REF_IMPORT = null; }
+    };
+    fr.readAsArrayBuffer(file);
+  }).catch(function(){ if(el) el.textContent = 'Impossible de charger le lecteur Excel (connexion ?).'; });
+}
+function adminRefImportShow(){
+  var el = document.getElementById('ref-result'); if(!el || !REF_IMPORT) return;
+  var d = REF_IMPORT.diff, lst = function(a, f){ return a.slice(0, 8).map(function(x){ return '<div style="font-size:.72rem;color:var(--mut)">• '+esc(f(x))+'</div>'; }).join('')+(a.length > 8 ? '<div style="font-size:.72rem;color:var(--mut)">… et '+(a.length-8)+' autre(s)</div>' : ''); };
+  var h = '<div><strong>'+esc(REF_IMPORT.file)+'</strong> : '+REF_IMPORT.refs.length+' références lues.</div>'+
+    '<div>✅ '+d.same+' inchangées · ➕ '+d.nw.length+' nouvelles · ✏️ '+d.mod.length+' modifiées · ➖ '+d.gone.length+' absentes du fichier</div>';
+  if(d.nw.length) h += '<div style="margin-top:4px;font-weight:700;font-size:.74rem">Nouvelles</div>'+lst(d.nw, function(r){ return r[0]+' — '+r[1]+(r[2] ? ' ('+r[2]+')' : ''); });
+  if(d.mod.length) h += '<div style="margin-top:4px;font-weight:700;font-size:.74rem">Modifiées</div>'+lst(d.mod, function(m){ return m[1][0]+' — '+m[1][1]+(m[1][2] ? ' ('+m[1][2]+')' : ''); });
+  if(d.gone.length) h += '<div style="margin-top:4px;font-weight:700;font-size:.74rem;color:var(--red)">Seront retirées</div>'+lst(d.gone, function(r){ return r[0]+' — '+r[1]; });
+  if(!REF_IMPORT.hasSup) h += '<div style="margin-top:4px;color:var(--red)">⚠ Colonne fournisseur absente du fichier : les fournisseurs seraient effacés.</div>';
+  h += '<div style="display:flex;gap:8px;margin-top:8px"><button type="button" onclick="adminRefImportApply()" style="flex:1;padding:9px;border-radius:8px;border:none;background:var(--acc);color:#000;font-family:Open Sans,sans-serif;font-weight:700;font-size:.82rem;cursor:pointer">✅ Appliquer cette mise à jour</button>'+
+    '<button type="button" onclick="REF_IMPORT=null;document.getElementById(\'ref-result\').textContent=\'Annulé : rien n\\\'a été modifié.\'" style="flex:0 0 auto;padding:9px 14px;border-radius:8px;border:1.5px solid var(--brd);background:none;color:var(--mut);font-size:.82rem;cursor:pointer">Annuler</button></div>';
+  el.innerHTML = h;
+}
+function adminRefImportApply(){
+  if(!iAm || !REF_IMPORT) return;
+  var next = REF_IMPORT.refs, d = REF_IMPORT.diff, el = document.getElementById('ref-result');
+  if(next.length < EBP_REFS.length * 0.5 && !confirm('Le fichier contient beaucoup moins de références que le catalogue actuel ('+next.length+' contre '+EBP_REFS.length+'). Continuer quand même ?')) return;
+  if(!confirm('Mettre à jour les références EBP ?\n\n'+d.nw.length+' nouvelles, '+d.mod.length+' modifiées, '+d.gone.length+' retirées.\nL\'ancienne liste est sauvegardée dans Firebase avant remplacement.')) return;
+  var prev = EBP_REFS.map(function(r){ return [r[0]||'', r[1]||'', r[2]||'', r[3]||'']; }), file = REF_IMPORT.file, n = next.length;
+  fbs('referentielBackup', {at:Date.now(), by:getMyName(), ebpRefs:prev})
+    .then(function(){ return fbs('referentiel/ebpRefs', next); })
+    .then(function(){ return fbu('referentiel/meta', {v:Date.now(), at:Date.now(), by:getMyName(), nE:n, src:'import : '+file}); })
+    .then(function(){
+      refApply({ebpRefs:next}, 'firebase'); try{ localStorage.removeItem(REF_KEY); }catch(e){}
+      REF_IMPORT = null; toast('✅ Références EBP mises à jour ('+n+')');
+      if(el) el.innerHTML = '✅ '+n+' références enregistrées dans Firebase (l\'ancienne liste est gardée dans « referentielBackup »).';
+    })
+    .catch(function(e){ toast('Écriture refusée ou impossible', 1); if(el) el.textContent = 'Écriture impossible : '+(e && e.code || e && e.message || ''); });
 }
 var EBP_IDX = null;
 function ebpIndex(){
