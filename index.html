@@ -1479,8 +1479,8 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
   <div class="modal" onclick="event.stopPropagation()" style="max-height:88vh;overflow-y:auto;max-width:760px">
     <div class="dh"></div>
     <h3 style="text-align:center">📥 Importer les expéditions du jour</h3>
-    <input type="file" id="simp-files" multiple accept=".csv,.txt,.xls,.xlsx" onchange="simpHandleFiles(this.files);this.value=''">
-    <button class="btn bpri" id="simp-drop" style="width:100%;margin-bottom:6px;border:2px dashed transparent" onclick="document.getElementById('simp-files').click()" ondragover="event.preventDefault();this.style.borderColor='#fff'" ondragleave="this.style.borderColor='transparent'" ondrop="simpDrop(event)">📂 Ajouter des fichiers (EBP, Chronopost, Colissimo)</button>
+    <input type="file" id="simp-files" multiple accept=".csv,.txt,.xls,.xlsx,.pdf" onchange="simpHandleFiles(this.files);this.value=''">
+    <button class="btn bpri" id="simp-drop" style="width:100%;margin-bottom:6px;border:2px dashed transparent" onclick="document.getElementById('simp-files').click()" ondragover="event.preventDefault();this.style.borderColor='#fff'" ondragleave="this.style.borderColor='transparent'" ondrop="simpDrop(event)">📂 Ajouter des fichiers (EBP, Chronopost, Colissimo, bordereau PDF TopBadges)</button>
     <div style="font-size:.72rem;color:var(--mut);text-align:center;margin-bottom:10px">Un par un ou tous ensemble, dans l'ordre que tu veux (tu peux aussi les glisser ici). Un nouveau fichier du même type remplace l'ancien.</div>
     <div id="simp-body"></div>
     <button class="btn bsec" style="width:100%;margin-top:12px" onclick="cm('m-suivi-import')">Fermer</button>
@@ -1985,7 +1985,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.11.19-1155';
+var APP_VERSION = '2026.11.19-1215';
 var MANUEL_URL = 'manuel-isoprod.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -2943,6 +2943,7 @@ function ecranAutoOpen(tries){
 // Pas de correctif technique invisible ici. tag = qui est concerné :
 //   'all' (tout le monde), 'admin' (admin/direction), 'maint' (maintenance), 'stock' (ajout de stock), 'reprint' (réimpressions)
 var NEWS = [
+  {n:88, d:'19/11/2026', tag:'all', t:'Expéditions : bordereaux Colissimo TopBadges (PDF)', x:'Les bordereaux de dépôt Colissimo des commandes TopBadges (PDF) se lisent comme les autres fichiers : la référence « TOP-006062 » du bordereau retrouve la commande, le colis est créé avec son lien de suivi et sa date d\'expédition. Dans « Importer les expéditions », ajoute simplement le PDF ; avec l\'import automatique du Drive, il est repris tout seul dès qu\'il arrive.'},
   {n:87, d:'19/11/2026', tag:'all', t:'Nouvelle nomenclature des commandes mail / CMC', x:'Étiquette « SITE2026-CDE MAIL NOM DU CLIENT AAAAMMJJ+HHMM » : le scan lit le site, le nom et le numéro (date + heure, affiché « AAAAMMJJ HHMM ») ; l\'export EBP (« Notre référence ») est rapproché avec la même chaîne. L\'ancienne forme est toujours lue, avec un avertissement « vérifier qu\'elle n\'existe pas déjà ».'},
   {n:86, d:'19/11/2026', tag:'all', t:'Expéditions : étiquettes d\'envoi fournies par le client', x:'Quand l\'export EBP porte le transporteur prévu « Étiquette fournie par le client », la commande apparaît dans la liste « 🏷 Étiquette client » de la fenêtre d\'import : tu choisis le transporteur (repris d\'une saisie à l\'autre), tu saisis le n° de suivi, et le colis est créé sur la commande. Bouton « Pas de suivi » si aucun n° ne viendra. Ces commandes ne sont plus prises pour des emports ni des colis à rattacher.'},
   {n:85, d:'19/11/2026', tag:'all', t:'Expéditions : archive des colis à rattacher', x:'Nouvelle liste « 🗄 Archive » dans la fenêtre d\'import : tu ranges (un par un ou toute la liste) les colis que tu n\'arrives pas à rattacher, pour qu\'ils ne se mélangent pas aux nouveaux. Ils se rattachent tout seuls si leur commande apparaît dans un import, et tu peux les remettre à rattacher à tout moment.'},
@@ -8949,6 +8950,41 @@ function simpParseColissimo(text){
   });
   return out;
 }
+// Bordereau de dépôt Colissimo Entreprise (PDF) — envois TopBadges : n° de colis + référence commande « TOP-006062 » (pas de BL, pas de CSV)
+function simpGroupItems(items){
+  var lines = [];
+  (items||[]).forEach(function(it){
+    var s = String(it.str||'').trim(); if(!s) return;
+    var x = it.transform[4], y = it.transform[5], L = null;
+    for(var i = 0; i < lines.length; i++){ if(Math.abs(lines[i].y - y) <= 2){ L = lines[i]; break; } }
+    if(!L){ L = {y:y, t:[]}; lines.push(L); }
+    L.t.push({x:x, s:s});
+  });
+  lines.sort(function(a, b){ return b.y - a.y; });
+  return lines.map(function(l){ return l.t.sort(function(a, b){ return a.x - b.x; }).map(function(t){ return t.s; }); });
+}
+function simpPdfRows(buf){
+  return new Promise(function(res, rej){
+    manuelLib(function(){
+      window.pdfjsLib.getDocument({data:new Uint8Array(buf)}).promise.then(function(doc){
+        var rows = [], chain = Promise.resolve();
+        var addPage = function(n){ chain = chain.then(function(){ return doc.getPage(n); }).then(function(pg){ return pg.getTextContent(); }).then(function(tc){ rows = rows.concat(simpGroupItems(tc.items)); }); };
+        for(var i = 1; i <= doc.numPages; i++) addPage(i);
+        return chain.then(function(){ res(rows); });
+      }).catch(rej);
+    }, function(){ rej(new Error('pdf.js')); });
+  });
+}
+function simpParseBordereau(rows){
+  var txt = rows.map(function(r){ return r.join(' '); }).join('\n'), out = [], date = 0;
+  var dm = /bordereau de remise.*?du\s+(\d{2})\/(\d{2})\/(20\d{2})/i.exec(txt);
+  if(dm) date = simpMkDate(dm[3], dm[2], dm[1]);
+  rows.forEach(function(r){
+    if(r.length < 3 || !/^[A-Z0-9]{11,15}$/.test(r[0]) || !/\d/.test(r[0]) || !/^[A-Za-z]{2,5}-?\d+$/.test(r[1])) return;
+    out.push({transp:'Colissimo', num:r[0], bl:'', ref:r[1], dest:r[2]||'', shipAt:date});
+  });
+  return {carrier:out, date:date, isBordereau:/bordereau de d.p.t/i.test(txt)};
+}
 // Export EBP : tableau de tableaux (xls/xlsx ou csv) -> {BL: {ref, client, mode}}
 function simpParseEbpRows(aoa){
   var hi = -1, iBl = -1, iRef = -1, iCli = -1, iTr = -1, iDest = -1;
@@ -9160,7 +9196,7 @@ function simpNamePairing(nums, blIdx, byId, inFiles){
   var pre = {}, used = simpUsedBls(blIdx, byId, inFiles), groups = {}, seen = {};
   if(!SIMP.ebpLoaded) return pre;
   SIMP.carrier.forEach(function(k, i){
-    if(k.bl || !k.dest) return;
+    if(k.bl || k.ref || !k.dest) return;
     var key = String(k.num).replace(/\s+/g, '').toUpperCase();
     if(nums[key] || seen[key]) return; seen[key] = 1;
     var nb = simpBlByName(k);
@@ -9204,7 +9240,7 @@ function simpBuild(){
   SIMP._blDates = null;
   var pre = simpNamePairing(nums, blIdx, byId, inFiles);
   SIMP.rows = SIMP.carrier.map(function(k, ki){
-    var row = {transp:k.transp, num:k.num, bl:k.bl, dest:k.dest||'', ref:'', client:'', orderId:'', cands:[], state:'none', on:false, hp:false, shipAt:k.shipAt||0};
+    var row = {transp:k.transp, num:k.num, bl:k.bl, dest:k.dest||'', ref:k.ref||'', client:'', orderId:'', cands:[], state:'none', on:false, hp:false, shipAt:k.shipAt||0};
     var key = String(k.num).replace(/\s+/g, '').toUpperCase();
     var e = k.bl ? SIMP.ebp[k.bl] : null;
     if(e){ row.ref = e.ref; row.client = e.client; }
@@ -9217,7 +9253,7 @@ function simpBuild(){
     }
     // Pas de BL dans le fichier du transporteur : on le retrouve par le nom du destinataire (EBP « Nom livraison »)
     var nameBl = null, nameAmb = [];
-    if(!k.bl && SIMP.ebpLoaded && k.dest){
+    if(!k.bl && !k.ref && SIMP.ebpLoaded && k.dest){
       var pr = pre[ki];
       if(pr && pr.bl) nameBl = {bl:pr.bl, exact:pr.exact, byOrder:!!pr.byOrder};
       else nameAmb = (pr && pr.amb) || [];
@@ -9234,6 +9270,10 @@ function simpBuild(){
     var ids = k.bl ? (blIdx[k.bl] || []) : [];          // BL déjà mémorisé sur une commande
     if(ids.length === 1){ row.orderId = ids[0]; row.state = 'ok'; row.on = true; }
     else if(ids.length > 1){ row.cands = ids.map(function(id){ return {id:id, c:byId[id], sc:9}; }); row.state = 'choose'; }
+    else if(!k.bl && k.ref){      // bordereau PDF TopBadges : la référence commande est dans le fichier (pas de BL)
+      var c0 = simpFindExact(k.ref);
+      if(c0){ row.orderId = c0.id; row.state = 'ok'; row.on = true; } else propose('none');
+    }
     else if(!k.bl) propose('nobl');
     else if(!e) propose(SIMP.ebpLoaded ? 'noebp' : 'needebp');
     else {
@@ -9278,6 +9318,15 @@ function simpHandleFiles(files){
       var rd = new FileReader();
       rd.onerror = function(){ SIMP.errs.push({ok:false, txt:f.name+' : lecture impossible'}); res(); };
       rd.onload = function(){
+        if(ext === 'pdf'){
+          simpPdfRows(rd.result).then(function(rows){
+            var r = simpParseBordereau(rows);
+            if(!r.isBordereau){ SIMP.errs.push({ok:false, txt:f.name+' : PDF non reconnu (bordereau de dépôt Colissimo attendu)'}); }
+            else SIMP.srcs['topc|'+f.name] = {carrier:r.carrier, info:{ok:true, txt:'Colissimo TopBadges : '+r.carrier.length+' colis ('+f.name+')'+(r.date ? ' · expédiés le '+new Date(r.date).toLocaleDateString('fr-FR') : '')}};
+            res();
+          }).catch(function(){ SIMP.errs.push({ok:false, txt:f.name+' : PDF illisible (connexion ?)'}); res(); });
+          return;
+        }
         try {
           if(ext === 'xls' || ext === 'xlsx'){
             invcLoadXlsx().then(function(){
@@ -9326,6 +9375,7 @@ function simpMerge(){
   SIMP.info = []; SIMP.carrier = []; SIMP.ebp = {}; SIMP.ebpLoaded = !!S.ebp;
   if(S.ebp){ SIMP.ebp = S.ebp.map; SIMP.info.push(S.ebp.info); }
   ['chrono', 'coli'].forEach(function(k){ if(S[k]){ SIMP.carrier = SIMP.carrier.concat(S[k].carrier); SIMP.info.push(S[k].info); } });
+  Object.keys(S).filter(function(k){ return k.indexOf('topc|') === 0; }).sort().forEach(function(k){ SIMP.carrier = SIMP.carrier.concat(S[k].carrier); SIMP.info.push(S[k].info); });   // bordereaux PDF TopBadges (plusieurs possibles)
   SIMP.errs = SIMP.errs || []; SIMP.info = SIMP.info.concat(SIMP.errs);
   var miss = []; if(!S.ebp) miss.push('EBP'); if(!S.chrono) miss.push('Chronopost'); if(!S.coli) miss.push('Colissimo');
   SIMP.missing = miss;
@@ -9351,7 +9401,7 @@ function simpRender(){
   if(SIMP.srcs && Object.keys(SIMP.srcs).length){
     h += '<div style="font-size:.74rem;color:var(--mut);margin-bottom:8px">'+(SIMP.missing && SIMP.missing.length ? 'Pas encore chargé : '+SIMP.missing.join(', ')+' · ' : '')+'<a href="#" onclick="event.preventDefault();simpReset()" style="color:var(--mut);text-decoration:underline">Tout effacer et recommencer</a></div>';
   }
-  if(SIMP.carrier.length && !SIMP.ebpLoaded) h += '<div style="font-size:.78rem;color:var(--red);margin-bottom:8px">Ajoute aussi l\'export EBP : c\'est lui qui relie chaque BL à sa commande.</div>';
+  if(SIMP.carrier.some(function(k){ return !k.ref; }) && !SIMP.ebpLoaded) h += '<div style="font-size:.78rem;color:var(--red);margin-bottom:8px">Ajoute aussi l\'export EBP : c\'est lui qui relie chaque BL à sa commande.</div>';
   if(SIMP.rows.length){
     h += '<label style="display:flex;gap:8px;align-items:center;font-size:.78rem;margin:2px 0 8px"><input type="checkbox" '+(SIMP.hist ? 'checked ' : '')+'onchange="simpHistToggle(this.checked)"><span><strong>📚 Import historique</strong> <span style="color:var(--mut)">(une seule fois : les colis sans commande sont ignorés, tout est marqué « confirmé »)</span></span></label>';
     h += '<div class="dash-tbl-wrap"><table style="width:100%;min-width:560px;border-collapse:collapse;font-size:.76rem"><thead><tr style="text-align:left;border-bottom:1.5px solid var(--brd);color:var(--mut)"><th style="padding:5px 4px"></th><th style="padding:5px 4px">COLIS</th><th style="padding:5px 4px">BL</th><th style="padding:5px 4px">COMMANDE</th><th style="padding:5px 4px">ÉTAT</th></tr></thead><tbody>';
@@ -9525,11 +9575,15 @@ function autoImportCheck(){
       return fbg('suiviImportsAuto/pending').then(function(sn2){
         var p = sn2.val() || {}, keys = Object.keys(p);
         if(!keys.length) return release();
+        // Fichiers du soir (EBP + transporteur) ensemble ; les bordereaux PDF TopBadges (clés « topc… ») se traitent seuls, dès qu'ils arrivent
+        var isPdf = function(k){ return /^topc/.test(k); }, hasMain = !!p.ebp && !!(p.chrono || p.coli);
+        if(!hasMain) keys = keys.filter(isPdf);
+        if(!keys.length) return release();
         var files = keys.map(function(k){ return aimpToFile(p[k]); }), names = keys.map(function(k){ return p[k].name; });
         SIMP.srcs = {}; SIMP.errs = []; SIMP.info = []; SIMP.carrier = []; SIMP.ebp = {}; SIMP.rows = []; SIMP.emports = []; SIMP.blLinks = []; SIMP.ebpLoaded = false; SIMP.view = ''; SIMP.missing = []; SIMP.hist = false;
         return simpHandleFiles(files).then(function(){
           // Il faut l'EBP ET au moins un fichier transporteur ensemble, sinon on attend le prochain dépôt
-          if(!SIMP.ebpLoaded || !SIMP.carrier.length){ simpReset(); return release(); }
+          if(hasMain && (!SIMP.ebpLoaded || !SIMP.carrier.length)){ simpReset(); return release(); }
           var errs = (SIMP.errs||[]).map(function(e){ return e.txt; });
           return simpApply({auto:true}).then(function(r){
             r = r || {nCol:0, nEmp:0, nSide:0, nHp:0, nFix:0};
