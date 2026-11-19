@@ -1985,7 +1985,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.11.19-1000';
+var APP_VERSION = '2026.11.19-1110';
 var MANUEL_URL = 'manuel-isoprod.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -2943,6 +2943,7 @@ function ecranAutoOpen(tries){
 // Pas de correctif technique invisible ici. tag = qui est concerné :
 //   'all' (tout le monde), 'admin' (admin/direction), 'maint' (maintenance), 'stock' (ajout de stock), 'reprint' (réimpressions)
 var NEWS = [
+  {n:85, d:'19/11/2026', tag:'all', t:'Expéditions : archive des colis à rattacher', x:'Nouvelle liste « 🗄 Archive » dans la fenêtre d\'import : tu ranges (un par un ou toute la liste) les colis que tu n\'arrives pas à rattacher, pour qu\'ils ne se mélangent pas aux nouveaux. Ils se rattachent tout seuls si leur commande apparaît dans un import, et tu peux les remettre à rattacher à tout moment.'},
   {n:84, d:'19/11/2026', tag:'all', t:'Expéditions : import automatique depuis le Drive', x:'Un script Google dépose chaque soir les fichiers EBP / Chronopost / Colissimo ; IsoProd les traite dès qu\'un utilisateur autorisé a l\'application ouverte (même résultat qu\'un import manuel « Enregistrer »). Le journal s\'affiche en haut de la fenêtre d\'import.'},
   {n:83, d:'17/11/2026', tag:'all', t:'Dépiautage : formats avec « _ » reconnus', x:'Les formats comme MAG32_MAT-FOIL, B45_FOND-ARGENT ou MAG32_FOND-OR sont maintenant lus au scan / collage du QR (ils étaient ignorés, seul le MAG32 classique ressortait).'},
   {n:82, d:'17/11/2026', tag:'stock', t:'Stock : colisage par fournisseur dans les commandes', x:'Dans « Modifier le composant », chaque fournisseur a un champ « Colisage » (pièces par carton, ex. 600) et une note (ex. 6 sachets × 100). Dans « Nouvelle commande », le colisage du fournisseur choisi s\'affiche sous le produit ; si la quantité n\'est pas un multiple, un avertissement propose d\'arrondir au carton supérieur. N\'a aucun effet sur le stock ni sur les comptes par carton.'},
@@ -9390,12 +9391,13 @@ function simpRender(){
       (nIgn ? '<br><strong style="color:var(--acc)">📚 '+nIgn+' colis sans commande rattachée seront ignorés (import historique) ; coche-les à la main pour les ajouter.</strong>' : '')+(nSide ? '<br><strong style="color:var(--acc)">'+nSide+' colis non rattaché(s) seront mis de côté dans « Colis à rattacher » : rien ne se perd.</strong>' : '')+(nHp ? '<br>'+nHp+' colis marqué(s) « hors production » (consultables dans la liste « Hors production »).' : '')+(nFixUi ? '<br><strong style="color:var(--acc)">📅 '+nFixUi+' colis déjà enregistré(s) : la date d\'expédition sera corrigée d\'après le fichier.</strong>' : '')+'</div>'+
       '<button class="btn bpri" style="width:100%;margin-top:8px" '+((nCol+nEmp+nSide+nHp+nBl+nFixUi) ? '' : 'disabled ')+'onclick="simpApply()">✅ Enregistrer</button>';
   }
-  var nO = simpOrphList().length, nH = simpHpList().length;
+  var nO = simpOrphList().length, nH = simpHpList().length, nA = simpArchList().length;
   var tb = function(v, label, n, on){ return '<button onclick="simpView(\''+(SIMP.view === v ? '' : v)+'\')" style="flex:1;padding:8px;border-radius:8px;border:1.5px solid '+(n ? 'var(--acc)' : 'var(--brd)')+';background:'+(on ? 'var(--card)' : 'none')+';color:var(--txt);font-weight:700;font-size:.78rem;cursor:pointer">'+label+' ('+n+')</button>'; };
   var top = SIMP.view
     ? '<button onclick="simpView(\'\')" style="width:100%;margin-bottom:10px;padding:8px;border-radius:8px;border:1.5px solid var(--brd);background:none;color:var(--txt);font-weight:700;font-size:.8rem;cursor:pointer">← Retour à l\'import</button>'
-    : '<div style="display:flex;gap:8px;margin-bottom:10px">'+tb('orph', '📎 Colis à rattacher', nO, false)+tb('hp', '🏭 Hors production', nH, false)+'</div>';
+    : '<div style="display:flex;gap:8px;margin-bottom:10px">'+tb('orph', '📎 Colis à rattacher', nO, false)+tb('arch', '🗄 Archive', nA, false)+tb('hp', '🏭 Hors production', nH, false)+'</div>';
   if(SIMP.view === 'orph'){ el.innerHTML = top+simpOrphHtml(); return; }
+  if(SIMP.view === 'arch'){ el.innerHTML = top+simpOrphHtml(true); return; }
   if(SIMP.view === 'hp'){ el.innerHTML = top+simpHpHtml(); return; }
   el.innerHTML = top+(h || '<div style="font-size:.8rem;color:var(--mut)">Choisis les fichiers du soir : export EBP, bordereau Chronopost et export ColiShip. Rien n\'est enregistré avant ta validation.</div>')+simpCleanHtml();
 }
@@ -9554,7 +9556,9 @@ function simpAimpLogHtml(){
 function simpOrphAll(){
   return Object.keys(S_orph||{}).map(function(id){ return Object.assign({id:id}, S_orph[id]); }).sort(function(a, b){ return (a.at||0)-(b.at||0); });
 }
-function simpOrphList(){ return simpOrphAll().filter(function(o){ return o.hp !== true; }); }
+function simpOrphList(){ return simpOrphAll().filter(function(o){ return o.hp !== true && o.arch !== true; }); }
+// Archive : colis que l'on choisit de ranger à part pour qu'ils ne se mélangent pas aux nouveaux (champ facultatif « arch »)
+function simpArchList(){ return simpOrphAll().filter(function(o){ return o.arch === true && o.hp !== true; }); }
 function simpHpList(){ return simpOrphAll().filter(function(o){ return o.hp === true; }); }
 function simpOrphUpdateCount(){
   var el = document.getElementById('simp-orph-count'); if(!el) return;
@@ -9585,16 +9589,18 @@ function simpSearchOrders(q){
   out.sort(function(a, b){ return (b.c.createdAt||0)-(a.c.createdAt||0); });
   return out.slice(0, 15);
 }
-function simpOrphHtml(){
-  var list = simpOrphList(), byId = (S_cmdIndex && S_cmdIndex.byId) || {};
-  if(!list.length) return '<div style="font-size:.8rem;color:var(--mut)">Aucun colis en attente de rattachement.</div>';
+function simpOrphHtml(arch){
+  var list = arch ? simpArchList() : simpOrphList(), byId = (S_cmdIndex && S_cmdIndex.byId) || {};
+  if(!list.length) return '<div style="font-size:.8rem;color:var(--mut)">'+(arch ? 'Archive vide. Range ici (bouton « 🗄 Archiver ») les colis que tu n\'arrives pas à rattacher : ils ne comptent plus dans « Colis à rattacher » et ne se mélangent pas aux nouveaux. Ils se rattachent tout seuls si leur commande apparaît dans un import.' : 'Aucun colis en attente de rattachement.')+'</div>';
   var nSug = list.filter(function(o){ return simpOrphSuggest(o); }).length;
-  var h = (nSug ? '<button class="btn bpri" style="width:100%;margin-bottom:8px" onclick="simpOrphAttachAll()">✅ Rattacher les '+nSug+' colis dont la commande est connue</button>' : '');
+  var h = (arch ? '<div style="font-size:.74rem;color:var(--mut);margin-bottom:6px">Colis rangés à part. Ils ne comptent pas dans « Colis à rattacher » ; ils se rattachent tout seuls si leur commande apparaît dans un import.</div>'
+                : '<button class="btn" style="width:100%;margin-bottom:8px;background:none;border:1.5px solid var(--brd);color:var(--txt)" onclick="simpOrphArchAll()">🗄 Archiver les '+list.length+' colis de cette liste</button>')+
+          (nSug ? '<button class="btn bpri" style="width:100%;margin-bottom:8px" onclick="simpOrphAttachAll('+(arch ? 'true' : '')+')">✅ Rattacher les '+nSug+' colis dont la commande est connue</button>' : '');
   list.forEach(function(o){
     var sug = simpOrphSuggest(o), sc = sug ? byId[sug] : null, pr = sc ? null : simpOrphProposal(o), pb = pr && pr.best ? pr.best : null;
     h += '<div style="border-top:1px solid var(--brd);padding:8px 0;font-size:.78rem">'+
       '<div><strong>'+esc(o.transp||'')+'</strong> · <span style="font-family:monospace">'+esc(o.num||'')+'</span> <span style="color:var(--mut)">BL '+esc(o.bl||'—')+'</span></div>'+
-      '<div style="font-size:.7rem;color:var(--mut)">EBP : '+esc(o.ref||'—')+(o.client ? ' · '+esc(o.client) : '')+(o.dest ? ' · colis pour : '+esc(o.dest) : '')+' · mis de côté le '+new Date(o.at||Date.now()).toLocaleDateString('fr-FR')+'</div>'+
+      '<div style="font-size:.7rem;color:var(--mut)">EBP : '+esc(o.ref||'—')+(o.client ? ' · '+esc(o.client) : '')+(o.dest ? ' · colis pour : '+esc(o.dest) : '')+' · mis de côté le '+new Date(o.at||Date.now()).toLocaleDateString('fr-FR')+(arch && o.archAt ? ' · archivé le '+new Date(o.archAt).toLocaleDateString('fr-FR')+(o.archBy ? ' par '+esc(o.archBy) : '') : '')+'</div>'+
       (sc ? '<div style="color:var(--grn);font-weight:700;margin-top:2px">✅ Commande trouvée : '+esc(simpOrderLabel(sc))+'</div>' : '')+
       (pb ? '<div style="color:var(--acc);font-weight:700;margin-top:2px">💡 Proposée (à vérifier) : '+esc(simpOrderLabel(pb.c))+'</div>' : '')+
       '<div style="display:flex;gap:6px;margin-top:5px;flex-wrap:wrap">'+
@@ -9602,6 +9608,8 @@ function simpOrphHtml(){
         '<select id="simp-os-'+o.id+'" style="max-width:240px;background:var(--sur);color:var(--txt);border:1px solid var(--brd);border-radius:6px;font-size:.74rem;padding:4px">'+(sc ? '<option value="'+sug+'">'+esc(simpOrderLabel(sc))+'</option>' : (pr && pr.cands.length ? pr.cands.map(function(x){ return '<option value="'+x.id+'">'+(pb && x.id === pb.id ? '💡 ' : '')+esc(simpOrderLabel(x.c))+'</option>'; }).join('') : '<option value="">— cherche d\'abord —</option>'))+'</select>'+
         '<button onclick="simpOrphAttach(\''+o.id+'\')" style="padding:5px 10px;border-radius:6px;border:1px solid var(--grn);background:none;color:var(--grn);font-size:.74rem;font-weight:700;cursor:pointer">Rattacher</button>'+
         '<button onclick="simpOrphHp(\''+o.id+'\')" title="Colis sans commande dans l\'appli (sous-traitance…)" style="padding:5px 10px;border-radius:6px;border:1px solid var(--brd);background:none;color:var(--mut);font-size:.74rem;font-weight:700;cursor:pointer">🏭 Hors production</button>'+
+        (arch ? '<button onclick="simpArchBack(\''+o.id+'\')" style="padding:5px 10px;border-radius:6px;border:1px solid var(--brd);background:none;color:var(--mut);font-size:.74rem;font-weight:700;cursor:pointer">↩ Remettre à rattacher</button>'
+              : '<button onclick="simpOrphArch(\''+o.id+'\')" title="Ranger ce colis à part, hors de la liste à rattacher" style="padding:5px 10px;border-radius:6px;border:1px solid var(--brd);background:none;color:var(--mut);font-size:.74rem;font-weight:700;cursor:pointer">🗄 Archiver</button>')+
       '</div></div>';
   });
   return h;
@@ -9609,7 +9617,21 @@ function simpOrphHtml(){
 function simpOrphHp(id){
   var o = (S_orph||{})[id]; if(!o) return;
   if(!confirm('Marquer ce colis « hors production » ?\n'+(o.transp||'')+' '+(o.num||'')+(o.client ? ' — '+o.client : (o.dest ? ' — '+o.dest : ''))+'\nIl ne sera plus compté dans « Colis à rattacher » (tu le retrouves dans la liste « Hors production »).')) return;
-  fbu('suiviOrphelins/'+id, {hp:true, hpAt:Date.now(), hpBy:getMyName()}).then(function(){ toast('🏭 Colis noté hors production'); }).catch(function(){ toast('Erreur d\'enregistrement', 1); });
+  fbu('suiviOrphelins/'+id, {hp:true, hpAt:Date.now(), hpBy:getMyName(), arch:null, archAt:null, archBy:null}).then(function(){ toast('🏭 Colis noté hors production'); }).catch(function(){ toast('Erreur d\'enregistrement', 1); });
+}
+function simpOrphArch(id){
+  var o = (S_orph||{})[id]; if(!o) return;
+  fbu('suiviOrphelins/'+id, {arch:true, archAt:Date.now(), archBy:getMyName()}).then(function(){ toast('🗄 Colis rangé dans l\'archive'); }).catch(function(){ toast('Erreur d\'enregistrement', 1); });
+}
+function simpOrphArchAll(){
+  var list = simpOrphList(); if(!list.length) return;
+  if(!confirm('Ranger les '+list.length+' colis de la liste « Colis à rattacher » dans l\'archive ?\nIls ne compteront plus dans la liste et ne se mélangeront pas aux nouveaux. Tu pourras les retrouver et les remettre à tout moment.')) return;
+  var now = Date.now(), me = getMyName(), up = {};
+  list.forEach(function(o){ up[o.id+'/arch'] = true; up[o.id+'/archAt'] = now; up[o.id+'/archBy'] = me; });
+  fbu('suiviOrphelins', up).then(function(){ toast('🗄 '+list.length+' colis rangés dans l\'archive'); }).catch(function(){ toast('Erreur d\'enregistrement', 1); });
+}
+function simpArchBack(id){
+  fbu('suiviOrphelins/'+id, {arch:null, archAt:null, archBy:null}).then(function(){ toast('↩ Remis dans « Colis à rattacher »'); }).catch(function(){ toast('Erreur d\'enregistrement', 1); });
 }
 function simpHpBack(id){
   fbu('suiviOrphelins/'+id, {hp:null, hpAt:null, hpBy:null}).then(function(){ toast('↩ Remis dans « Colis à rattacher »'); }).catch(function(){ toast('Erreur d\'enregistrement', 1); });
@@ -9648,8 +9670,8 @@ function simpOrphAttach(id){
   simpOrphDo(id, oid, true).then(function(ok){ if(ok){ toast('✅ Colis rattaché'); S_dash.commandes = dashCommandesArray(); if(typeof dashRunSearch === 'function') dashRunSearch(); } })
     .catch(function(){ toast('Erreur de rattachement', 1); });
 }
-function simpOrphAttachAll(){
-  var list = simpOrphList().filter(function(o){ return simpOrphSuggest(o); });
+function simpOrphAttachAll(arch){
+  var list = (arch ? simpArchList() : simpOrphList()).filter(function(o){ return simpOrphSuggest(o); });
   if(!list.length) return;
   if(!confirm('Rattacher '+list.length+' colis à la commande trouvée pour chacun ?')) return;
   list.reduce(function(p, o){ return p.then(function(){ return simpOrphDo(o.id, simpOrphSuggest(o), false); }); }, Promise.resolve())
