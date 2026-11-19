@@ -6106,7 +6106,8 @@ function statutAdminRender(){
   block.style.display = isDir ? '' : 'none'; if(!isDir) return;
   var el = document.getElementById('admin-statuts-list'); if(!el || el.contains(document.activeElement)) return;
   var inp = 'background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.82rem;padding:6px 8px;outline:none';
-  var hexOf = function(c){ return /^#[0-9a-f]{6}$/i.test(c||'') ? c : '#d97706'; };
+  var VARHEX = {'var(--acc)':'#d97706','var(--red)':'#dc2626','var(--grn)':'#059669','var(--blu)':'#2563eb'};
+  var hexOf = function(c){ return /^#[0-9a-f]{6}$/i.test(c||'') ? c : (VARHEX[c] || '#d97706'); };
   var row = function(key, name, emoji, color, rule, extra, resetBtn){
     return '<div style="padding:9px 0;border-top:1px solid var(--brd)"><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">'+
       '<input type="text" value="'+esc(emoji)+'" maxlength="4" title="Emoji" onchange="statutAdminSet(\''+key+'\',\'emoji\',this.value)" style="width:48px;text-align:center;'+inp+'">'+
