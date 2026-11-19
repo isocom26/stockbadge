@@ -15860,9 +15860,7 @@ function siteAdminRender(){
     var k = esc(e.key || siteKeyOf(e.code)), dis = fromCode ? ' disabled' : '';
     return '<div style="padding:8px 0;border-top:1px solid var(--brd);'+(e.actif ? '' : 'opacity:.6')+'">'+
       '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><strong style="min-width:70px">'+esc(e.code)+'</strong>'+
-      '<label style="font-size:.74rem"><input type="checkbox" '+(e.actif ? 'checked ' : '')+dis+' onchange="siteAdminSet(\''+k+'\',\'actif\',this.checked)"> Actif</label>'+
-      '<label style="font-size:.74rem" title="Le suivi d\'expédition demande une confirmation faite à la main pour ce site"><input type="checkbox" '+(e.confirm ? 'checked ' : '')+dis+' onchange="siteAdminSet(\''+k+'\',\'confirm\',this.checked)"> Confirmation client manuelle</label>'+
-      '<label style="font-size:.74rem" title="Commandes passées par mail : étiquette à nomenclature (SITE2026-CDE MAIL NOM AAAAMMJJ+HHMM)"><input type="checkbox" '+(e.nomen ? 'checked ' : '')+dis+' onchange="siteAdminSet(\''+k+'\',\'nomen\',this.checked)"> Commandes mail (nomenclature)</label></div>'+
+      '<label style="font-size:.74rem"><input type="checkbox" '+(e.actif ? 'checked ' : '')+dis+' onchange="siteAdminSet(\''+k+'\',\'actif\',this.checked)"> Actif</label></div>'+
       '<input type="text" value="'+esc(e.alias.join(', '))+'" placeholder="Autres écritures de ce site (séparées par des virgules)"'+dis+' onchange="siteAdminSet(\''+k+'\',\'alias\',this.value)" style="width:100%;margin-top:6px;'+inp+'"></div>';
   }).join('');
   if(!fromCode) h += '<div style="border-top:1px solid var(--brd);padding-top:10px;margin-top:4px;display:flex;gap:8px;flex-wrap:wrap"><input type="text" id="site-new-code" maxlength="12" placeholder="Nouveau site (ex. ABC)" style="flex:1 1 140px;'+inp+';text-transform:uppercase"><button type="button" onclick="siteAdminAdd()" style="flex:0 0 auto;padding:7px 14px;border-radius:8px;border:none;background:var(--acc);color:#000;font-family:Open Sans,sans-serif;font-weight:700;font-size:.8rem;cursor:pointer">➕ Ajouter</button></div>';
