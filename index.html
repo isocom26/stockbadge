@@ -305,6 +305,7 @@ body.dash-commandes-wide main{max-width:1500px}
 .rpt-day-btn{flex-shrink:0;padding:7px 10px;border-radius:10px;border:1.5px solid var(--brd);background:var(--card);color:var(--mut);font-family:Open Sans,sans-serif;font-weight:700;font-size:0.78rem;cursor:pointer;white-space:nowrap}
 .rpt-day-btn.active{background:var(--acc);color:#000;border-color:var(--acc)}
 .rpt-day-btn.today{border-color:var(--grn)}
+.rpt-day-btn.active.today{border-color:var(--acc)}
 .rpt-archived{display:inline-block;margin-top:4px;font-size:.68rem;font-weight:800;color:var(--mut);background:var(--sur);border-radius:99px;padding:2px 9px;text-transform:uppercase}
 .rpt-emp-select{width:100%;background:var(--card);border:1.5px solid var(--brd);border-radius:10px;color:var(--txt);font-size:.9rem;padding:10px 12px;outline:none;margin-bottom:12px}
 .rpt-day{background:var(--card);border:1.5px solid var(--brd);border-radius:var(--rad);margin-bottom:12px;overflow:hidden}
@@ -2002,7 +2003,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.11.19-1850';
+var APP_VERSION = '2026.11.19-1855';
 var MANUEL_URL = 'manuel-isoprod.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -2960,6 +2961,7 @@ function ecranAutoOpen(tries){
 // Pas de correctif technique invisible ici. tag = qui est concerné :
 //   'all' (tout le monde), 'admin' (admin/direction), 'maint' (maintenance), 'stock' (ajout de stock), 'reprint' (réimpressions)
 var NEWS = [
+  {n:93, d:'19/11/2026', tag:'all', t:'Rapports : jour sélectionné plus net', x:'Dans les rapports du jour, le bouton orange du jour sélectionné n\'a plus de cadre vert autour quand c\'est aujourd\'hui. Le point ● reste pour repérer la journée en cours.'},
   {n:92, d:'19/11/2026', tag:'admin', t:'Admin : catalogue, sites, listes et familles gérés depuis Firebase', x:'Le catalogue produits, les fournisseurs, les sites, les listes (motifs SAV, modes d\'emport, types de planning) et les familles de stock ne sont plus écrits dans le code : ils se gèrent depuis Admin. Nouvelle carte « Mon compte administrateur » dans Admin > Réglages pour vérifier ta fiche. Rien ne change dans le travail de chacun.'},
   {n:91, d:'19/11/2026', tag:'all', t:'Admin : mise à jour des références EBP depuis Excel', x:'Admin > Interventions > Catalogue : on peut charger « Base_Articles_EBP.xlsx » ; l\'application montre ce qui est nouveau, modifié ou retiré avant d\'appliquer, et garde une sauvegarde de l\'ancienne liste.'},
   {n:90, d:'19/11/2026', tag:'all', t:'Admin : sites, statuts, listes et familles réglables', x:'Admin > Réglages : on peut maintenant ajouter ou masquer un site, renommer les statuts de commande (nom, emoji, couleur) et en ajouter de manuels, régler les motifs de SAV, les modes d\'emport et les types d\'événements du planning, renommer ou ajouter une famille de stock. Admin > Interventions : le catalogue des formats et des références EBP est copié dans Firebase. Rien ne change dans l\'utilisation courante.'},
