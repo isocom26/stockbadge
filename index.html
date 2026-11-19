@@ -2003,7 +2003,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.11.19-1855';
+var APP_VERSION = '2026.11.19-1905';
 var MANUEL_URL = 'manuel-isoprod.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -2962,6 +2962,7 @@ function ecranAutoOpen(tries){
 //   'all' (tout le monde), 'admin' (admin/direction), 'maint' (maintenance), 'stock' (ajout de stock), 'reprint' (réimpressions)
 var NEWS = [
   {n:93, d:'19/11/2026', tag:'all', t:'Rapports : jour sélectionné plus net', x:'Dans les rapports du jour, le bouton orange du jour sélectionné n\'a plus de cadre vert autour quand c\'est aujourd\'hui. Le point ● reste pour repérer la journée en cours.'},
+  {n:93, d:'19/11/2026', tag:'dashboard', t:'Recherche : filtre « Sans n° de suivi »', x:'Tableau de bord › Recherche : nouveau filtre « Suivi » pour voir les commandes sans n° de suivi (celles livrées ou remises sur place sont écartées) ou, au contraire, celles qui en ont un. Il se combine avec les autres filtres, par exemple « Terminé » + « Sans n° de suivi ».'},
   {n:92, d:'19/11/2026', tag:'admin', t:'Admin : catalogue, sites, listes et familles gérés depuis Firebase', x:'Le catalogue produits, les fournisseurs, les sites, les listes (motifs SAV, modes d\'emport, types de planning) et les familles de stock ne sont plus écrits dans le code : ils se gèrent depuis Admin. Nouvelle carte « Mon compte administrateur » dans Admin > Réglages pour vérifier ta fiche. Rien ne change dans le travail de chacun.'},
   {n:91, d:'19/11/2026', tag:'all', t:'Admin : mise à jour des références EBP depuis Excel', x:'Admin > Interventions > Catalogue : on peut charger « Base_Articles_EBP.xlsx » ; l\'application montre ce qui est nouveau, modifié ou retiré avant d\'appliquer, et garde une sauvegarde de l\'ancienne liste.'},
   {n:90, d:'19/11/2026', tag:'all', t:'Admin : sites, statuts, listes et familles réglables', x:'Admin > Réglages : on peut maintenant ajouter ou masquer un site, renommer les statuts de commande (nom, emoji, couleur) et en ajouter de manuels, régler les motifs de SAV, les modes d\'emport et les types d\'événements du planning, renommer ou ajouter une famille de stock. Admin > Interventions : le catalogue des formats et des références EBP est copié dans Firebase. Rien ne change dans l\'utilisation courante.'},
@@ -24500,6 +24501,11 @@ function dashRenderRecherche(){
     '<option value="sav">🛠 Avec SAV</option>'+
     '<option value="conf">📮 À confirmer</option>'+
     '</select>';
+  html += '<select id="dash-search-suivi" onchange="dashRunSearch()" style="flex:1;min-width:180px;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.85rem;padding:8px;outline:none">'+
+    '<option value="">Suivi : tout</option>'+
+    '<option value="sans">📭 Sans n° de suivi (hors emport)</option>'+
+    '<option value="avec">📦 Avec n° de suivi</option>'+
+    '</select>';
   html += '</div>';
   html += '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">';
   html += '<label style="font-size:.78rem;color:var(--mut);display:flex;align-items:center;gap:4px">Du <input type="date" id="dash-search-from" onchange="dashRunSearch()" style="background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.82rem;padding:6px 8px;outline:none"></label>';
@@ -24521,8 +24527,12 @@ function dashRenderRecherche(){
   dashRunSearch();
 }
 
+// Commande avec au moins un colis portant un n° de suivi ?
+function dashHasSuiviNum(c){ return colisList(c).some(function(k){ return String(k.num || '').trim() !== ''; }); }
+// Commande sans colis par nature (emport / livraison par nos soins / disponible à l'emport) : pas de n° attendu
+function dashSansColisParNature(c){ return !!(c && (c.livraison || c.emportDispo)); }
 function dashResetRecherche(){
-  ['dash-search-q','dash-search-site','dash-search-situation','dash-search-from','dash-search-to'].forEach(function(id){
+  ['dash-search-q','dash-search-site','dash-search-situation','dash-search-suivi','dash-search-from','dash-search-to'].forEach(function(id){
     var e = document.getElementById(id);
     if(e) e.value = '';
   });
@@ -24536,6 +24546,7 @@ function dashRunSearch(){
   var q = (qEl.value||'').trim().toLowerCase();
   var site = document.getElementById('dash-search-site').value;
   var situationFilter = document.getElementById('dash-search-situation').value;
+  var suiviEl = document.getElementById('dash-search-suivi'), suiviFilter = suiviEl ? suiviEl.value : '';
   var fromVal = document.getElementById('dash-search-from').value;
   var toVal = document.getElementById('dash-search-to').value;
   var fromMs = fromVal ? new Date(fromVal+'T00:00:00').getTime() : null;
@@ -24546,6 +24557,8 @@ function dashRunSearch(){
     if(site && siteCanon(c.site) !== site) return false;
     if(fromMs!=null && (c.createdAt||0) < fromMs) return false;
     if(toMs!=null && (c.createdAt||0) > toMs) return false;
+    if(suiviFilter === 'sans'){ if(dashHasSuiviNum(c) || dashSansColisParNature(c)) return false; }
+    else if(suiviFilter === 'avec'){ if(!dashHasSuiviNum(c)) return false; }
     if(situationFilter === 'sav'){ if(!dashSavList(c).length) return false; }
     else if(situationFilter === 'conf'){ if(!suiviPending(c).length) return false; }
     else if(situationFilter === 'prod_all'){ var sk = dashComputeSituation(c).key; if(sk !== 'waiting' && sk !== 'in_progress' && sk !== 'reprint' && sk !== 'produced') return false; }
