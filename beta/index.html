@@ -675,13 +675,6 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
     <div class="ff" style="margin-bottom:10px">
       <label>Site *</label>
       <select id="dep-man-site" style="width:100%;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.88rem;padding:9px 12px;outline:none;margin-top:4px">
-        <option value="BMM">BMM</option>
-        <option value="FDB">FDB</option>
-        <option value="CB">CB</option>
-        <option value="CMC">CMC</option>
-        <option value="RPB">RPB</option>
-        <option value="ISOCOM">ISOCOM</option>
-        <option value="TOP">TOP</option>
       </select>
     </div>
     <!-- N° commande -->
@@ -1185,7 +1178,7 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
       <div id="measure-result" style="font-size:.78rem;margin-top:8px"></div>
     </div>
     <div style="border-top:1px solid var(--brd);margin-top:12px;padding-top:12px">
-      <div style="font-family:Open Sans,sans-serif;font-weight:800;font-size:.88rem;margin-bottom:4px">🧭 Harmoniser les sites (TopBadges → TOP, ISO → ISOCOM)</div>
+      <div style="font-family:Open Sans,sans-serif;font-weight:800;font-size:.88rem;margin-bottom:4px">🧭 Harmoniser les sites (anciennes écritures → code du site)</div>
       <div style="font-size:.74rem;color:var(--mut);margin-bottom:8px">Étape 1 : « Diagnostiquer » compte, site par site, les commandes, lignes de production et réimpressions (lecture seule) et repère les conflits (même numéro de commande présent sous les deux écritures). Étape 2 : sauvegardez la base (bouton « Exporter » plus haut). Étape 3 : « Appliquer » ne change que le nom du site ; les commandes en conflit ne sont pas touchées.</div>
       <button id="sitefix-scan-btn" type="button" onclick="adminSiteScan()" style="width:100%;padding:9px;border-radius:8px;border:1.5px solid var(--brd);background:var(--sur);color:var(--txt);font-family:Open Sans,sans-serif;font-weight:700;font-size:.86rem;cursor:pointer">🔍 Diagnostiquer</button>
       <div id="sitefix-result" style="font-size:.78rem;margin-top:8px"></div>
@@ -1215,9 +1208,6 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
     <div style="font-family:Open Sans,sans-serif;font-weight:800;font-size:0.95rem;margin-bottom:10px">🔧 Forcer le statut d'une commande</div>
     <div style="display:flex;gap:8px;margin-bottom:6px">
       <select id="admin-force-site" style="flex:1;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.85rem;padding:8px;outline:none">
-        <option value="BMM">BMM</option><option value="FDB">FDB</option><option value="CB">CB</option>
-        <option value="CMC">CMC</option><option value="RPB">RPB</option><option value="ISOCOM">ISOCOM</option>
-        <option value="TOP">TOP</option>
       </select>
       <input type="text" id="admin-force-cmd" placeholder="N° commande ou nom" style="flex:2;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.85rem;padding:8px;outline:none;box-sizing:border-box">
     </div>
@@ -1243,9 +1233,6 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
     <div style="font-size:.78rem;color:var(--mut);margin-bottom:10px">Pour une commande qui ne sera jamais produite en entier (client qui réduit, reste annulé…) : les quantités réellement produites sont conservées, la commande compte pour 100 % et passe en « Terminée » (donc au Contrôle qualité). La date et ton nom sont enregistrés.</div>
     <div style="display:flex;gap:8px;margin-bottom:8px">
       <select id="admin-clo-site" style="flex:1;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.85rem;padding:8px;outline:none">
-        <option value="BMM">BMM</option><option value="FDB">FDB</option><option value="CB">CB</option>
-        <option value="CMC">CMC</option><option value="RPB">RPB</option><option value="ISOCOM">ISOCOM</option>
-        <option value="TOP">TOP</option>
       </select>
       <input type="text" id="admin-clo-cmd" placeholder="N° commande" style="flex:2;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.85rem;padding:8px;outline:none;box-sizing:border-box">
     </div>
@@ -1258,9 +1245,6 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
     <div style="font-size:.78rem;color:var(--mut);margin-bottom:10px">Pour une erreur de quantité (ex. imprimeur : 2900 au lieu de 2500). Si la nouvelle quantité dépasse ce qui est déjà produit, la commande repasse « En cours » et sort du Contrôle qualité. Les lignes de production existantes ne sont pas touchées ; l'ancienne valeur est conservée dans l'historique de la commande.</div>
     <div style="display:flex;gap:8px;margin-bottom:8px">
       <select id="admin-qc-site" style="flex:1;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.85rem;padding:8px;outline:none">
-        <option value="BMM">BMM</option><option value="FDB">FDB</option><option value="CB">CB</option>
-        <option value="CMC">CMC</option><option value="RPB">RPB</option><option value="ISOCOM">ISOCOM</option>
-        <option value="TOP">TOP</option>
       </select>
       <input type="text" id="admin-qc-cmd" placeholder="N° commande" style="flex:2;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.85rem;padding:8px;outline:none;box-sizing:border-box">
     </div>
@@ -1664,7 +1648,7 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
     </div>
     <div class="ff" id="ord-s-other-wrap" style="display:none">
       <label>Nom du nouveau fournisseur</label>
-      <input type="text" id="ord-s-other" placeholder="ex: GAMAX" oninput="obColisRefreshAll()">
+      <input type="text" id="ord-s-other" placeholder="Autre fournisseur" oninput="obColisRefreshAll()">
     </div>
     <div class="ff"><label>Date de réception prévue <span style="color:var(--mut);font-size:.75rem">(approximative, modifiable ensuite)</span></label>
       <input type="date" id="ord-date">
@@ -1884,13 +1868,6 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
     <h3>🖨️ Nouvelle demande de réimpression</h3>
     <div class="ff"><label>Site de commande *</label>
       <select id="rp-site" onchange="rpSearchCommande()">
-        <option value="BMM">BMM</option>
-        <option value="FDB">FDB</option>
-        <option value="CB">CB</option>
-        <option value="CMC">CMC</option>
-        <option value="RPB">RPB</option>
-        <option value="ISOCOM">ISOCOM</option>
-        <option value="TOP">TOP</option>
       </select>
     </div>
     <div class="ff"><label>N° / Nom de commande *</label><input type="text" id="rp-cmd" placeholder="ex: 15552 ou DUPONT" oninput="rpCmdManualEdit();rpSearchCommande()" onchange="rpSearchCommande()" onpaste="setTimeout(rpSearchCommande,50)" style="width:100%;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.88rem;padding:9px 12px;outline:none;box-sizing:border-box"></div>
@@ -2019,7 +1996,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.11.19-1700-beta';
+var APP_VERSION = '2026.11.19-1745-beta';
 var MANUEL_URL = 'manuel-isoprod.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -4242,19 +4219,10 @@ function openOrderModal(){
 }
 
 // ── FOURNISSEURS ──
-var DEFAULT_SUPPLIERS = ['GAMAX','TECRE','MODERN'];
-
-// Récupère la liste des fournisseurs enregistrés ; si elle est vide (première
-// utilisation), la pré-remplit une seule fois avec les fournisseurs habituels
-// — n'écrase jamais une liste déjà existante.
+// Liste des fournisseurs enregistrés dans Firebase (« suppliers »). Aucun nom n'est écrit dans le code :
+// les fournisseurs se créent depuis l'Admin.
 function ensureDefaultSuppliers(){
-  return fbg('suppliers').then(function(snap){
-    var data = snap.val()||{};
-    if(Object.keys(data).length) return data;
-    return Promise.all(DEFAULT_SUPPLIERS.map(function(nom){ return fbs('suppliers/'+gid(),{nom:nom}); }))
-      .then(function(){ return fbg('suppliers'); })
-      .then(function(s2){ return s2.val()||{}; });
-  });
+  return fbg('suppliers').then(function(snap){ return snap.val()||{}; });
 }
 
 function populateSupplierSelect(){
@@ -9258,7 +9226,7 @@ function simpParseColissimo(text){
   });
   return out;
 }
-// Bordereau de dépôt Colissimo Entreprise (PDF) — envois TopBadges : n° de colis + référence commande « TOP-006062 » (pas de BL, pas de CSV)
+// Bordereau de dépôt Colissimo Entreprise (PDF) : n° de colis + référence commande « XXX-006062 » (pas de BL, pas de CSV)
 function simpGroupItems(items){
   var lines = [];
   (items||[]).forEach(function(it){
@@ -9323,13 +9291,13 @@ function simpIsCarrierMode(mode){ return /colissimo|chrono/i.test(mode||''); }
 function simpLabelClient(mode){ var n = simpNorm(mode||''); return /etiquet/.test(n) && /client/.test(n); }
 function simpLabelCarrier(mode){ var n = simpNorm(mode||''); return /chrono/.test(n) ? 'Chronopost' : (/colis/.test(n) ? 'Colissimo' : ''); }
 
-// Trouve la commande de l'app d'après la « Réf. Cmd. Isocom » d'EBP (ex. CB2026-32544, FDB-2026-12370, BMM2026-15925)
+// Trouve la commande de l'app d'après la « Réf. Cmd. Isocom » d'EBP (ex. SITE2026-12345, SITE-2026-12345)
 function simpFindExact(ref){
   var idx = (S_cmdIndex && S_cmdIndex.bySiteCmd) || {};
   ref = String(ref||'').trim();
   var m = /^([A-Za-z]{2,5})-?(\d{4})-(\d+)$/.exec(ref), tries = [];
   if(m) tries.push([m[1], m[3]]);
-  // Commandes mail / CMC : « CB2026-CDE MAIL NOM AAAAMMJJ+HHMM » → site + numéro « AAAAMMJJ HHMM »
+  // Commandes mail : « SITE2026-CDE MAIL NOM AAAAMMJJ+HHMM » → site + numéro « AAAAMMJJ HHMM »
   var mm = /^([A-Za-z]{2,5})\d{4}-.*?(\d{8})\s*\+\s*(\d{4})\s*$/.exec(ref);
   if(mm) tries.push([mm[1], mm[2]+' '+mm[3]]);
   var m2 = /^([A-Za-z]{2,5})-(\d+)$/.exec(ref);
@@ -9418,7 +9386,7 @@ function simpPickBest(cands){
   return cands[0];
 }
 function simpOrderLabel(c){ return dashCmdLabel(c)+' · '+(c.site||'—'); }
-// Une commande est « à confirmer » à la main si CMC / mail / U-stickers (confirmées par le pôle numérique), ou si elle porte un nom de client (commande passée par mail)
+// Une commande est « à confirmer » à la main si son site est réglé ainsi dans l'Admin (confirmations faites par le pôle numérique), ou si elle porte un nom de client (commande passée par mail)
 function suiviNeedsConfirm(c){
   return !!(c && (siteFlag(c.site, 'confirm') || (c.nom && String(c.nom).trim())));
 }
@@ -9629,7 +9597,7 @@ function simpHandleFiles(files){
           simpPdfRows(rd.result).then(function(rows){
             var r = simpParseBordereau(rows);
             if(!r.isBordereau){ SIMP.errs.push({ok:false, txt:f.name+' : PDF non reconnu (bordereau de dépôt Colissimo attendu)'}); }
-            else SIMP.srcs['topc|'+f.name] = {carrier:r.carrier, info:{ok:true, txt:'Colissimo TopBadges : '+r.carrier.length+' colis ('+f.name+')'+(r.date ? ' · expédiés le '+new Date(r.date).toLocaleDateString('fr-FR') : '')}};
+            else SIMP.srcs['topc|'+f.name] = {carrier:r.carrier, info:{ok:true, txt:'Bordereau Colissimo : '+r.carrier.length+' colis ('+f.name+')'+(r.date ? ' · expédiés le '+new Date(r.date).toLocaleDateString('fr-FR') : '')}};
             res();
           }).catch(function(){ SIMP.errs.push({ok:false, txt:f.name+' : PDF illisible (connexion ?)'}); res(); });
           return;
@@ -9868,7 +9836,7 @@ function autoImportSchedule(){
 }
 function autoImportCheck(){
   if(AUTOIMP.running) return;
-  if(!canSuiviSaisie() || !S_orphReady){ if((AUTOIMP.retry = (AUTOIMP.retry||0)+1) < 12) setTimeout(autoImportCheck, 4000); return; }   // droits / colis à rattacher pas encore chargés : on réessaie
+  if(!canSuiviSaisie() || !S_orphReady || !SITES_READY){ if((AUTOIMP.retry = (AUTOIMP.retry||0)+1) < 12) setTimeout(autoImportCheck, 4000); return; }   // droits / colis à rattacher / sites pas encore chargés : on réessaie
   if(!S_cmdIndex || !Object.keys(S_cmdIndex.byId||{}).length) return;
   var m = document.getElementById('m-suivi-import'); if(m && m.classList.contains('open')) return;   // import manuel en cours
   AUTOIMP.running = true;
@@ -11644,7 +11612,7 @@ function rpSelectFromBrowse(cmdId){
 
 function openReprintModal(){
   window._rpAllowDone = null;
-  document.getElementById('rp-site').value='BMM';
+  document.getElementById('rp-site').value=(siteCodes()[0]||'');
   document.getElementById('rp-cmd').value='';
   document.getElementById('rp-finish').value='';
   document.getElementById('rp-cmd-result').innerHTML = '';
@@ -15855,20 +15823,15 @@ function canFillReport(){
 // ── Sites : liste administrable (Firebase : settings/sites), avec repli sur les sites d'origine ──
 // Chaque site : {code, actif (proposé dans les listes de saisie), alias (anciennes écritures = ce site), confirm (confirmation client à faire à la main), nomen (commandes mail / nomenclature)}.
 // On ne supprime jamais un site : on le met en sourdine (actif = faux), il reste lisible dans l'historique.
-var SITE_DEFAULTS = [
-  {code:'BMM'}, {code:'FDB'}, {code:'CB'}, {code:'CMC', confirm:true, nomen:true}, {code:'RPB'},
-  {code:'ISOCOM', alias:['ISO']}, {code:'TOP', alias:['TopBadges', 'Top Badges', 'TB']},
-  {code:'UST', actif:false, confirm:true, alias:['U-Stickers', 'U-Sticker', 'U Stickers', 'USTICKERS']}, {code:'CMD MAIL', actif:false, confirm:true}
-];
 var SITES_KEY = 'isoprod_sites_v1';
-var S_sites = null, _siteIdx = null;
+var S_sites = null, _siteIdx = null, SITES_READY = false;   // SITES_READY : la liste des sites est arrivée (cache ou Firebase)
 function siteNorm(e, i){
   var al = e && e.alias ? (Array.isArray(e.alias) ? e.alias : Object.keys(e.alias).map(function(k){ return e.alias[k]; })) : [];
   return {code:String((e && e.code) || '').trim(), actif:!(e && e.actif === false), confirm:!!(e && e.confirm), nomen:!!(e && e.nomen),
           alias:al.map(function(a){ return String(a||'').trim(); }).filter(Boolean), ordre:(e && typeof e.ordre === 'number') ? e.ordre : i, key:(e && e.key) || ''};
 }
 function siteEntries(){
-  var src = (S_sites && S_sites.length) ? S_sites : SITE_DEFAULTS.map(function(e, i){ return siteNorm(e, i); });
+  var src = (S_sites && S_sites.length) ? S_sites : [];
   return src.filter(function(e){ return e.code; });
 }
 function siteIdx(){
@@ -15889,7 +15852,7 @@ function siteMatchNames(prefix){
 }
 function siteNomenRe(){
   var codes = siteEntries().filter(function(e){ return e.nomen; }).map(function(e){ return e.code.replace(/[^A-Za-z0-9]/g, ''); }).filter(Boolean);
-  return codes.length ? new RegExp('\\b('+codes.join('|')+')\\b', 'i') : /$^/;
+  return codes.length ? new RegExp('\\b('+codes.join('|')+')\\b', 'i') : /(?!)/;   // /(?!)/ : ne correspond jamais (même à une chaîne vide)
 }
 function siteCanon(s){
   if(s == null) return s;
@@ -15909,7 +15872,7 @@ function siteFillSelects(){
   });
 }
 function siteApplyList(arr){
-  S_sites = arr && arr.length ? arr : null; _siteIdx = null;
+  S_sites = arr && arr.length ? arr : null; _siteIdx = null; SITES_READY = true;
   siteFillSelects();
   try{ siteAdminRender(); }catch(e){}
 }
@@ -15928,23 +15891,16 @@ function siteAdminRender(){
   block.style.display = isDir ? '' : 'none'; if(!isDir) return;
   var el = document.getElementById('admin-sites-list'); if(!el || el.contains(document.activeElement)) return;
   var fromCode = !(S_sites && S_sites.length), list = siteEntries(), inp = 'background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.8rem;padding:6px 8px;outline:none';
-  var h = fromCode ? '<div style="font-size:.78rem;color:var(--acc);margin-bottom:8px">Les sites viennent encore du code de l\'application. Clique sur « Enregistrer dans Firebase » pour pouvoir les modifier ici.</div>'+
-    '<button type="button" onclick="siteAdminSeed()" style="width:100%;padding:9px;border-radius:8px;border:none;background:var(--acc);color:#000;font-family:Open Sans,sans-serif;font-weight:700;font-size:.82rem;cursor:pointer;margin-bottom:8px">📤 Enregistrer les sites dans Firebase</button>' : '';
+  var h = fromCode ? '<div style="font-size:.78rem;color:var(--acc);margin-bottom:8px">Aucun site enregistré dans Firebase : ajoute-les ci-dessous.</div>' : '';
   h += list.map(function(e){
-    var k = esc(e.key || siteKeyOf(e.code)), dis = fromCode ? ' disabled' : '';
+    var k = esc(e.key || siteKeyOf(e.code)), dis = '';
     return '<div style="padding:8px 0;border-top:1px solid var(--brd);'+(e.actif ? '' : 'opacity:.6')+'">'+
       '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><strong style="min-width:70px">'+esc(e.code)+'</strong>'+
       '<label style="font-size:.74rem"><input type="checkbox" '+(e.actif ? 'checked ' : '')+dis+' onchange="siteAdminSet(\''+k+'\',\'actif\',this.checked)"> Actif</label></div>'+
       '<input type="text" value="'+esc(e.alias.join(', '))+'" placeholder="Autres écritures de ce site (séparées par des virgules)"'+dis+' onchange="siteAdminSet(\''+k+'\',\'alias\',this.value)" style="width:100%;margin-top:6px;'+inp+'"></div>';
   }).join('');
-  if(!fromCode) h += '<div style="border-top:1px solid var(--brd);padding-top:10px;margin-top:4px;display:flex;gap:8px;flex-wrap:wrap"><input type="text" id="site-new-code" maxlength="12" placeholder="Nouveau site (ex. ABC)" style="flex:1 1 140px;'+inp+';text-transform:uppercase"><button type="button" onclick="siteAdminAdd()" style="flex:0 0 auto;padding:7px 14px;border-radius:8px;border:none;background:var(--acc);color:#000;font-family:Open Sans,sans-serif;font-weight:700;font-size:.8rem;cursor:pointer">➕ Ajouter</button></div>';
+  h += '<div style="border-top:1px solid var(--brd);padding-top:10px;margin-top:4px;display:flex;gap:8px;flex-wrap:wrap"><input type="text" id="site-new-code" maxlength="12" placeholder="Nouveau site (ex. ABC)" style="flex:1 1 140px;'+inp+';text-transform:uppercase"><button type="button" onclick="siteAdminAdd()" style="flex:0 0 auto;padding:7px 14px;border-radius:8px;border:none;background:var(--acc);color:#000;font-family:Open Sans,sans-serif;font-weight:700;font-size:.8rem;cursor:pointer">➕ Ajouter</button></div>';
   el.innerHTML = h;
-}
-function siteAdminSeed(){
-  if(!isDir) return;
-  if(S_sites && S_sites.length) return;
-  var upd = {}; SITE_DEFAULTS.forEach(function(e, i){ var n = siteNorm(e, i); upd[siteKeyOf(n.code)] = {code:n.code, actif:n.actif, confirm:n.confirm, nomen:n.nomen, alias:n.alias, ordre:i}; });
-  fbs('settings/sites', upd).then(function(){ toast('✅ Sites enregistrés dans Firebase'); }).catch(function(){ toast('Écriture refusée (règles Firebase à autoriser sur « settings/sites »)', 1); });
 }
 function siteAdminSet(key, field, val){
   if(!isDir || !key) return;
@@ -17387,7 +17343,7 @@ function parseQRPlanche(raw){
   var rest = m[3].trim();
   var tokens = rest.split(/\s+/);
 
-  // Nouvelle nomenclature des commandes mail / CMC : « CDE MAIL NOM DU CLIENT AAAAMMJJ+HHMM » (date + heure de création).
+  // Nouvelle nomenclature des commandes mail : « CDE MAIL NOM DU CLIENT AAAAMMJJ+HHMM » (date + heure de création).
   // Le numéro de commande est « AAAAMMJJ HHMM » (affiché avec une espace, identique dans EBP « Notre référence »).
   var mnew = rest.match(/^(.*?)\s*(\d{8})\s*\+\s*(\d{4})\s*$/);
   if(mnew){
@@ -17411,7 +17367,7 @@ function parseQRPlanche(raw){
     }
   }
 
-  // Ancienne forme d'une commande mail / CMC : on la lit toujours, mais on prévient (risque de doublon)
+  // Ancienne forme d'une commande mail : on la lit toujours, mais on prévient (risque de doublon)
   if(!result.nomen && (/^CDE\s+MAIL\b/i.test(result.nom) || siteFlag(result.site, 'nomen') || siteNomenRe().test(result.nom))) result.nomen = 'old';
 
   result.date = parts[1].trim();
@@ -17606,7 +17562,7 @@ function depShowParsed(r, el){
   html += '<div style="font-size:.82rem;color:var(--mut);margin-bottom:8px">Print le '+r.date+'</div>';
   if(r.nomen === 'old'){
     html += '<div style="background:rgba(245,158,11,.12);border:1.5px solid #f59e0b;border-radius:8px;padding:8px 10px;margin-bottom:8px;font-size:.8rem">'+
-      '<strong>⚠️ Ancienne nomenclature</strong> (commande mail / CMC) — vérifie qu\'elle n\'existe pas déjà dans l\'app avant de l\'ajouter. '+
+      '<strong>⚠️ Ancienne nomenclature</strong> (commande mail) — vérifie qu\'elle n\'existe pas déjà dans l\'app avant de l\'ajouter. '+
       'Nouvelle forme : <em>SITE2026-CDE MAIL NOM DU CLIENT AAAAMMJJ+HHMM</em>.</div>';
   }
   if(nBad){
@@ -17852,7 +17808,7 @@ function openAddCmdManuelle(){
   document.getElementById('dep-man-date-picker').value = '';
   document.getElementById('dep-man-date-depart').value = '';
   var jpw = document.getElementById('jp-man-wrap'); if(jpw){ jpw.innerHTML = jplusBarHtml('man','dep-man-date-depart'); jplusBarStyle('man'); }
-  document.getElementById('dep-man-site').value = 'BMM';
+  document.getElementById('dep-man-site').value = (siteCodes()[0]||'');
   // Reset formats : garder une seule ligne vide
   var fmtsEl = document.getElementById('dep-man-formats');
   fmtsEl.innerHTML = '<div class="dep-man-fmt-row" style="display:flex;gap:6px;margin-bottom:8px">'
@@ -22034,7 +21990,7 @@ function adminMigrateReprintPhotos(){
   });
 }
 
-// ── Harmoniser les sites : TopBadges → TOP, ISO → ISOCOM (diagnostic en lecture seule, puis application après sauvegarde) ──
+// ── Harmoniser les sites : anciennes écritures → code du site, d'après les « autres écritures » de l'Admin (diagnostic en lecture seule, puis application après sauvegarde) ──
 var _siteFixPlan = null;
 function adminSiteScan(){
   if(!iAm) return;
@@ -24332,7 +24288,7 @@ function dashActiveReprintQty(c){
 // avec le nom du site lui-même en dépiautage manuel) — pour ceux-là on
 // affiche toujours le numéro de commande tel que saisi. À retirer de cette
 // liste dès qu'un site obtient son propre QR code de commande.
-var DASH_SITES_CMD_FORCE_NUMBER = {};  // TopBadges : saisie manuelle abandonnée (QR code), le nom du client s'affiche comme pour les autres sites
+var DASH_SITES_CMD_FORCE_NUMBER = {};  // saisie manuelle abandonnée (QR code), le nom du client s'affiche pour tous les sites
 
 // Libellé affiché en colonne CMD du tableau Commandes : nom du client quand
 // il est renseigné (quel que soit le site — le numéro est parfois une date
