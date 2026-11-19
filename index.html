@@ -1985,7 +1985,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.11.19-1150';
+var APP_VERSION = '2026.11.19-1155';
 var MANUEL_URL = 'manuel-isoprod.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -2943,6 +2943,7 @@ function ecranAutoOpen(tries){
 // Pas de correctif technique invisible ici. tag = qui est concerné :
 //   'all' (tout le monde), 'admin' (admin/direction), 'maint' (maintenance), 'stock' (ajout de stock), 'reprint' (réimpressions)
 var NEWS = [
+  {n:87, d:'19/11/2026', tag:'all', t:'Nouvelle nomenclature des commandes mail / CMC', x:'Étiquette « SITE2026-CDE MAIL NOM DU CLIENT AAAAMMJJ+HHMM » : le scan lit le site, le nom et le numéro (date + heure, affiché « AAAAMMJJ HHMM ») ; l\'export EBP (« Notre référence ») est rapproché avec la même chaîne. L\'ancienne forme est toujours lue, avec un avertissement « vérifier qu\'elle n\'existe pas déjà ».'},
   {n:86, d:'19/11/2026', tag:'all', t:'Expéditions : étiquettes d\'envoi fournies par le client', x:'Quand l\'export EBP porte le transporteur prévu « Étiquette fournie par le client », la commande apparaît dans la liste « 🏷 Étiquette client » de la fenêtre d\'import : tu choisis le transporteur (repris d\'une saisie à l\'autre), tu saisis le n° de suivi, et le colis est créé sur la commande. Bouton « Pas de suivi » si aucun n° ne viendra. Ces commandes ne sont plus prises pour des emports ni des colis à rattacher.'},
   {n:85, d:'19/11/2026', tag:'all', t:'Expéditions : archive des colis à rattacher', x:'Nouvelle liste « 🗄 Archive » dans la fenêtre d\'import : tu ranges (un par un ou toute la liste) les colis que tu n\'arrives pas à rattacher, pour qu\'ils ne se mélangent pas aux nouveaux. Ils se rattachent tout seuls si leur commande apparaît dans un import, et tu peux les remettre à rattacher à tout moment.'},
   {n:84, d:'19/11/2026', tag:'all', t:'Expéditions : import automatique depuis le Drive', x:'Un script Google dépose chaque soir les fichiers EBP / Chronopost / Colissimo ; IsoProd les traite dès qu\'un utilisateur autorisé a l\'application ouverte (même résultat qu\'un import manuel « Enregistrer »). Le journal s\'affiche en haut de la fenêtre d\'import.'},
@@ -8984,6 +8985,9 @@ function simpFindExact(ref){
   ref = String(ref||'').trim();
   var m = /^([A-Za-z]{2,5})-?(\d{4})-(\d+)$/.exec(ref), tries = [];
   if(m) tries.push([m[1], m[3]]);
+  // Commandes mail / CMC : « CB2026-CDE MAIL NOM AAAAMMJJ+HHMM » → site + numéro « AAAAMMJJ HHMM »
+  var mm = /^([A-Za-z]{2,5})\d{4}-.*?(\d{8})\s*\+\s*(\d{4})\s*$/.exec(ref);
+  if(mm) tries.push([mm[1], mm[2]+' '+mm[3]]);
   var m2 = /^([A-Za-z]{2,5})-(\d+)$/.exec(ref);
   if(m2){ tries.push([m2[1], m2[2]]); tries.push([m2[1], m2[2].replace(/^0+/, '')]); }
   var SITE_ALIAS = {TOP:['TOP','TopBadges'], TB:['TopBadges'], UST:['UST','U-Stickers','U Stickers','USTICKERS']};
@@ -16919,7 +16923,14 @@ function parseQRPlanche(raw){
   var rest = m[3].trim();
   var tokens = rest.split(/\s+/);
 
-  if(/^\d+$/.test(tokens[0])){
+  // Nouvelle nomenclature des commandes mail / CMC : « CDE MAIL NOM DU CLIENT AAAAMMJJ+HHMM » (date + heure de création).
+  // Le numéro de commande est « AAAAMMJJ HHMM » (affiché avec une espace, identique dans EBP « Notre référence »).
+  var mnew = rest.match(/^(.*?)\s*(\d{8})\s*\+\s*(\d{4})\s*$/);
+  if(mnew){
+    result.cmd = mnew[2]+' '+mnew[3];
+    result.nom = mnew[1].trim();
+    result.nomen = 'new';
+  } else if(/^\d+$/.test(tokens[0])){
     result.cmd = tokens[0];
     // Nom = tokens après le cmd qui ne contiennent pas de chiffres
     result.nom = tokens.slice(1).filter(function(t){ return !/\d/.test(t); }).join(' ').trim();
@@ -16935,6 +16946,9 @@ function parseQRPlanche(raw){
       result.cmd = rest;
     }
   }
+
+  // Ancienne forme d'une commande mail / CMC : on la lit toujours, mais on prévient (risque de doublon)
+  if(!result.nomen && (/^CDE\s+MAIL\b/i.test(result.nom) || result.site === 'CMC' || /\bCMC\b/i.test(result.nom))) result.nomen = 'old';
 
   result.date = parts[1].trim();
 
@@ -17126,6 +17140,11 @@ function depShowParsed(r, el){
   html += '<div style="font-family:Open Sans,sans-serif;font-weight:800;margin-bottom:8px;color:var(--grn)">✅ Commande détectée</div>';
   html += '<div style="font-size:.85rem;margin-bottom:4px"><strong>'+r.site+' '+r.cmd+'</strong>'+(r.nom?' · <span style="color:var(--mut)">'+esc(r.nom)+'</span>':'')+'</div>';
   html += '<div style="font-size:.82rem;color:var(--mut);margin-bottom:8px">Print le '+r.date+'</div>';
+  if(r.nomen === 'old'){
+    html += '<div style="background:rgba(245,158,11,.12);border:1.5px solid #f59e0b;border-radius:8px;padding:8px 10px;margin-bottom:8px;font-size:.8rem">'+
+      '<strong>⚠️ Ancienne nomenclature</strong> (commande mail / CMC) — vérifie qu\'elle n\'existe pas déjà dans l\'app avant de l\'ajouter. '+
+      'Nouvelle forme : <em>SITE2026-CDE MAIL NOM DU CLIENT AAAAMMJJ+HHMM</em>.</div>';
+  }
   if(nBad){
     html += '<div style="background:rgba(245,158,11,.12);border:1.5px solid #f59e0b;border-radius:8px;padding:8px 10px;margin-bottom:8px;font-size:.8rem">'+
       '<strong>⚠️ '+nBad+' format'+(nBad>1?'s':'')+' non reconnu'+(nBad>1?'s':'')+'</strong> — vérifie l\'orthographe (tirets manquants ?). '+
