@@ -1985,7 +1985,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.11.19-1140';
+var APP_VERSION = '2026.11.19-1150';
 var MANUEL_URL = 'manuel-isoprod.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -2943,7 +2943,7 @@ function ecranAutoOpen(tries){
 // Pas de correctif technique invisible ici. tag = qui est concerné :
 //   'all' (tout le monde), 'admin' (admin/direction), 'maint' (maintenance), 'stock' (ajout de stock), 'reprint' (réimpressions)
 var NEWS = [
-  {n:86, d:'19/11/2026', tag:'all', t:'Expéditions : étiquettes d\'envoi fournies par le client', x:'Quand l\'export EBP porte un transporteur prévu du type « Chronopost étiquette client » ou « Colissimo étiquette client », la commande apparaît dans la liste « 🏷 Étiquette client » de la fenêtre d\'import : tu saisis le n° de suivi (le transporteur est déjà connu), le colis est créé sur la commande. Bouton « Pas de suivi » si aucun n° ne viendra. Ces commandes ne sont plus prises pour des emports ni des colis à rattacher.'},
+  {n:86, d:'19/11/2026', tag:'all', t:'Expéditions : étiquettes d\'envoi fournies par le client', x:'Quand l\'export EBP porte le transporteur prévu « Étiquette fournie par le client », la commande apparaît dans la liste « 🏷 Étiquette client » de la fenêtre d\'import : tu choisis le transporteur (repris d\'une saisie à l\'autre), tu saisis le n° de suivi, et le colis est créé sur la commande. Bouton « Pas de suivi » si aucun n° ne viendra. Ces commandes ne sont plus prises pour des emports ni des colis à rattacher.'},
   {n:85, d:'19/11/2026', tag:'all', t:'Expéditions : archive des colis à rattacher', x:'Nouvelle liste « 🗄 Archive » dans la fenêtre d\'import : tu ranges (un par un ou toute la liste) les colis que tu n\'arrives pas à rattacher, pour qu\'ils ne se mélangent pas aux nouveaux. Ils se rattachent tout seuls si leur commande apparaît dans un import, et tu peux les remettre à rattacher à tout moment.'},
   {n:84, d:'19/11/2026', tag:'all', t:'Expéditions : import automatique depuis le Drive', x:'Un script Google dépose chaque soir les fichiers EBP / Chronopost / Colissimo ; IsoProd les traite dès qu\'un utilisateur autorisé a l\'application ouverte (même résultat qu\'un import manuel « Enregistrer »). Le journal s\'affiche en haut de la fenêtre d\'import.'},
   {n:83, d:'17/11/2026', tag:'all', t:'Dépiautage : formats avec « _ » reconnus', x:'Les formats comme MAG32_MAT-FOIL, B45_FOND-ARGENT ou MAG32_FOND-OR sont maintenant lus au scan / collage du QR (ils étaient ignorés, seul le MAG32 classique ressortait).'},
@@ -9589,9 +9589,10 @@ function simpEtiqList(){
 }
 function simpEtiqHtml(){
   var list = simpEtiqList();
-  if(!list.length) return '<div style="font-size:.8rem;color:var(--mut)">Aucune commande en attente. Quand l\'export EBP porte un transporteur prévu du type « Chronopost étiquette client » ou « Colissimo étiquette client », la commande apparaît ici pour que tu saisisses son n° de suivi.</div>';
-  var cat = transpCatalogue(false);
-  var h = '<div style="font-size:.74rem;color:var(--mut);margin-bottom:6px">Étiquette d\'envoi fournie par le client : saisis le n° de suivi quand il est connu. Le colis est alors créé sur la commande comme un colis importé.</div>';
+  if(!list.length) return '<div style="font-size:.8rem;color:var(--mut)">Aucune commande en attente. Quand l\'export EBP porte le transporteur prévu « Étiquette fournie par le client », la commande apparaît ici pour que tu saisisses le transporteur et son n° de suivi.</div>';
+  var cat = transpCatalogue(false), lastTr = '';
+  try{ lastTr = localStorage.getItem('simpEtiqLastTr') || ''; }catch(e){}
+  var h = '<div style="font-size:.74rem;color:var(--mut);margin-bottom:6px">Étiquette d\'envoi fournie par le client : choisis le transporteur et saisis le n° de suivi quand il est connu. Le colis est alors créé sur la commande comme un colis importé.</div>';
   list.forEach(function(x){
     var id = x.bl, tr = x.ent.transp || '';
     h += '<div style="border-top:1px solid var(--brd);padding:8px 0;font-size:.78rem">'+
@@ -9600,7 +9601,7 @@ function simpEtiqHtml(){
       '<div style="display:flex;gap:6px;margin-top:5px;flex-wrap:wrap">'+
         (tr ? '<span style="align-self:center;font-weight:700">'+esc(tr)+'</span>' :
           '<select id="simp-et-tr-'+id+'" style="background:var(--sur);color:var(--txt);border:1px solid var(--brd);border-radius:6px;font-size:.74rem;padding:4px">'+
-          '<option value="">Transporteur…</option>'+cat.map(function(t){ return '<option value="'+esc(t.label)+'">'+esc(t.label)+'</option>'; }).join('')+'</select>')+
+          '<option value="">Transporteur…</option>'+cat.map(function(t){ return '<option value="'+esc(t.label)+'"'+(t.label === lastTr ? ' selected' : '')+'>'+esc(t.label)+'</option>'; }).join('')+'</select>')+
         '<input type="text" id="simp-et-num-'+id+'" placeholder="N° de suivi" autocomplete="off" style="flex:1;min-width:140px;background:var(--sur);border:1px solid var(--brd);border-radius:6px;color:var(--txt);font-size:.76rem;padding:5px 8px;font-family:monospace">'+
         '<button onclick="simpEtiqSave(\''+x.orderId+'\',\''+x.bl+'\')" style="padding:5px 10px;border-radius:6px;border:1px solid var(--grn);background:none;color:var(--grn);font-size:.74rem;font-weight:700;cursor:pointer">Enregistrer</button>'+
         '<button onclick="simpEtiqNone(\''+x.orderId+'\',\''+x.bl+'\')" title="Le client vient la chercher, ou aucun suivi ne sera donné" style="padding:5px 10px;border-radius:6px;border:1px solid var(--brd);background:none;color:var(--mut);font-size:.74rem;font-weight:700;cursor:pointer">Pas de suivi</button>'+
@@ -9617,6 +9618,7 @@ function simpEtiqSave(orderId, bl){
   if(!tr){ toast('Choisis le transporteur', 1); return; }
   if(!num){ toast('Saisis le n° de suivi', 1); return; }
   if(simpAllNums()[num.replace(/\s+/g, '').toUpperCase()]){ toast('Ce n° de suivi est déjà enregistré', 1); return; }
+  try{ localStorage.setItem('simpEtiqLastTr', tr); }catch(e){}   // le transporteur choisi est repris pour la saisie suivante
   var now = Date.now(), upd = {};
   upd['colis/'+gid()] = simpColisEntry(tr, num.replace(/\s+/g, ''), bl, c, now, 'etiquette client');
   upd['etiqClient/'+bl+'/done'] = {at:now, byName:getMyName(), kind:'colis'};
