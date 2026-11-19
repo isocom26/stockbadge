@@ -502,6 +502,7 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
 header{background:#fff;border-bottom:3px solid var(--acc)}
 .btn,.tab-group-btn,.tab-sub-btn{border-radius:60px}
 .l-card,.card{box-shadow:0 6px 20px rgba(32,49,81,.08)}
+.rpt-day-btn.active.today{border-color:var(--acc)}
 </style>
 </head>
 <body><div style="position:fixed;left:0;right:0;bottom:0;z-index:99999;background:#c0392b;color:#fff;text-align:center;font:700 11px sans-serif;padding:2px;pointer-events:none;opacity:.92">🧪 VERSION BETA — mêmes données que l'app en ligne</div>
@@ -2024,7 +2025,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.11.19-1535-charte-beta';
+var APP_VERSION = '2026.11.19-1545-charte-beta';
 var MANUEL_URL = 'manuel-isoprod.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
