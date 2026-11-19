@@ -1194,6 +1194,16 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
       <div id="sitefix-result" style="font-size:.78rem;margin-top:8px"></div>
       <button id="sitefix-apply-btn" type="button" onclick="adminSiteApply()" style="display:none;width:100%;margin-top:8px;padding:9px;border-radius:8px;border:none;background:var(--red);color:#fff;font-family:Open Sans,sans-serif;font-weight:700;font-size:.86rem;cursor:pointer">✅ Appliquer</button>
     </div>
+    <div style="border-top:1px solid var(--brd);margin-top:12px;padding-top:12px">
+      <div style="font-family:Open Sans,sans-serif;font-weight:800;font-size:.88rem;margin-bottom:4px">📚 Catalogue produits dans Firebase</div>
+      <div style="font-size:.74rem;color:var(--mut);margin-bottom:8px">Les listes de formats (badges, numérique, présentoirs) et les références EBP ne doivent plus être écrites dans le code de l'application. « Copier » les envoie dans Firebase, « Vérifier » prouve qu'elles sont identiques à celles du code. Rien n'est supprimé.</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button type="button" onclick="adminRefUpload()" style="flex:1 1 140px;padding:9px;border-radius:8px;border:1.5px solid var(--brd);background:var(--sur);color:var(--txt);font-family:Open Sans,sans-serif;font-weight:700;font-size:.82rem;cursor:pointer">📤 Copier vers Firebase</button>
+        <button type="button" onclick="adminRefCheck()" style="flex:1 1 140px;padding:9px;border-radius:8px;border:1.5px solid var(--brd);background:var(--sur);color:var(--txt);font-family:Open Sans,sans-serif;font-weight:700;font-size:.82rem;cursor:pointer">🔎 Vérifier</button>
+        <button type="button" onclick="adminRefStatus()" style="flex:1 1 140px;padding:9px;border-radius:8px;border:1.5px solid var(--brd);background:var(--sur);color:var(--txt);font-family:Open Sans,sans-serif;font-weight:700;font-size:.82rem;cursor:pointer">ℹ️ Source actuelle</button>
+      </div>
+      <div id="ref-result" style="font-size:.78rem;margin-top:8px"></div>
+    </div>
   </div>
 
   <!-- Vérification de cohérence des stocks à lots -->
@@ -2726,7 +2736,7 @@ auth.onAuthStateChanged(function(u) {
     document.getElementById('abadge').style.display = (iAm||isDir) ? 'inline' : 'none';
     document.getElementById('abadge').textContent = iAm ? 'Admin' : 'Direction';
     saveQuickProfile(u.email, u.displayName);
-    if (!inited) { inited = true; startDB(); startMachListener(); startRpListener(); startCmdIndexListener(); startCustomFormatsListener(); startInvcListener(); startCompListener(); startGammesListener(); startEtapesSupListener(); startTranspListener(); startOrphListener(); startAutoImportListener(); startQtyRulesListener(); startPoleCfgListener(); startMachCatsListener(); startPlanListener(); startAlertSeenListener(); }
+    if (!inited) { inited = true; refBoot(); startDB(); startMachListener(); startRpListener(); startCmdIndexListener(); startCustomFormatsListener(); startInvcListener(); startCompListener(); startGammesListener(); startEtapesSupListener(); startTranspListener(); startOrphListener(); startAutoImportListener(); startQtyRulesListener(); startPoleCfgListener(); startMachCatsListener(); startPlanListener(); startAlertSeenListener(); }
     if (location.hash === '#ecran') setTimeout(function(){ ecranAutoOpen(0); }, 400);
 
     // Rendu immédiat depuis le cache local, si on a déjà vu cet utilisateur
@@ -2816,7 +2826,7 @@ auth.onAuthStateChanged(function(u) {
   } else {
     // Réinitialiser TOUTES les variables utilisateur pour éviter les conflits de cache
     try { if(_selfWatchRef){ _selfWatchRef.off(); _selfWatchRef = null; } } catch(e){}
-    me = null; iAm = false; isDir = false; _newsAuto = false; hideTopBanner('sav-banner'); hideTopBanner('suivi-banner'); hideTopBanner('emport-banner');
+    refClearCache(); me = null; iAm = false; isDir = false; _newsAuto = false; hideTopBanner('sav-banner'); hideTopBanner('suivi-banner'); hideTopBanner('emport-banner');
     me_role = 'employee'; me_perms = {}; me_machineType = 'semi'; me_pole = 'badges'; viewPole = 'badges'; permsLoaded = false;
     // Réinitialiser les variables du rapport
     rptUid = null; rptStoreUid = null;
@@ -5362,6 +5372,82 @@ function refTypeFromCode(code, lib){
   for(var i=0;i<order.length;i++){ if(c.indexOf(order[i])>=0) return order[i]; }
   if(/PIN$/.test(c)) return 'PIN';
   return '';
+}
+// ── Référentiel (catalogue produits) : listes de formats par pôle + références EBP ──
+// Stocké dans Firebase (referentiel), mis en cache sur l'appareil. Tant que Firebase ne les contient pas,
+// l'app utilise les listes écrites dans le code (même comportement qu'avant).
+var REF_KEY = 'isoprod_referentiel_v1';
+var REF_SRC = 'code';   // 'code' | 'cache' | 'firebase'
+function refArr(x){
+  if(Array.isArray(x)) return x;
+  if(x && typeof x === 'object') return Object.keys(x).sort(function(a, b){ return a - b; }).map(function(k){ return x[k]; });
+  return [];
+}
+// Applique un référentiel lu (Firebase ou cache) aux listes de l'app, EN PLACE (les listes gardent la même identité)
+function refApply(d, src){
+  if(!d || typeof d !== 'object') return false;
+  var ok = false, f = d.formats || {};
+  var b = refArr(f.badges).map(String), n = refArr(f.numerique).map(String), pr = refArr(f.presentoir).map(String);
+  if(b.length || n.length || pr.length){
+    FMT_BASE = {badges:b, numerique:n, presentoir:pr};
+    ok = true;
+  }
+  var e = refArr(d.ebpRefs).map(function(r){ r = refArr(r); return [String(r[0]||''), String(r[1]||''), String(r[2]||''), String(r[3]||'')]; }).filter(function(r){ return r[0]; });
+  if(e.length){ EBP_REFS.length = 0; e.forEach(function(r){ EBP_REFS.push(r); }); EBP_IDX = null; _ebpSet = null; ok = true; }
+  if(!ok) return false;
+  var fill = function(arr, a){ arr.length = 0; a.forEach(function(c){ arr.push(c); }); };
+  if(FMT_BASE){
+    if(typeof S_customFormats !== 'undefined' && typeof S_formatOverrides !== 'undefined' && typeof applyFormatPoles === 'function'){ try{ applyFormatPoles(); }catch(x){} }
+    else { fill(PRODUCT_FORMATS, FMT_BASE.badges); fill(DIGITAL_FORMATS, FMT_BASE.numerique); fill(PRESENTOIR_FORMATS, FMT_BASE.presentoir); }
+  }
+  REF_SRC = src || 'firebase';
+  return true;
+}
+function refBoot(){
+  try{ var c = JSON.parse(localStorage.getItem(REF_KEY) || 'null'); if(c && c.data) refApply(c.data, 'cache'); }catch(e){}
+  fbg('referentiel').then(function(snap){
+    var d = snap.val(); if(!d) return;
+    var cur = null; try{ cur = JSON.parse(localStorage.getItem(REF_KEY) || 'null'); }catch(e){}
+    var v = (d.meta && d.meta.v) || 0;
+    if(cur && cur.v === v && REF_SRC === 'cache') { REF_SRC = 'firebase'; return; }
+    if(refApply(d, 'firebase')){
+      try{ localStorage.setItem(REF_KEY, JSON.stringify({v:v, data:{formats:d.formats, ebpRefs:d.ebpRefs}})); }catch(e){}
+      try{ if(typeof renderAfterPermsKnown === 'function' && permsLoaded) renderAfterPermsKnown(); }catch(e){}
+    }
+  }).catch(function(){});
+}
+function refClearCache(){ try{ localStorage.removeItem(REF_KEY); }catch(e){} }
+function refCodeSnapshot(){   // les listes telles qu'elles sont dans le code / la base de référence (hors formats ajoutés à la main)
+  var base = FMT_BASE || {badges:PRODUCT_FORMATS.slice(), numerique:DIGITAL_FORMATS.slice(), presentoir:PRESENTOIR_FORMATS.slice()};
+  return {formats:{badges:base.badges.slice(), numerique:base.numerique.slice(), presentoir:base.presentoir.slice()}, ebpRefs:EBP_REFS.map(function(r){ return [r[0]||'', r[1]||'', r[2]||'', r[3]||'']; })};
+}
+function adminRefStatus(){
+  var el = document.getElementById('ref-result'); if(!el) return;
+  var snap = refCodeSnapshot();
+  el.innerHTML = 'Source actuelle des listes : <strong>'+(REF_SRC === 'firebase' ? 'Firebase' : REF_SRC === 'cache' ? 'cache de cet appareil (issu de Firebase)' : 'code (pas encore dans Firebase)')+'</strong><br>'+
+    snap.formats.badges.length+' formats badges, '+snap.formats.numerique.length+' numériques, '+snap.formats.presentoir.length+' présentoirs, '+snap.ebpRefs.length+' références EBP.';
+}
+function adminRefUpload(){
+  if(!iAm){ toast('Réservé à l\'administrateur', 1); return; }
+  var snap = refCodeSnapshot(), el = document.getElementById('ref-result');
+  if(!confirm('Copier le catalogue actuel vers Firebase ?\n\n'+snap.formats.badges.length+' formats badges, '+snap.formats.numerique.length+' numériques, '+snap.formats.presentoir.length+' présentoirs, '+snap.ebpRefs.length+' références EBP.\n\nRien n\'est supprimé : l\'app continue de fonctionner comme avant.')) return;
+  var payload = {formats:snap.formats, ebpRefs:snap.ebpRefs, meta:{v:Date.now(), at:Date.now(), by:getMyName(), nB:snap.formats.badges.length, nN:snap.formats.numerique.length, nP:snap.formats.presentoir.length, nE:snap.ebpRefs.length}};
+  fbs('referentiel', payload).then(function(){ toast('✅ Catalogue copié dans Firebase'); if(el) el.innerHTML = '✅ Copié. Clique sur « Vérifier » pour comparer avec le code.'; })
+    .catch(function(e){ toast('Erreur : '+(e && e.code === 'PERMISSION_DENIED' ? 'règles Firebase à autoriser sur « referentiel »' : 'écriture impossible'), 1); if(el) el.textContent = 'Écriture refusée : '+(e && e.message || ''); });
+}
+function adminRefCheck(){
+  var el = document.getElementById('ref-result'); if(!el) return;
+  el.textContent = 'Lecture de Firebase…';
+  fbg('referentiel').then(function(sn){
+    var d = sn.val(); if(!d){ el.innerHTML = '❌ Rien dans Firebase : clique d\'abord sur « Copier ».'; return; }
+    var snap = refCodeSnapshot(), f = d.formats || {}, out = [], allOk = true;
+    var cmp = function(lbl, a, b){ var same = a.length === b.length && a.every(function(x, i){ return x === b[i]; }); if(!same) allOk = false; out.push((same ? '✅ ' : '❌ ')+lbl+' : code '+a.length+' / Firebase '+b.length+(same ? ' (identiques)' : ' (DIFFÉRENTS)')); };
+    cmp('formats badges', snap.formats.badges, refArr(f.badges).map(String));
+    cmp('formats numériques', snap.formats.numerique, refArr(f.numerique).map(String));
+    cmp('formats présentoirs', snap.formats.presentoir, refArr(f.presentoir).map(String));
+    cmp('références EBP', snap.ebpRefs.map(function(r){ return r.join('|'); }), refArr(d.ebpRefs).map(function(r){ r = refArr(r); return [r[0]||'', r[1]||'', r[2]||'', r[3]||''].join('|'); }));
+    el.innerHTML = out.join('<br>')+'<br><strong>'+(allOk ? '✅ Firebase contient exactement le catalogue du code.' : '⚠ Des différences : re-copie, ou dis-le-moi.')+'</strong>';
+  }).catch(function(e){ el.textContent = 'Lecture impossible : '+(e && e.message || ''); });
 }
 var EBP_IDX = null;
 function ebpIndex(){
