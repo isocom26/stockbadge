@@ -1291,6 +1291,13 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
 </div>
 
 <div id="view-admin_reglages" class="view">
+  <!-- Statuts de commande -->
+  <div id="admin-statuts-block" style="display:none;background:var(--card);border:1.5px solid var(--brd);border-radius:14px;padding:14px;margin-bottom:16px">
+    <div style="font-family:Open Sans,sans-serif;font-weight:800;font-size:0.95rem;margin-bottom:6px">📋 Statuts de commande</div>
+    <div style="font-size:.78rem;color:var(--mut);margin-bottom:10px">Noms, emojis et couleurs des statuts, avec leurs règles en clair (« 📖 Règle »). On peut ajouter des statuts manuels ; ils servent d'étiquette et ne modifient aucune règle de production.</div>
+    <div id="admin-statuts-list"></div>
+  </div>
+
   <!-- Sites -->
   <div id="admin-sites-block" style="display:none;background:var(--card);border:1.5px solid var(--brd);border-radius:14px;padding:14px;margin-bottom:16px">
     <div style="font-family:Open Sans,sans-serif;font-weight:800;font-size:0.95rem;margin-bottom:6px">🏷 Sites</div>
@@ -2002,7 +2009,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.11.19-1240-beta';
+var APP_VERSION = '2026.11.19-1315-beta';
 var MANUEL_URL = 'manuel-isoprod.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -2743,7 +2750,7 @@ auth.onAuthStateChanged(function(u) {
     document.getElementById('abadge').style.display = (iAm||isDir) ? 'inline' : 'none';
     document.getElementById('abadge').textContent = iAm ? 'Admin' : 'Direction';
     saveQuickProfile(u.email, u.displayName);
-    if (!inited) { inited = true; refBoot(); startSitesListener(); startDB(); startMachListener(); startRpListener(); startCmdIndexListener(); startCustomFormatsListener(); startInvcListener(); startCompListener(); startGammesListener(); startEtapesSupListener(); startTranspListener(); startOrphListener(); startAutoImportListener(); startQtyRulesListener(); startPoleCfgListener(); startMachCatsListener(); startPlanListener(); startAlertSeenListener(); }
+    if (!inited) { inited = true; refBoot(); startSitesListener(); startStatutsListener(); startDB(); startMachListener(); startRpListener(); startCmdIndexListener(); startCustomFormatsListener(); startInvcListener(); startCompListener(); startGammesListener(); startEtapesSupListener(); startTranspListener(); startOrphListener(); startAutoImportListener(); startQtyRulesListener(); startPoleCfgListener(); startMachCatsListener(); startPlanListener(); startAlertSeenListener(); }
     if (location.hash === '#ecran') setTimeout(function(){ ecranAutoOpen(0); }, 400);
 
     // Rendu immédiat depuis le cache local, si on a déjà vu cet utilisateur
@@ -3713,7 +3720,7 @@ function switchTab(name) {
   if (name==='stats') openStatsTab();
   if (name==='dashboard' && permsLoaded){ openDashboardTab(); dashSwitchSection('recherche'); } // ouverture directe sur « Commandes »
   if (name!=='dashboard') document.body.classList.remove('dash-commandes-wide');
-  if (name.indexOf('admin_')===0) { renderPrestataires(); renderSuppliers(); renderCustomFormatsList(); renderGammesList(); siteAdminRender(); renderEtapesSupAdmin(); renderTranspAdmin(); renderQtyRulesAdmin(); renderPoleCfgAdmin(); renderDashboardSettings(); if(name==='admin_interventions') admForgottenRefresh(); }
+  if (name.indexOf('admin_')===0) { renderPrestataires(); renderSuppliers(); renderCustomFormatsList(); renderGammesList(); siteAdminRender(); statutAdminRender(); renderEtapesSupAdmin(); renderTranspAdmin(); renderQtyRulesAdmin(); renderPoleCfgAdmin(); renderDashboardSettings(); if(name==='admin_interventions') admForgottenRefresh(); }
   if (name==='qualite') openQualiteTab();
 }
 
@@ -5997,6 +6004,153 @@ var SRCH_BADGES = {
   reprint:     {label:'🖨️ Réimpression', color:'var(--red)', bg:'rgba(220,38,38,.12)'},
   done:        {label:'✅ Terminée',   color:'var(--grn)', bg:'rgba(16,185,129,.15)'}
 };
+// ── Statuts de commande : noms / emoji / couleurs réglables (Admin > Réglages > Statuts) + statuts « manuels » ──
+// Les 5 statuts automatiques sont CALCULÉS par le code (règles ci-dessous, lisibles dans l'écran Admin) : on peut changer leur nom,
+// leur emoji, leur couleur et leur ordre, pas leurs règles. Les statuts manuels se posent à la main sur la fiche d'une commande.
+var STATUT_ORDER = ['waiting', 'in_progress', 'produced', 'reprint', 'done'];
+var STATUT_DEF = {
+  waiting:     {emoji:'⏳', search:'Attente production',   dash:'Attente production',   sel:'Attente production'},
+  in_progress: {emoji:'🔄', search:'Production en cours',  dash:'Production en cours',  sel:'Production en cours'},
+  produced:    {emoji:'📦', search:'Produite',             dash:'Produite',             sel:'Produite'},
+  reprint:     {emoji:'🖨️', search:'Réimpression',         dash:'Attente réimpression', sel:'Attente réimpression', selEmoji:'🔴'},
+  done:        {emoji:'✅', search:'Terminée',             dash:'Terminée',             sel:'Terminée'}
+};
+var STATUT_COL = {
+  search: {waiting:['var(--acc)', 'rgba(217,119,6,.15)'], in_progress:['#1d4ed8', 'rgba(59,130,246,.15)'], produced:['#7c3aed', 'rgba(124,58,237,.14)'], reprint:['var(--red)', 'rgba(220,38,38,.12)'], done:['var(--grn)', 'rgba(16,185,129,.15)']},
+  dash:   {waiting:['var(--acc)', 'rgba(217,119,6,.15)'], in_progress:['var(--blu)', 'rgba(37,99,235,.15)'], produced:['#7c3aed', 'rgba(124,58,237,.14)'], reprint:['var(--red)', 'rgba(220,38,38,.12)'], done:['var(--grn)', 'rgba(5,150,105,.15)']}
+};
+// Règles des statuts automatiques, en français (affichées dans l'écran Admin)
+var STATUT_RULES = {
+  waiting:     'La commande est enregistrée, mais aucune ligne de production n\'a encore été commencée.',
+  in_progress: 'Une première ligne de production a été commencée (la commande passe « en cours » au premier démarrage). Elle y revient aussi si une réimpression est demandée alors qu\'elle était terminée.',
+  reprint:     'Une demande de réimpression liée à la commande n\'est pas terminée. Ce statut passe avant « En cours » et « Attente production ». Une commande déjà terminée n\'y repasse que si les règles de quantité sont activées.',
+  produced:    'Règles de quantité activées, commande créée après leur activation : tous les formats sont produits à 100 %, mais le contrôle qualité (badges) ou le contrôle du pôle numérique n\'est pas encore validé.',
+  done:        'Tous les formats sont produits (100 % avec les règles de quantité), plus aucune ligne en cours ni réimpression ouverte, les étapes supplémentaires demandées (cartonnette, sachet…) sont faites et, si elles sont activées, les validations de contrôle qualité sont données. Un administrateur peut aussi forcer ce statut.'
+};
+var S_statuts = {};
+function statutOv(key){ var o = S_statuts && S_statuts[key]; return (o && !o.custom) ? o : null; }
+function statutCustoms(all){
+  return Object.keys(S_statuts || {}).filter(function(k){ return S_statuts[k] && S_statuts[k].custom && (all || S_statuts[k].actif !== false); })
+    .map(function(k){ return Object.assign({key:k}, S_statuts[k]); }).sort(function(a, b){ return (a.ordre||0) - (b.ordre||0); });
+}
+function statutHexToBg(hex){
+  var m = /^#([0-9a-f]{6})$/i.exec(hex||''); if(!m) return 'rgba(217,119,6,.15)';
+  var n = parseInt(m[1], 16); return 'rgba('+(n >> 16)+','+((n >> 8) & 255)+','+(n & 255)+',.15)';
+}
+// Libellé d'un statut automatique : ctx = 'search' (emoji + nom), 'sel' (liste déroulante), 'dash' (nom seul)
+function stLabel(key, ctx){
+  var d = STATUT_DEF[key]; if(!d) return String(key); var o = statutOv(key);
+  var name = (o && o.label) || d[ctx], emoji = (o && o.emoji) || (ctx === 'sel' && d.selEmoji) || d.emoji;
+  return ctx === 'dash' ? name : emoji+' '+name;
+}
+function stColors(key, ctx){
+  var o = statutOv(key), d = STATUT_COL[ctx][key];
+  return (o && o.color) ? [o.color, o.bg || statutHexToBg(o.color)] : d;
+}
+function statusRebuild(){
+  var keys = STATUT_ORDER.slice().sort(function(a, b){
+    var oa = statutOv(a), ob = statutOv(b), ia = (oa && typeof oa.ordre === 'number') ? oa.ordre : STATUT_ORDER.indexOf(a), ib = (ob && typeof ob.ordre === 'number') ? ob.ordre : STATUT_ORDER.indexOf(b);
+    return ia - ib;
+  });
+  SRCH_FILTERS = [['all', 'Toutes']].concat(keys.map(function(k){ return [k, stLabel(k, 'search')]; }));
+  var b = {}; STATUT_ORDER.forEach(function(k){ var c = stColors(k, 'search'); b[k] = {label:stLabel(k, 'search'), color:c[0], bg:c[1]}; });
+  SRCH_BADGES = b;
+}
+// Affichage d'une situation : noms/couleurs réglés, puis statut manuel posé sur la commande (qui ne change JAMAIS la clé calculée utilisée par les règles)
+function statusDisplay(c, sit){
+  if(!sit) return sit;
+  var m = c && c.statutManuel, hasOv = S_statuts && Object.keys(S_statuts).length;
+  if(!hasOv && !m) return sit;
+  var out = sit;
+  if(hasOv && STATUT_DEF[sit.key]){
+    var col = stColors(sit.key, 'dash'), nm = stLabel(sit.key, 'dash');
+    if(nm !== sit.label || col[0] !== sit.color) out = Object.assign({}, sit, {label:nm, color:col[0], bg:col[1]});
+  }
+  if(m && m.key){
+    var d = S_statuts[m.key];
+    if(d && d.custom && d.actif !== false && !(d.finAuto !== false && c.status === 'done')){
+      var colr = d.color || 'var(--acc)';
+      out = Object.assign({}, out, {label:(d.emoji ? d.emoji+' ' : '')+d.label, color:colr, bg:d.bg || statutHexToBg(d.color), sub:'calculé : '+out.label, manual:true, manualKey:m.key});
+    }
+  }
+  return out;
+}
+function statutSelectOptionsHtml(){
+  var h = ['waiting', 'in_progress', 'reprint', 'produced', 'done'].map(function(k){ return '<option value="'+k+'">'+esc(stLabel(k, 'sel'))+'</option>'; }).join('');
+  return h + statutCustoms(false).map(function(d){ return '<option value="m:'+esc(d.key)+'">'+esc((d.emoji ? d.emoji+' ' : '')+d.label)+'</option>'; }).join('');
+}
+function startStatutsListener(){
+  db.ref('settings/statuts').on('value', function(snap){
+    S_statuts = snap.val() || {};
+    statusRebuild();
+    try{ statutAdminRender(); }catch(e){}
+    try{ if(typeof dashRunSearch === 'function' && S_dash && S_dash.commandes && S_dash.commandes.length && document.getElementById('dash-search-situation')){ var cur = document.getElementById('dash-search-situation').value; dashRenderRecherche(); var el = document.getElementById('dash-search-situation'); if(el) el.value = cur; dashRunSearch(); } }catch(e){}
+  });
+}
+// ── Écran Admin : statuts ──
+function statutAdminRender(){
+  var block = document.getElementById('admin-statuts-block'); if(!block) return;
+  block.style.display = isDir ? '' : 'none'; if(!isDir) return;
+  var el = document.getElementById('admin-statuts-list'); if(!el || el.contains(document.activeElement)) return;
+  var inp = 'background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.82rem;padding:6px 8px;outline:none';
+  var hexOf = function(c){ return /^#[0-9a-f]{6}$/i.test(c||'') ? c : '#d97706'; };
+  var row = function(key, name, emoji, color, rule, extra, resetBtn){
+    return '<div style="padding:9px 0;border-top:1px solid var(--brd)"><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">'+
+      '<input type="text" value="'+esc(emoji)+'" maxlength="4" title="Emoji" onchange="statutAdminSet(\''+key+'\',\'emoji\',this.value)" style="width:48px;text-align:center;'+inp+'">'+
+      '<input type="text" value="'+esc(name)+'" maxlength="40" onchange="statutAdminSet(\''+key+'\',\'label\',this.value)" style="flex:1 1 160px;min-width:0;'+inp+'">'+
+      '<input type="color" value="'+hexOf(color)+'" title="Couleur" onchange="statutAdminSet(\''+key+'\',\'color\',this.value)" style="width:40px;height:32px;padding:0;border:1.5px solid var(--brd);border-radius:8px;background:none;cursor:pointer">'+
+      (resetBtn || '')+'</div>'+(extra || '')+
+      '<details style="margin-top:5px"><summary style="font-size:.74rem;color:var(--mut);cursor:pointer">📖 Règle</summary><div style="font-size:.76rem;color:var(--txt);margin-top:4px;line-height:1.4">'+esc(rule)+'</div></details></div>';
+  };
+  var h = '<div style="font-size:.76rem;font-weight:700;margin-bottom:2px">Statuts automatiques</div><div style="font-size:.72rem;color:var(--mut);margin-bottom:4px">Calculés par l\'application. Tu peux changer le nom, l\'emoji et la couleur ; les règles restent celles du code.</div>';
+  STATUT_ORDER.forEach(function(k){
+    var o = statutOv(k) || {}, d = STATUT_DEF[k], col = stColors(k, 'search')[0];
+    h += row(k, o.label || d.search, o.emoji || d.emoji, col, STATUT_RULES[k], '', statutOv(k) ? '<button type="button" onclick="statutAdminReset(\''+k+'\')" style="padding:5px 9px;border-radius:8px;border:1.5px solid var(--brd);background:none;color:var(--mut);font-size:.72rem;cursor:pointer">Rétablir</button>' : '');
+  });
+  h += '<div style="font-size:.76rem;font-weight:700;margin:14px 0 2px">Statuts manuels</div><div style="font-size:.72rem;color:var(--mut);margin-bottom:4px">Posés à la main sur la fiche d\'une commande (Tableau de bord, détail de la commande). Ils s\'affichent à la place du statut calculé, qui reste visible en dessous. Ils ne changent aucune règle de production.</div>';
+  var cus = statutCustoms(true);
+  cus.forEach(function(d){
+    var rule = 'Posé à la main par la direction ou l\'administrateur sur la commande. Remplace l\'affichage du statut calculé'+(d.finAuto !== false ? ' tant que la commande n\'est pas terminée (il disparaît tout seul à la fin)' : ' jusqu\'à ce qu\'on le retire')+'.';
+    h += row(d.key, d.label||'', d.emoji||'', d.color, rule,
+      '<div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:6px"><label style="font-size:.74rem"><input type="checkbox" '+(d.actif !== false ? 'checked ' : '')+'onchange="statutAdminSet(\''+d.key+'\',\'actif\',this.checked)"> Actif</label>'+
+      '<label style="font-size:.74rem"><input type="checkbox" '+(d.finAuto !== false ? 'checked ' : '')+'onchange="statutAdminSet(\''+d.key+'\',\'finAuto\',this.checked)"> Disparaît quand la commande est terminée</label></div>', '');
+  });
+  h += '<div style="border-top:1px solid var(--brd);padding-top:10px;margin-top:6px;display:flex;gap:6px;flex-wrap:wrap;align-items:center"><input type="text" id="statut-new-emoji" maxlength="4" placeholder="🔖" style="width:48px;text-align:center;'+inp+'"><input type="text" id="statut-new-label" maxlength="40" placeholder="Nouveau statut (ex. En attente de BAT)" style="flex:1 1 180px;min-width:0;'+inp+'"><input type="color" id="statut-new-color" value="#0ea5e9" style="width:40px;height:32px;padding:0;border:1.5px solid var(--brd);border-radius:8px;background:none"><button type="button" onclick="statutAdminAdd()" style="padding:7px 14px;border-radius:8px;border:none;background:var(--acc);color:#000;font-family:Open Sans,sans-serif;font-weight:700;font-size:.8rem;cursor:pointer">➕ Ajouter</button></div>';
+  el.innerHTML = h;
+}
+function statutAdminSet(key, field, val){
+  if(!isDir || !key) return;
+  var u = {}; u[field] = (field === 'label') ? String(val||'').trim() : val;
+  if(field === 'label' && !u.label){ toast('Le nom ne peut pas être vide', 1); statutAdminRender(); return; }
+  if(field === 'color') u.bg = statutHexToBg(val);
+  fbu('settings/statuts/'+key, u).then(function(){ toast('✅ Enregistré'); }).catch(function(){ toast('Erreur d\'enregistrement (règles Firebase à autoriser sur « settings/statuts » ?)', 1); });
+}
+function statutAdminReset(key){ if(!isDir || !statutOv(key)) return; fbd('settings/statuts/'+key).then(function(){ toast('Statut rétabli'); }); }
+function statutAdminAdd(){
+  if(!isDir) return;
+  var l = (document.getElementById('statut-new-label')||{}).value, e = (document.getElementById('statut-new-emoji')||{}).value, c = (document.getElementById('statut-new-color')||{}).value;
+  l = String(l||'').trim(); if(!l){ toast('Donne un nom au statut', 1); return; }
+  var low = l.toLowerCase(); if(statutCustoms(true).some(function(d){ return String(d.label||'').toLowerCase() === low; }) || STATUT_ORDER.some(function(k){ return stLabel(k, 'dash').toLowerCase() === low; })){ toast('Un statut porte déjà ce nom', 1); return; }
+  var key = 'c_'+gid(), ordre = statutCustoms(true).reduce(function(m, d){ return Math.max(m, (d.ordre||0) + 1); }, 1);
+  fbs('settings/statuts/'+key, {custom:true, label:l, emoji:String(e||'').trim(), color:c || '#0ea5e9', bg:statutHexToBg(c), actif:true, finAuto:true, ordre:ordre, at:Date.now(), by:getMyName()}).then(function(){ toast('✅ Statut « '+l+' » ajouté'); }).catch(function(){ toast('Erreur d\'enregistrement (règles Firebase à autoriser sur « settings/statuts » ?)', 1); });
+}
+// Fiche d'une commande : poser / retirer un statut manuel
+function statutDetailBlockHtml(c){
+  if(!(iAm || isDir)) return '';
+  var customs = statutCustoms(false); if(!customs.length && !(c.statutManuel && c.statutManuel.key)) return '';
+  var cur = c.statutManuel && c.statutManuel.key || '';
+  var opts = '<option value="">— Aucun (statut calculé) —</option>'+customs.map(function(d){ return '<option value="'+esc(d.key)+'"'+(cur === d.key ? ' selected' : '')+'>'+esc((d.emoji ? d.emoji+' ' : '')+d.label)+'</option>'; }).join('');
+  return '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;font-size:.78rem"><span style="color:var(--mut)">Statut manuel</span><select onchange="statutSetManual(\''+c.id+'\',this.value)" style="background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.82rem;padding:6px 8px;outline:none">'+opts+'</select>'+
+    (c.statutManuel && c.statutManuel.byName ? '<span style="color:var(--mut);font-size:.7rem">posé par '+esc(c.statutManuel.byName)+'</span>' : '')+'</div>';
+}
+function statutSetManual(cmdId, key){
+  if(!(iAm || isDir)) return;
+  var upd = {statutManuel: key ? {key:key, at:Date.now(), byName:getMyName()} : null};
+  fbu('commandes/'+cmdId, upd).then(function(){
+    toast(key ? '✅ Statut manuel posé' : 'Statut manuel retiré');
+    setTimeout(function(){ try{ S_dash.commandes = dashCommandesArray(); if(typeof dashRunSearch === 'function') dashRunSearch(); var b = document.getElementById('dash-statut-block'), c = (S_dash.commandes||[]).find(function(x){ return x.id === cmdId; }); if(b && c) b.innerHTML = statutDetailBlockHtml(c); }catch(e){} }, 400);
+  }).catch(function(){ toast('Erreur d\'enregistrement', 1); });
+}
 function srchRenderChips(counts){
   var el = document.getElementById('search-cmd-filters');
   if(!el) return;
@@ -6033,7 +6187,7 @@ function buildCommandeCardHtml(g, cmdRef, extraFooterHtml){
   var awaitingCtl = isDone && cmdRef && qtyAwaitingControl(cmdRef);
   var isPartial = !g.allDone && g.anyDone;
   var sit = (cmdRef && cmdRef.id) ? dashComputeSituation(cmdRef, S_rp) : null;
-  var sitB = sit ? SRCH_BADGES[sit.key] : null;
+  var sitB = sit ? (sit.manual ? {label:sit.label, color:sit.color, bg:sit.bg} : SRCH_BADGES[sit.key]) : null;
   var statusBadge = sitB
     ? '<span style="font-size:0.76rem;font-family:Open Sans,sans-serif;font-weight:800;padding:3px 9px;border-radius:99px;background:'+sitB.bg+';color:'+sitB.color+';border:1px solid '+sitB.color+'">'+sitB.label+'</span>'
     : awaitingCtl
@@ -21682,13 +21836,13 @@ function searchFmtInStats(){
 
 // ── Forcer le statut d'une commande (admin uniquement) ──
 // Libellés lisibles pour la liste de choix
-var FORCE_ST_LBL = {done:'Terminée', in_progress:'Production en cours', waiting:'Attente production'};
+function forceStLbl(k){ return STATUT_DEF[k] ? stLabel(k, 'dash') : null; }
 function forceStatusAsk(id, c, newStatus){
   document.getElementById('cf-title').textContent = 'Forcer le statut ?';
-  document.getElementById('cf-msg').textContent = 'Passer la commande '+(c.nom?c.nom+' — ':'')+(c.site||'')+' '+(c.cmd||'')+' (actuellement : '+(FORCE_ST_LBL[c.status]||c.status||'?')+') en "'+(FORCE_ST_LBL[newStatus]||newStatus)+'" ?';
+  document.getElementById('cf-msg').textContent = 'Passer la commande '+(c.nom?c.nom+' — ':'')+(c.site||'')+' '+(c.cmd||'')+' (actuellement : '+(forceStLbl(c.status)||c.status||'?')+') en "'+(forceStLbl(newStatus)||newStatus)+'" ?';
   cfCb = function(){
     fbu('commandes/'+id, {status: newStatus}).then(function(){
-      toast('✅ Statut mis à jour : '+(FORCE_ST_LBL[newStatus]||newStatus));
+      toast('✅ Statut mis à jour : '+(forceStLbl(newStatus)||newStatus));
       var inp = document.getElementById('admin-force-cmd'); if(inp) inp.value = '';
       var ch = document.getElementById('admin-force-choices'); if(ch) ch.innerHTML = '';
     });
@@ -21721,7 +21875,7 @@ function adminForceStatus(newStatus){
         var c = m.c, tot = 0;
         (c.formats||[]).forEach(function(f){ if(!f.pole || f.pole==='badges') tot += parseInt(f.qty)||0; });
         return '<button type="button" data-fi="'+idx+'" style="display:block;width:100%;text-align:left;margin-bottom:6px;padding:8px 10px;border-radius:8px;border:1.5px solid var(--brd);background:var(--sur);color:var(--txt);font-family:inherit;font-size:.8rem;cursor:pointer">'+
-          '<strong>'+esc(c.nom||c.cmd||'?')+'</strong><br><span style="color:var(--mut)">'+esc(c.site||'')+' · '+esc(c.cmd||'')+' · '+(FORCE_ST_LBL[c.status]||esc(c.status||'?'))+' · '+tot+' pcs commandées</span></button>';
+          '<strong>'+esc(c.nom||c.cmd||'?')+'</strong><br><span style="color:var(--mut)">'+esc(c.site||'')+' · '+esc(c.cmd||'')+' · '+(forceStLbl(c.status)||esc(c.status||'?'))+' · '+tot+' pcs commandées</span></button>';
       }).join('');
     Array.prototype.forEach.call(box.querySelectorAll('button[data-fi]'), function(b){
       b.onclick = function(){ var m = matches[parseInt(b.getAttribute('data-fi'))]; forceStatusAsk(m.id, m.c, newStatus); };
@@ -23364,7 +23518,7 @@ function dashOpenCommandeDetail(cmdId){
   var titleEl = document.getElementById('dash-cmd-detail-title');
   var bodyEl = document.getElementById('dash-cmd-detail-body');
   if(titleEl) titleEl.textContent = dashCmdLabel(c);
-  if(bodyEl) bodyEl.innerHTML = '<div id="dash-depart-block">'+dashDepartBlockHtml(c)+'</div><div id="dash-cmd-card"><div style="text-align:center;color:var(--mut);padding:20px;font-size:.85rem">🔍 Chargement…</div></div><div id="dash-esup-block">'+esupDetailHtml(c)+'</div><div id="dash-suivi-block">'+dashSuiviBlockHtml(c)+'</div><div id="dash-sav-block">'+dashSavBlockHtml(c)+'</div>';
+  if(bodyEl) bodyEl.innerHTML = '<div id="dash-depart-block">'+dashDepartBlockHtml(c)+'</div><div id="dash-statut-block">'+statutDetailBlockHtml(c)+'</div><div id="dash-cmd-card"><div style="text-align:center;color:var(--mut);padding:20px;font-size:.85rem">🔍 Chargement…</div></div><div id="dash-esup-block">'+esupDetailHtml(c)+'</div><div id="dash-suivi-block">'+dashSuiviBlockHtml(c)+'</div><div id="dash-sav-block">'+dashSavBlockHtml(c)+'</div>';
   om('m-dash-cmd-detail');
   dashEnsureAllReports().then(function(allReports){
     var g = dashAggregateCommandeDetail(c, allReports);
@@ -24140,7 +24294,8 @@ function dashCmdLabel(c){
 // Situation affichée pour une commande, priorité :
 // Terminée > Attente réimpression (si une réimpression active y est liée) > En cours > Attente fabrication.
 // Testable indépendamment du DOM (ne lit que c et S_dash.reprints).
-function dashComputeSituation(c, listOpt){
+function dashComputeSituation(c, listOpt){ return statusDisplay(c, dashComputeSituationBase(c, listOpt)); }
+function dashComputeSituationBase(c, listOpt){
   var rp = (typeof viewPole !== 'undefined' && viewPole === 'numerique') ? null : dashFindActiveReprint(c, listOpt);
   if(c.status === 'done'){
     // Règles de quantité : une réimpression ouverte passe avant « Terminée », et « Terminée » n'arrive qu'après le contrôle qualité
@@ -24310,11 +24465,7 @@ function dashRenderRecherche(){
   html += '<select id="dash-search-situation" onchange="dashRunSearch()" style="flex:1;min-width:180px;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.85rem;padding:8px;outline:none">'+
     '<option value="">Tous les statuts</option>'+
     '<option value="prod_all">🏭 À la production (tout)</option>'+
-    '<option value="waiting">⏳ Attente production</option>'+
-    '<option value="in_progress">🔄 Production en cours</option>'+
-    '<option value="reprint">🔴 Attente réimpression</option>'+
-    '<option value="produced">📦 Produite</option>'+
-    '<option value="done">✅ Terminée</option>'+
+    statutSelectOptionsHtml()+
     '<option value="sav">🛠 Avec SAV</option>'+
     '<option value="conf">📮 À confirmer</option>'+
     '</select>';
@@ -24367,6 +24518,7 @@ function dashRunSearch(){
     if(situationFilter === 'sav'){ if(!dashSavList(c).length) return false; }
     else if(situationFilter === 'conf'){ if(!suiviPending(c).length) return false; }
     else if(situationFilter === 'prod_all'){ var sk = dashComputeSituation(c).key; if(sk !== 'waiting' && sk !== 'in_progress' && sk !== 'reprint' && sk !== 'produced') return false; }
+    else if(/^m:/.test(situationFilter||'')){ var mk = situationFilter.slice(2); if(!(c.statutManuel && c.statutManuel.key === mk && statusDisplay(c, dashComputeSituationBase(c)).manual)) return false; }
     else if(situationFilter && dashComputeSituation(c).key !== situationFilter) return false;
     if(q){
       var hay = [c.cmd, c.nom, c.site].concat(dashProducersFor(c)).concat((c.formats||[]).map(function(f){return f.format;})).join(' ').toLowerCase();
