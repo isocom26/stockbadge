@@ -1985,7 +1985,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.11.19-1110';
+var APP_VERSION = '2026.11.19-1140';
 var MANUEL_URL = 'manuel-isoprod.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -2943,6 +2943,7 @@ function ecranAutoOpen(tries){
 // Pas de correctif technique invisible ici. tag = qui est concerné :
 //   'all' (tout le monde), 'admin' (admin/direction), 'maint' (maintenance), 'stock' (ajout de stock), 'reprint' (réimpressions)
 var NEWS = [
+  {n:86, d:'19/11/2026', tag:'all', t:'Expéditions : étiquettes d\'envoi fournies par le client', x:'Quand l\'export EBP porte un transporteur prévu du type « Chronopost étiquette client » ou « Colissimo étiquette client », la commande apparaît dans la liste « 🏷 Étiquette client » de la fenêtre d\'import : tu saisis le n° de suivi (le transporteur est déjà connu), le colis est créé sur la commande. Bouton « Pas de suivi » si aucun n° ne viendra. Ces commandes ne sont plus prises pour des emports ni des colis à rattacher.'},
   {n:85, d:'19/11/2026', tag:'all', t:'Expéditions : archive des colis à rattacher', x:'Nouvelle liste « 🗄 Archive » dans la fenêtre d\'import : tu ranges (un par un ou toute la liste) les colis que tu n\'arrives pas à rattacher, pour qu\'ils ne se mélangent pas aux nouveaux. Ils se rattachent tout seuls si leur commande apparaît dans un import, et tu peux les remettre à rattacher à tout moment.'},
   {n:84, d:'19/11/2026', tag:'all', t:'Expéditions : import automatique depuis le Drive', x:'Un script Google dépose chaque soir les fichiers EBP / Chronopost / Colissimo ; IsoProd les traite dès qu\'un utilisateur autorisé a l\'application ouverte (même résultat qu\'un import manuel « Enregistrer »). Le journal s\'affiche en haut de la fenêtre d\'import.'},
   {n:83, d:'17/11/2026', tag:'all', t:'Dépiautage : formats avec « _ » reconnus', x:'Les formats comme MAG32_MAT-FOIL, B45_FOND-ARGENT ou MAG32_FOND-OR sont maintenant lus au scan / collage du QR (ils étaient ignorés, seul le MAG32 classique ressortait).'},
@@ -8973,6 +8974,9 @@ function simpParseEbpRows(aoa){
   return {map:out, count:n, error:false};
 }
 function simpIsCarrierMode(mode){ return /colissimo|chrono/i.test(mode||''); }
+// Étiquette d'envoi fournie par le client : « Transporteur prévu » EBP du type « Chronopost étiquette client » / « Colissimo étiquette fournie par le client »
+function simpLabelClient(mode){ var n = simpNorm(mode||''); return /etiquet/.test(n) && /client/.test(n); }
+function simpLabelCarrier(mode){ var n = simpNorm(mode||''); return /chrono/.test(n) ? 'Chronopost' : (/colis/.test(n) ? 'Colissimo' : ''); }
 
 // Trouve la commande de l'app d'après la « Réf. Cmd. Isocom » d'EBP (ex. CB2026-32544, FDB-2026-12370, BMM2026-15925)
 function simpFindExact(ref){
@@ -9253,7 +9257,7 @@ function simpBuild(){
   SIMP.emports = []; SIMP.empWait = 0;
   Object.keys(SIMP.ebp).forEach(function(bl){
     var e = SIMP.ebp[bl];
-    if(!e.mode || simpIsCarrierMode(e.mode) || inFiles[bl]) return;
+    if(!e.mode || simpIsCarrierMode(e.mode) || simpLabelClient(e.mode) || inFiles[bl]) return;
     var c = simpFindExact(e.ref); if(!c) return;
     if(c.livraison || colisList(c).length) return;
     if(c.status !== 'done'){ SIMP.empWait++; return; }
@@ -9391,13 +9395,14 @@ function simpRender(){
       (nIgn ? '<br><strong style="color:var(--acc)">📚 '+nIgn+' colis sans commande rattachée seront ignorés (import historique) ; coche-les à la main pour les ajouter.</strong>' : '')+(nSide ? '<br><strong style="color:var(--acc)">'+nSide+' colis non rattaché(s) seront mis de côté dans « Colis à rattacher » : rien ne se perd.</strong>' : '')+(nHp ? '<br>'+nHp+' colis marqué(s) « hors production » (consultables dans la liste « Hors production »).' : '')+(nFixUi ? '<br><strong style="color:var(--acc)">📅 '+nFixUi+' colis déjà enregistré(s) : la date d\'expédition sera corrigée d\'après le fichier.</strong>' : '')+'</div>'+
       '<button class="btn bpri" style="width:100%;margin-top:8px" '+((nCol+nEmp+nSide+nHp+nBl+nFixUi) ? '' : 'disabled ')+'onclick="simpApply()">✅ Enregistrer</button>';
   }
-  var nO = simpOrphList().length, nH = simpHpList().length, nA = simpArchList().length;
-  var tb = function(v, label, n, on){ return '<button onclick="simpView(\''+(SIMP.view === v ? '' : v)+'\')" style="flex:1;padding:8px;border-radius:8px;border:1.5px solid '+(n ? 'var(--acc)' : 'var(--brd)')+';background:'+(on ? 'var(--card)' : 'none')+';color:var(--txt);font-weight:700;font-size:.78rem;cursor:pointer">'+label+' ('+n+')</button>'; };
+  var nO = simpOrphList().length, nH = simpHpList().length, nA = simpArchList().length, nE = simpEtiqList().length;
+  var tb = function(v, label, n, on){ return '<button onclick="simpView(\''+(SIMP.view === v ? '' : v)+'\')" style="flex:1 1 140px;padding:8px;border-radius:8px;border:1.5px solid '+(n ? 'var(--acc)' : 'var(--brd)')+';background:'+(on ? 'var(--card)' : 'none')+';color:var(--txt);font-weight:700;font-size:.78rem;cursor:pointer">'+label+' ('+n+')</button>'; };
   var top = SIMP.view
     ? '<button onclick="simpView(\'\')" style="width:100%;margin-bottom:10px;padding:8px;border-radius:8px;border:1.5px solid var(--brd);background:none;color:var(--txt);font-weight:700;font-size:.8rem;cursor:pointer">← Retour à l\'import</button>'
-    : '<div style="display:flex;gap:8px;margin-bottom:10px">'+tb('orph', '📎 Colis à rattacher', nO, false)+tb('arch', '🗄 Archive', nA, false)+tb('hp', '🏭 Hors production', nH, false)+'</div>';
+    : '<div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">'+tb('orph', '📎 Colis à rattacher', nO, false)+tb('etiq', '🏷 Étiquette client', nE, false)+tb('arch', '🗄 Archive', nA, false)+tb('hp', '🏭 Hors production', nH, false)+'</div>';
   if(SIMP.view === 'orph'){ el.innerHTML = top+simpOrphHtml(); return; }
   if(SIMP.view === 'arch'){ el.innerHTML = top+simpOrphHtml(true); return; }
+  if(SIMP.view === 'etiq'){ el.innerHTML = top+simpEtiqHtml(); return; }
   if(SIMP.view === 'hp'){ el.innerHTML = top+simpHpHtml(); return; }
   el.innerHTML = top+(h || '<div style="font-size:.8rem;color:var(--mut)">Choisis les fichiers du soir : export EBP, bordereau Chronopost et export ColiShip. Rien n\'est enregistré avant ta validation.</div>')+simpCleanHtml();
 }
@@ -9471,16 +9476,18 @@ function simpApply(opt){
     }
   });
   simpBlWrites().forEach(function(x){ (perOrder[x.orderId] = perOrder[x.orderId] || {})['bls/'+x.bl] = {at:now, src:'ebp'}; });
+  var nEtiq = 0;
+  simpEtiqWrites().forEach(function(x){ (perOrder[x.orderId] = perOrder[x.orderId] || {})['etiqClient/'+x.bl] = {transp:x.transp, mode:x.mode, client:x.client, at:now}; nEtiq++; });
   SIMP.emports.forEach(function(x){
     if(!x.on || !byId[x.orderId]) return;
     (perOrder[x.orderId] = perOrder[x.orderId] || {})['livraison'] = {mode:x.mode, bl:x.bl, at:now, byName:me_name}; nEmp++;
   });
   var ids = Object.keys(perOrder);
-  if(!ids.length && !side.length){ if(!auto) toast('Rien à enregistrer', 1); return Promise.resolve({nCol:0, nEmp:0, nSide:0, nHp:0, nFix:0}); }
+  if(!ids.length && !side.length){ if(!auto) toast('Rien à enregistrer', 1); return Promise.resolve({nCol:0, nEmp:0, nSide:0, nHp:0, nFix:0, nEtiq:0}); }
   var jobs = ids.map(function(id){ return fbu('commandes/'+id, perOrder[id]); }).concat(side.map(function(o){ return fbs('suiviOrphelins/'+gid(), o); })).concat(clear.map(function(id){ return fbd('suiviOrphelins/'+id); }));
   return Promise.all(jobs)
-    .then(function(){ if(auto){ S_dash.commandes = dashCommandesArray(); if(typeof dashRunSearch === 'function') dashRunSearch(); return {nCol:nCol, nEmp:nEmp, nSide:side.length-nHp, nHp:nHp, nFix:nFix}; }
-      toast('✅ '+nCol+' colis, '+nEmp+' emport(s)'+(nFix ? ', '+nFix+' date(s) d\'expédition corrigée(s)' : '')+(side.length-nHp ? ', '+(side.length-nHp)+' mis de côté à rattacher' : '')+(nHp ? ', '+nHp+' hors production' : '')+' enregistrés'); cm('m-suivi-import'); S_dash.commandes = dashCommandesArray(); if(typeof dashRunSearch === 'function') dashRunSearch(); })
+    .then(function(){ if(auto){ S_dash.commandes = dashCommandesArray(); if(typeof dashRunSearch === 'function') dashRunSearch(); return {nCol:nCol, nEmp:nEmp, nSide:side.length-nHp, nHp:nHp, nFix:nFix, nEtiq:nEtiq}; }
+      toast('✅ '+nCol+' colis, '+nEmp+' emport(s)'+(nFix ? ', '+nFix+' date(s) d\'expédition corrigée(s)' : '')+(side.length-nHp ? ', '+(side.length-nHp)+' mis de côté à rattacher' : '')+(nHp ? ', '+nHp+' hors production' : '')+(nEtiq ? ', '+nEtiq+' étiquette(s) client à saisir' : '')+' enregistrés'); cm('m-suivi-import'); S_dash.commandes = dashCommandesArray(); if(typeof dashRunSearch === 'function') dashRunSearch(); })
     .catch(function(e){ if(auto) throw e; toast('Erreur d\'enregistrement de l\'import', 1); });
 }
 
@@ -9522,7 +9529,7 @@ function autoImportCheck(){
           var errs = (SIMP.errs||[]).map(function(e){ return e.txt; });
           return simpApply({auto:true}).then(function(r){
             r = r || {nCol:0, nEmp:0, nSide:0, nHp:0, nFix:0};
-            var entry = {at:Date.now(), src:'app', by:getMyName(), files:names, nCol:r.nCol, nEmp:r.nEmp, nSide:r.nSide, nHp:r.nHp, nFix:r.nFix};
+            var entry = {at:Date.now(), src:'app', by:getMyName(), files:names, nCol:r.nCol, nEmp:r.nEmp, nSide:r.nSide, nHp:r.nHp, nFix:r.nFix, nEtiq:r.nEtiq||0};
             if(errs.length) entry.errs = errs;
             return fbs('suiviImportsAuto/log/'+gid(), entry).then(function(){ return Promise.all(keys.map(function(k){ return fbd('suiviImportsAuto/pending/'+k); })); }).then(function(){
               if(r.nCol || r.nSide || r.nEmp) toast('📥 Import auto Drive : '+r.nCol+' colis rattachés'+(r.nSide ? ', '+r.nSide+' à rattacher' : ''));
@@ -9547,9 +9554,80 @@ function simpAimpLogHtml(){
   var fmt = function(t){ var d = new Date(t); return d.toLocaleDateString('fr-FR', {day:'2-digit', month:'2-digit'})+' '+d.toLocaleTimeString('fr-FR', {hour:'2-digit', minute:'2-digit'}); };
   return '<div style="font-size:.72rem;color:var(--mut);margin-bottom:10px;padding:8px 10px;border:1px solid var(--bdr);border-radius:8px"><b style="color:var(--txt)">📥 Imports automatiques du Drive</b>'+
     L.map(function(e){
-      var txt = e.src === 'script' ? esc(e.msg||'') : '✔ '+(e.nCol||0)+' colis rattachés'+(e.nSide ? ', '+e.nSide+' à rattacher' : '')+(e.nEmp ? ', '+e.nEmp+' emport(s)' : '')+(e.nFix ? ', '+e.nFix+' date(s) corrigée(s)' : '')+(e.errs && e.errs.length ? ' · ⚠ '+esc(e.errs.join(' ; ')) : '');
+      var txt = e.src === 'script' ? esc(e.msg||'') : '✔ '+(e.nCol||0)+' colis rattachés'+(e.nSide ? ', '+e.nSide+' à rattacher' : '')+(e.nEmp ? ', '+e.nEmp+' emport(s)' : '')+(e.nFix ? ', '+e.nFix+' date(s) corrigée(s)' : '')+(e.nEtiq ? ', '+e.nEtiq+' étiquette(s) client à saisir' : '')+(e.errs && e.errs.length ? ' · ⚠ '+esc(e.errs.join(' ; ')) : '');
       return '<div style="margin-top:3px"><span style="color:var(--txt)">'+fmt(e.at||0)+'</span> — '+txt+'</div>';
     }).join('')+'</div>';
+}
+
+// ── Étiquette fournie par le client : commandes dont le n° de suivi se saisit à la main ──
+// Mémorisé sur la commande (commandes/{id}/etiqClient/{BL} = {transp, mode, client, at, done?}) quand l'export EBP porte ce transporteur prévu.
+function simpEtiqWrites(){
+  var out = [], seen = {};
+  Object.keys(SIMP.ebp || {}).forEach(function(bl){
+    var e = SIMP.ebp[bl]; if(!e || !simpLabelClient(e.mode)) return;
+    var c = simpFindExact(e.ref); if(!c || seen[c.id+'|'+bl]) return;
+    if(c.etiqClient && c.etiqClient[bl]) return;      // déjà mémorisé (ou déjà traité)
+    if(colisList(c).length) return;                    // un colis est déjà rattaché : rien à saisir
+    seen[c.id+'|'+bl] = 1;
+    out.push({orderId:c.id, bl:bl, transp:simpLabelCarrier(e.mode), mode:e.mode, client:e.client||''});
+  });
+  return out;
+}
+function simpEtiqList(){
+  var byId = (S_cmdIndex && S_cmdIndex.byId) || {}, out = [];
+  Object.keys(byId).forEach(function(id){
+    var c = byId[id]; if(!c || !c.etiqClient || typeof c.etiqClient !== 'object') return;
+    var cl = colisList(c);
+    Object.keys(c.etiqClient).forEach(function(bl){
+      var ent = c.etiqClient[bl];
+      if(!ent || ent.done) return;
+      if(cl.some(function(k){ return k.bl === bl; })) return;   // déjà rattaché par un import
+      out.push({orderId:id, c:c, bl:bl, ent:ent});
+    });
+  });
+  return out.sort(function(a, b){ return (a.ent.at||0)-(b.ent.at||0); });
+}
+function simpEtiqHtml(){
+  var list = simpEtiqList();
+  if(!list.length) return '<div style="font-size:.8rem;color:var(--mut)">Aucune commande en attente. Quand l\'export EBP porte un transporteur prévu du type « Chronopost étiquette client » ou « Colissimo étiquette client », la commande apparaît ici pour que tu saisisses son n° de suivi.</div>';
+  var cat = transpCatalogue(false);
+  var h = '<div style="font-size:.74rem;color:var(--mut);margin-bottom:6px">Étiquette d\'envoi fournie par le client : saisis le n° de suivi quand il est connu. Le colis est alors créé sur la commande comme un colis importé.</div>';
+  list.forEach(function(x){
+    var id = x.bl, tr = x.ent.transp || '';
+    h += '<div style="border-top:1px solid var(--brd);padding:8px 0;font-size:.78rem">'+
+      '<div><strong>'+esc(simpOrderLabel(x.c))+'</strong> <span style="color:var(--mut)">BL '+esc(x.bl)+'</span></div>'+
+      '<div style="font-size:.7rem;color:var(--mut)">'+esc(x.ent.mode||'')+(x.ent.client ? ' · '+esc(x.ent.client) : '')+'</div>'+
+      '<div style="display:flex;gap:6px;margin-top:5px;flex-wrap:wrap">'+
+        (tr ? '<span style="align-self:center;font-weight:700">'+esc(tr)+'</span>' :
+          '<select id="simp-et-tr-'+id+'" style="background:var(--sur);color:var(--txt);border:1px solid var(--brd);border-radius:6px;font-size:.74rem;padding:4px">'+
+          '<option value="">Transporteur…</option>'+cat.map(function(t){ return '<option value="'+esc(t.label)+'">'+esc(t.label)+'</option>'; }).join('')+'</select>')+
+        '<input type="text" id="simp-et-num-'+id+'" placeholder="N° de suivi" autocomplete="off" style="flex:1;min-width:140px;background:var(--sur);border:1px solid var(--brd);border-radius:6px;color:var(--txt);font-size:.76rem;padding:5px 8px;font-family:monospace">'+
+        '<button onclick="simpEtiqSave(\''+x.orderId+'\',\''+x.bl+'\')" style="padding:5px 10px;border-radius:6px;border:1px solid var(--grn);background:none;color:var(--grn);font-size:.74rem;font-weight:700;cursor:pointer">Enregistrer</button>'+
+        '<button onclick="simpEtiqNone(\''+x.orderId+'\',\''+x.bl+'\')" title="Le client vient la chercher, ou aucun suivi ne sera donné" style="padding:5px 10px;border-radius:6px;border:1px solid var(--brd);background:none;color:var(--mut);font-size:.74rem;font-weight:700;cursor:pointer">Pas de suivi</button>'+
+      '</div></div>';
+  });
+  return h;
+}
+function simpEtiqSave(orderId, bl){
+  if(!canSuiviSaisie()) return;
+  var byId = (S_cmdIndex && S_cmdIndex.byId) || {}, c = byId[orderId]; if(!c) return;
+  var ent = (c.etiqClient || {})[bl] || {};
+  var numEl = document.getElementById('simp-et-num-'+bl), trEl = document.getElementById('simp-et-tr-'+bl);
+  var num = numEl ? numEl.value.trim() : '', tr = ent.transp || (trEl ? trEl.value : '');
+  if(!tr){ toast('Choisis le transporteur', 1); return; }
+  if(!num){ toast('Saisis le n° de suivi', 1); return; }
+  if(simpAllNums()[num.replace(/\s+/g, '').toUpperCase()]){ toast('Ce n° de suivi est déjà enregistré', 1); return; }
+  var now = Date.now(), upd = {};
+  upd['colis/'+gid()] = simpColisEntry(tr, num.replace(/\s+/g, ''), bl, c, now, 'etiquette client');
+  upd['etiqClient/'+bl+'/done'] = {at:now, byName:getMyName(), kind:'colis'};
+  fbu('commandes/'+orderId, upd).then(function(){ toast('✅ N° de suivi enregistré'); S_dash.commandes = dashCommandesArray(); if(typeof dashRunSearch === 'function') dashRunSearch(); setTimeout(simpRender, 300); })
+    .catch(function(){ toast('Erreur d\'enregistrement', 1); });
+}
+function simpEtiqNone(orderId, bl){
+  if(!canSuiviSaisie()) return;
+  if(!confirm('Pas de n° de suivi pour cette commande ?\nElle sortira de la liste « Étiquette client ».')) return;
+  fbu('commandes/'+orderId, (function(){ var u = {}; u['etiqClient/'+bl+'/done'] = {at:Date.now(), byName:getMyName(), kind:'none'}; return u; })()).then(function(){ toast('Commande retirée de la liste'); setTimeout(simpRender, 300); })
+    .catch(function(){ toast('Erreur d\'enregistrement', 1); });
 }
 
 // ── Colis à rattacher (mis de côté) ──
@@ -9562,8 +9640,9 @@ function simpArchList(){ return simpOrphAll().filter(function(o){ return o.arch 
 function simpHpList(){ return simpOrphAll().filter(function(o){ return o.hp === true; }); }
 function simpOrphUpdateCount(){
   var el = document.getElementById('simp-orph-count'); if(!el) return;
-  var n = simpOrphList().length;
-  el.innerHTML = n ? ' <span style="display:inline-block;margin-left:6px;padding:1px 8px;border-radius:99px;background:var(--acc);color:#000;font-size:.7rem;font-weight:800">📎 '+n+' à rattacher</span>' : '';
+  var n = simpOrphList().length, ne = simpEtiqList().length;
+  el.innerHTML = (n ? ' <span style="display:inline-block;margin-left:6px;padding:1px 8px;border-radius:99px;background:var(--acc);color:#000;font-size:.7rem;font-weight:800">📎 '+n+' à rattacher</span>' : '')+
+    (ne ? ' <span style="display:inline-block;margin-left:6px;padding:1px 8px;border-radius:99px;background:var(--acc);color:#000;font-size:.7rem;font-weight:800">🏷 '+ne+' étiquette'+(ne > 1 ? 's' : '')+' client</span>' : '');
 }
 // Commande suggérée pour un colis mis de côté : BL déjà mémorisé, sinon référence EBP exacte
 function simpOrphSuggest(o){
