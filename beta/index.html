@@ -1271,6 +1271,12 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
 </div>
 
 <div id="view-admin_reglages" class="view">
+  <!-- Contrôle du compte administrateur -->
+  <div id="admin-self-block" style="display:none;background:var(--card);border:1.5px solid var(--brd);border-radius:14px;padding:14px;margin-bottom:16px">
+    <div style="font-family:Open Sans,sans-serif;font-weight:800;font-size:0.95rem;margin-bottom:6px">👑 Mon compte administrateur</div>
+    <div style="font-size:.78rem;color:var(--mut);margin-bottom:8px">L'application doit reconnaître l'administrateur grâce à sa fiche dans Firebase, et plus grâce à une adresse mail écrite dans son code. Ici, tu vérifies que ta fiche porte bien le rôle administrateur. À faire avec chaque compte administrateur.</div>
+    <div id="admin-self-status" style="font-size:.8rem"></div>
+  </div>
   <!-- Statuts de commande -->
   <div id="admin-statuts-block" style="display:none;background:var(--card);border:1.5px solid var(--brd);border-radius:14px;padding:14px;margin-bottom:16px">
     <div style="font-family:Open Sans,sans-serif;font-weight:800;font-size:0.95rem;margin-bottom:6px">📋 Statuts de commande</div>
@@ -1996,7 +2002,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.11.19-1745-beta';
+var APP_VERSION = '2026.11.19-1840-beta';
 var MANUEL_URL = 'manuel-isoprod.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -2340,14 +2346,11 @@ var zoneFamille = {atelier:'badge_magnet', reserve:'badge_magnet', alertes:'badg
 function catFamille(cat){ var f = (cat && cat.famille) || 'badge_magnet'; return f === 'gourdes' ? 'mugs' : f; }
 // Familles de stock : badges (historique) et pôle numérique (Mugs, Gourdes, Totebags). Champ additif « famille » sur la catégorie.
 // Familles de stock : [clé, libellé, pôle, unité]. Valeurs d'origine ci-dessous ; elles peuvent être complétées / renommées depuis Admin > Réglages (Firebase : settings/familles).
-var STOCK_FAMS = [
-  ['badge_magnet','🏷️ Badges & Dérivés','badges','carton'], ['porte_cle','🔑 Porte-clés','badges','sachet'], ['pins','📌 Pins','badges','sachet'], ['divers','📦 Divers','badges','piece'],
-  ['mugs','🖨️ Sublimation','numerique','piece'], ['rollup','🧻 Roll up','numerique','piece'], ['totebag','👜 Tote bags','numerique','piece']
-];
+var STOCK_FAMS = [['badge_magnet','🏷️ Badges','badges','carton']];   // famille minimale garantie par le code ; les autres viennent de Firebase (settings/familles)
 var FAM_DEFAULTS = STOCK_FAMS.map(function(f){ return f.slice(); });
 var S_familles = null;
 function famPole(f){ for(var i=0;i<STOCK_FAMS.length;i++){ if(STOCK_FAMS[i][0]===f) return STOCK_FAMS[i][2]; } return 'badges'; }
-function famLabel(f){ for(var i=0;i<STOCK_FAMS.length;i++){ if(STOCK_FAMS[i][0]===f) return STOCK_FAMS[i][1]; } return '🏷️ Badges & Dérivés'; }
+function famLabel(f){ for(var i=0;i<STOCK_FAMS.length;i++){ if(STOCK_FAMS[i][0]===f) return STOCK_FAMS[i][1]; } return STOCK_FAMS[0][1]; }
 function catPole(cat){ return famPole(catFamille(cat)); }
 // Gestion du stock (créer/modifier/supprimer références et articles, réserve) : admin partout ; le pôle numérique gère SES familles.
 function stockAdmin(cat){ return !!iAm || (typeof me_pole !== 'undefined' && me_pole === 'numerique' && !!cat && catPole(cat) === 'numerique'); }
@@ -2960,8 +2963,8 @@ var NEWS = [
   {n:91, d:'19/11/2026', tag:'all', t:'Admin : mise à jour des références EBP depuis Excel', x:'Admin > Interventions > Catalogue : on peut charger « Base_Articles_EBP.xlsx » ; l\'application montre ce qui est nouveau, modifié ou retiré avant d\'appliquer, et garde une sauvegarde de l\'ancienne liste.'},
   {n:90, d:'19/11/2026', tag:'all', t:'Admin : sites, statuts, listes et familles réglables', x:'Admin > Réglages : on peut maintenant ajouter ou masquer un site, renommer les statuts de commande (nom, emoji, couleur) et en ajouter de manuels, régler les motifs de SAV, les modes d\'emport et les types d\'événements du planning, renommer ou ajouter une famille de stock. Admin > Interventions : le catalogue des formats et des références EBP est copié dans Firebase. Rien ne change dans l\'utilisation courante.'},
   {n:89, d:'19/11/2026', tag:'all', t:'Suivi d\'expédition : lignes d\'import plus sobres', x:'Pour un colis venu d\'un import (manuel ou automatique), la fiche n\'affiche plus « par ALEX » ni « par Import automatique » : seulement les dates d\'ajout et de confirmation. Les colis saisis à la main gardent le nom de la personne.'},
-  {n:88, d:'19/11/2026', tag:'all', t:'Expéditions : bordereaux Colissimo TopBadges (PDF)', x:'Les bordereaux de dépôt Colissimo des commandes TopBadges (PDF) se lisent comme les autres fichiers : la référence « TOP-006062 » du bordereau retrouve la commande, le colis est créé avec son lien de suivi et sa date d\'expédition. Dans « Importer les expéditions », ajoute simplement le PDF ; avec l\'import automatique du Drive, il est repris tout seul dès qu\'il arrive.'},
-  {n:87, d:'19/11/2026', tag:'all', t:'Nouvelle nomenclature des commandes mail / CMC', x:'Étiquette « SITE2026-CDE MAIL NOM DU CLIENT AAAAMMJJ+HHMM » : le scan lit le site, le nom et le numéro (date + heure, affiché « AAAAMMJJ HHMM ») ; l\'export EBP (« Notre référence ») est rapproché avec la même chaîne. L\'ancienne forme est toujours lue, avec un avertissement « vérifier qu\'elle n\'existe pas déjà ».'},
+  {n:88, d:'19/11/2026', tag:'all', t:'Expéditions : bordereaux Colissimo (PDF)', x:'Les bordereaux de dépôt Colissimo (PDF) se lisent comme les autres fichiers : la référence « XXX-006062 » du bordereau retrouve la commande, le colis est créé avec son lien de suivi et sa date d\'expédition. Dans « Importer les expéditions », ajoute simplement le PDF ; avec l\'import automatique du Drive, il est repris tout seul dès qu\'il arrive.'},
+  {n:87, d:'19/11/2026', tag:'all', t:'Nouvelle nomenclature des commandes mail', x:'Étiquette « SITE2026-CDE MAIL NOM DU CLIENT AAAAMMJJ+HHMM » : le scan lit le site, le nom et le numéro (date + heure, affiché « AAAAMMJJ HHMM ») ; l\'export EBP (« Notre référence ») est rapproché avec la même chaîne. L\'ancienne forme est toujours lue, avec un avertissement « vérifier qu\'elle n\'existe pas déjà ».'},
   {n:86, d:'19/11/2026', tag:'all', t:'Expéditions : étiquettes d\'envoi fournies par le client', x:'Quand l\'export EBP porte le transporteur prévu « Étiquette fournie par le client », la commande apparaît dans la liste « 🏷 Étiquette client » de la fenêtre d\'import : tu choisis le transporteur (repris d\'une saisie à l\'autre), tu saisis le n° de suivi, et le colis est créé sur la commande. Bouton « Pas de suivi » si aucun n° ne viendra. Ces commandes ne sont plus prises pour des emports ni des colis à rattacher.'},
   {n:85, d:'19/11/2026', tag:'all', t:'Expéditions : archive des colis à rattacher', x:'Nouvelle liste « 🗄 Archive » dans la fenêtre d\'import : tu ranges (un par un ou toute la liste) les colis que tu n\'arrives pas à rattacher, pour qu\'ils ne se mélangent pas aux nouveaux. Ils se rattachent tout seuls si leur commande apparaît dans un import, et tu peux les remettre à rattacher à tout moment.'},
   {n:84, d:'19/11/2026', tag:'all', t:'Expéditions : import automatique depuis le Drive', x:'Un script Google dépose chaque soir les fichiers EBP / Chronopost / Colissimo ; IsoProd les traite dès qu\'un utilisateur autorisé a l\'application ouverte (même résultat qu\'un import manuel « Enregistrer »). Le journal s\'affiche en haut de la fenêtre d\'import.'},
@@ -2985,7 +2988,7 @@ var NEWS = [
   {n:66, d:'10/11/2026', tag:'admin', t:'Nettoyage du code (lot 2)', x:'Retrait de 34 styles d\'affichage (47 lignes) qui n\'étaient utilisés par aucun écran. Aucun changement visible : les 23 écrans ont été comparés avant/après, pixel par pixel, sans aucune différence.'},
   {n:65, d:'10/11/2026', tag:'admin', t:'Nettoyage du code (lot 1)', x:'Retrait de 15 fonctions qui n\'étaient plus utilisées (anciens écrans plateaux, stats du mois, scan planche…). Aucun changement visible : rien ne doit avoir bougé.'},
   {n:64, d:'10/11/2026', tag:'all', t:'Disponible à l\'emport', x:'Sur la fiche d\'une commande terminée sans colis, nouveau bouton « 🚶 Disponible à l\'emport » : on le coche quand on dépose la commande à l\'accueil. Les personnes ayant le droit « Reçoit les alertes Disponible à l\'emport » (Admin > droits) voient un bandeau. La date d\'emport n\'est plus posée par l\'import EBP : elle est renseignée par ce bouton.'},
-  {n:63, d:'09/11/2026', tag:'admin', t:'Sites : TopBadges = TOP, ISO = ISOCOM, plus de « CMD MAIL »', x:'« CMD MAIL » et « TopBadges » ne sont plus proposés comme sites. TopBadges est lu comme TOP et ISO comme ISOCOM partout. Admin › « Harmoniser les sites » : diagnostic (lecture seule) puis fusion des anciennes données, après sauvegarde.'},
+  {n:63, d:'09/11/2026', tag:'admin', t:'Sites : anciennes écritures regroupées', x:'Les anciennes écritures d\'un même site sont lues comme le site officiel partout. Admin › « Harmoniser les sites » : diagnostic (lecture seule) puis fusion des anciennes écritures dans les commandes, lignes et réimpressions, après sauvegarde.'},
   {n:62, d:'09/11/2026', tag:'all', t:'Contrôle qualité : alertes lisibles, statuts de la Recherche', x:'Contrôle qualité : les encarts d\'alerte (réimpression, pôle numérique, bouton) ne sont plus écrasés côte à côte. Recherche : les statuts s\'appellent « Attente production » et « Production en cours », comme dans le Tableau de bord.'},
   {n:61, d:'09/11/2026', tag:'all', t:'Manuel d\'utilisation refait', x:'Nouveau manuel (69 pages) : tous les chapitres, avec captures à jour. Les fenêtres de choix et de formulaire n\'affichent plus la grosse corbeille.'},
   {n:60, d:'09/11/2026', tag:'all', t:'Statistiques : sous-onglets, avance et jauge des délais', x:'Statistiques est maintenant rangé en sous-onglets (Résumé, Production, Délais, Qualité, Équipe) pour retrouver une info plus vite. Dans Délais : jauge en avance / à l\'heure / en retard, avance moyenne, et listes repliables des commandes en retard et en avance.'},
@@ -3005,7 +3008,7 @@ var NEWS = [
   {n:46, d:'05/11/2026', tag:'admin', t:'🖨️ Pôle numérique : maintenance, réunion et inventaire', x:'Quand le pôle numérique est activé (Admin › Pôle numérique), il a ses propres onglets : Maintenance (presses, plotters et traceurs, imprimantes sublimation, machines diverses), Réunions (production de sublimation, stocks, parc machine, PDF séparé) et Inventaire (Sublimation, Roll up, Tote bags). L\'admin, la direction et les utilisateurs « Tous » basculent Badges / Numérique en haut de chaque onglet. Un producteur badges peut dépanner sur le numérique avec le droit « Dépannage numérique » (bouton dans l\'en-tête). Les commandes mixtes ne sont terminées qu\'une fois les deux pôles produits.'},
   {n:45, d:'05/11/2026', tag:'dashboard', t:'📥 Import des expéditions du soir', x:'Tableau de bord › Commandes › Importer les expéditions : on ajoute les fichiers EBP, Chronopost et Colissimo un par un (ou par glisser-déposer). Chaque colis est relié à sa commande, avec une proposition d\'après le nom du client quand la référence manque ; rien n\'est enregistré sans validation. Les colis sans commande vont dans « Colis à rattacher » (ou « hors production » pour la sous-traitance).'},
   {n:44, d:'03/11/2026', tag:'dashboard', t:'📮 Suivi d\'expédition : colis à confirmer', x:'Sur la fiche d\'une commande (Tableau de bord › Commandes), on peut ajouter un ou plusieurs colis (transporteur + n° de suivi). La commande passe « À confirmer » : les personnes concernées reçoivent un bandeau et une pastille « CONF » sur le Tableau de bord (et un nombre sur Commandes), puis cliquent « Confirmé » après avoir envoyé le mail. Les pastilles SAV sont désormais séparées (« SAV », et un nombre sur le sous-onglet SAV). Les droits se règlent dans Admin › Droits, la liste des transporteurs dans Admin › Réglages.'},
-  {n:43, d:'28/10/2026', tag:'all', t:'Stock : références ISOCOM et fournisseur', x:'Chaque fourniture peut maintenant afficher sa référence ISOCOM, son fournisseur et sa référence fournisseur sous son nom. L\'admin les renseigne avec le crayon ✏️ du composant.'},
+  {n:43, d:'28/10/2026', tag:'all', t:'Stock : référence interne et fournisseur', x:'Chaque fourniture peut maintenant afficher sa référence interne, son fournisseur et sa référence fournisseur sous son nom. L\'admin les renseigne avec le crayon ✏️ du composant.'},
   {n:39, d:'28/10/2026', tag:'dashboard', t:'Stats : les pièces produites en table seule sont comptées', x:'Les pièces des formats produits uniquement en table (gamme « Table seule », ex. porte-clés) entrent maintenant dans le total produit, les stats par format, site, semaine et producteur. Les repassages semi-auto vers table restent comptés une seule fois. Sous « Répartition par machine », la table indique « dont X pcs repassées ».'},
   {n:38, d:'28/10/2026', tag:'dashboard', t:'Capacité : même reste à produire que « Charge actuelle »', x:'Le simulateur express de l\'onglet Capacité utilise maintenant le même « reste à produire » que la Charge actuelle de l\'onglet Aujourd\'hui (quantité commandée moins ce qui est déjà produit). Plus d\'écart entre les deux.'},
   {n:37, d:'28/10/2026', tag:'all', t:'Stock : « sachets » pour Porte-clés et Pins', x:'Pour les familles Porte-clés et Pins, le stock parle maintenant de sachets (et plus de cartons) : ajout, retrait, transfert, réception, inventaire et journal. Badges & Magnets restent en cartons.'},
@@ -3042,7 +3045,7 @@ var NEWS = [
   {n:6, d:'14/10/2026', tag:'all',   t:'Badge « Réimpression » conservé', x:'Si une réimpression est demandée au moment de produire, le badge reste visible sur la ligne du bon format.'},
   {n:5, d:'14/10/2026', tag:'admin', t:'Dépiautage : format inconnu', x:'À l\'ajout d\'une commande avec un format absent de la base, une fenêtre propose de l\'ajouter dans le bon pôle (badges, numérique ou présentoir). Réservé à l\'admin ; les autres peuvent créer la commande, classée en badges.'},
   {n:4, d:'14/10/2026', tag:'all',   t:'QR avec formats en plusieurs mots', x:'Les formats comme « B38 FLUO-VERT » sont maintenant lus correctement au scan.'},
-  {n:3, d:'14/10/2026', tag:'all',   t:'Site TOP', x:'Le site TOP est disponible dans les listes de sites.'},
+  {n:3, d:'14/10/2026', tag:'all',   t:'Nouveau site', x:'Un nouveau site est disponible dans les listes de sites.'},
   {n:2,               tag:'all',   t:'Recherche dans Dépiautage', x:'Une barre de recherche est ajoutée sous « Commandes à produire » pour retrouver vite une commande.'},
   {n:1,               tag:'all',   t:'Dates de départ : calcul J+', x:'Dans le sélecteur de date de départ, une petite barre J+ calcule la date en jours ouvrés. Avant 13h c\'est le matin, après 13h l\'après-midi.'}
 ];
@@ -3712,7 +3715,7 @@ function switchTab(name) {
   if (name==='stats') openStatsTab();
   if (name==='dashboard' && permsLoaded){ openDashboardTab(); dashSwitchSection('recherche'); } // ouverture directe sur « Commandes »
   if (name!=='dashboard') document.body.classList.remove('dash-commandes-wide');
-  if (name.indexOf('admin_')===0) { renderPrestataires(); renderSuppliers(); renderCustomFormatsList(); renderGammesList(); siteAdminRender(); statutAdminRender(); listesAdminRender(); famAdminRender(); renderEtapesSupAdmin(); renderTranspAdmin(); renderQtyRulesAdmin(); renderPoleCfgAdmin(); renderDashboardSettings(); if(name==='admin_interventions') admForgottenRefresh(); }
+  if (name.indexOf('admin_')===0) { renderPrestataires(); renderSuppliers(); renderCustomFormatsList(); renderGammesList(); adminSelfRender(); siteAdminRender(); statutAdminRender(); listesAdminRender(); famAdminRender(); renderEtapesSupAdmin(); renderTranspAdmin(); renderQtyRulesAdmin(); renderPoleCfgAdmin(); renderDashboardSettings(); if(name==='admin_interventions') admForgottenRefresh(); }
   if (name==='qualite') openQualiteTab();
 }
 
@@ -6210,10 +6213,10 @@ function statutSetManual(cmdId, key){
 // ── Listes réglables (Admin > Réglages) : motifs de SAV, modes d'emport, types d'événements du planning + familles de stock ──
 // Valeurs d'origine dans le code ; si Firebase (settings/listes/…, settings/familles) en contient, ce sont elles qui servent.
 // Rien ne se supprime : un élément se masque (il reste lisible dans l'historique). L'élément « fixe » (Autre) est toujours présent, en dernier.
-var LISTES_DEF = {
-  savMotifs:   {titre:'Motifs de SAV', fixed:'Autre', def:['Défaut d\'impression', 'Erreur de format', 'Casse / transport', 'Erreur client', 'Manque de quantité', 'Autre']},
-  emportModes: {titre:'Modes d\'emport / de livraison (suivi d\'expédition)', fixed:'Autre', def:['Emport', 'Livraison par nos soins', 'Enlèvement par le transporteur du client', 'Autre']},
-  planKinds:   {titre:'Types d\'événements du planning', fixed:'autre', keyed:true, def:[['reunion', '🗓️ Réunion'], ['info', 'ℹ️ Info'], ['autre', '📌 Autre']]}
+var LISTES_DEF = {   // structure seulement : les valeurs des listes vivent dans Firebase (settings/listes). Seule la ligne « fixe » (Autre) est garantie par le code.
+  savMotifs:   {titre:'Motifs de SAV', fixed:'Autre', fixedL:'Autre', def:[]},
+  emportModes: {titre:'Modes d\'emport / de livraison (suivi d\'expédition)', fixed:'Autre', fixedL:'Autre', def:[]},
+  planKinds:   {titre:'Types d\'événements du planning', fixed:'autre', fixedL:'📌 Autre', keyed:true, def:[]}
 };
 var S_listes = {};
 function listeItems(name){
@@ -6223,14 +6226,14 @@ function listeItems(name){
   if(!arr.length) arr = d.def.map(function(x){ return Array.isArray(x) ? {k:x[0], l:x[1], actif:true} : {k:x, l:x, actif:true}; });
   var fixed = null, rest = [];
   arr.forEach(function(x){ if(x.k === d.fixed) fixed = x; else rest.push(x); });
-  if(!fixed){ var def = d.def.filter(function(x){ return (Array.isArray(x) ? x[0] : x) === d.fixed; })[0]; fixed = {k:d.fixed, l:Array.isArray(def) ? def[1] : d.fixed, actif:true}; }
+  if(!fixed) fixed = {k:d.fixed, l:d.fixedL || d.fixed, actif:true};
   fixed.actif = true; rest.push(fixed);
   return rest;
 }
 function listeActive(name){ return listeItems(name).filter(function(x){ return x.actif; }); }
 function savMotifs(){ return listeActive('savMotifs').map(function(x){ return x.k; }); }
 function emportModes(){ return listeActive('emportModes').map(function(x){ return x.k; }); }
-var PLAN_KINDS = {reunion:'🗓️ Réunion', info:'ℹ️ Info', autre:'📌 Autre'};   // table de lecture (TOUS les types, même masqués), reconstruite en place
+var PLAN_KINDS = {autre:'📌 Autre'};   // table de lecture (TOUS les types, même masqués), reconstruite en place
 function planKindsRebuild(){ Object.keys(PLAN_KINDS).forEach(function(k){ delete PLAN_KINDS[k]; }); listeItems('planKinds').forEach(function(x){ PLAN_KINDS[x.k] = x.l; }); }
 function planKindKeys(current){ var k = listeActive('planKinds').map(function(x){ return x.k; }); if(current && k.indexOf(current) < 0 && PLAN_KINDS[current]) k.push(current); return k; }
 function startListesListener(){
@@ -6250,7 +6253,7 @@ function listesAdminRender(){
   var h = '';
   Object.keys(LISTES_DEF).forEach(function(name){
     var d = LISTES_DEF[name], items = listeItems(name), inFb = !!(S_listes && S_listes[name]);
-    h += '<div style="padding:10px 0;border-top:1px solid var(--brd)"><div style="font-weight:700;font-size:.82rem">'+esc(d.titre)+' <span style="font-weight:400;font-size:.68rem;color:var(--mut)">'+(inFb ? '· dans Firebase' : '· encore dans le code')+'</span></div>';
+    h += '<div style="padding:10px 0;border-top:1px solid var(--brd)"><div style="font-weight:700;font-size:.82rem">'+esc(d.titre)+' <span style="font-weight:400;font-size:.68rem;color:var(--mut)">'+(inFb ? '· dans Firebase' : '<strong style="color:var(--red)">· vide dans Firebase : ajoute les valeurs ci-dessous</strong>')+'</span></div>';
     items.forEach(function(x, i){
       var fixed = x.k === d.fixed;
       h += '<div style="display:flex;gap:6px;align-items:center;margin-top:5px;'+(x.actif ? '' : 'opacity:.55')+'">'+
@@ -6260,8 +6263,7 @@ function listesAdminRender(){
     });
     h += '<div style="display:flex;gap:6px;margin-top:7px"><input type="text" id="liste-new-'+name+'" maxlength="40" placeholder="Ajouter…" style="flex:1;min-width:0;'+inp+'"><button type="button" onclick="listeAdd(\''+name+'\')" style="padding:6px 12px;border-radius:8px;border:none;background:var(--acc);color:#000;font-weight:700;font-size:.78rem;cursor:pointer">➕</button></div></div>';
   });
-  h += '<button type="button" onclick="listesSeedAll()" style="width:100%;margin-top:6px;padding:8px;border-radius:8px;border:1.5px solid var(--brd);background:var(--sur);color:var(--txt);font-weight:700;font-size:.78rem;cursor:pointer">📤 Enregistrer toutes ces listes dans Firebase</button>';
-  el.innerHTML = h;
+    el.innerHTML = h;
 }
 function listeMove(name, i, dir){
   var it = listeItems(name), j = i + dir, last = it.length - 1;   // la dernière entrée (fixe) ne bouge pas
@@ -6277,12 +6279,6 @@ function listeAdd(name){
   var fixed = it.pop();   // on insère avant l'élément fixe
   it.push({k:d.keyed ? 'k'+gid().slice(-6) : v, l:v, actif:true}); it.push(fixed);
   listeSave(name, it).then(function(){ toast('✅ Ajouté'); if(el) el.value = ''; });
-}
-function listesSeedAll(){
-  if(!isDir) return;
-  var jobs = Object.keys(LISTES_DEF).filter(function(n){ return !(S_listes && S_listes[n]); }).map(function(n){ return listeSave(n, listeItems(n)); });
-  if(!(S_familles && S_familles.length)) jobs.push(fbs('settings/familles', FAM_DEFAULTS.map(function(f){ return {k:f[0], label:f[1], pole:f[2], unit:f[3]}; })).catch(function(){ toast('Erreur d\'enregistrement des familles', 1); }));
-  Promise.all(jobs).then(function(){ toast('✅ Listes enregistrées dans Firebase'); });
 }
 // ── Familles de stock : libellés et ajout (jamais de suppression : le stock existant y reste rattaché) ──
 function famApply(raw){
@@ -15886,6 +15882,27 @@ function startSitesListener(){
 }
 function siteKeyOf(code){ return String(code||'').toUpperCase().replace(/[^A-Z0-9]+/g, '_').replace(/^_+|_+$/g, ''); }
 // ── Écran Admin : liste des sites ──
+// ── Contrôle du compte administrateur (Admin > Réglages) ──
+function adminSelfRender(){
+  var block = document.getElementById('admin-self-block'); if(!block) return;
+  block.style.display = (iAm && me) ? '' : 'none'; if(!iAm || !me) return;
+  var el = document.getElementById('admin-self-status'); if(!el) return;
+  fbg('users/'+me.uid).then(function(snap){
+    var u = snap.val(), ok = !!(u && u.role === 'admin');
+    el.innerHTML = '<div>Compte connecté : <strong>'+esc(me.email || '?')+'</strong></div>'+
+      '<div style="margin-top:2px">Fiche dans Firebase : '+(u ? '✅ oui' : '<strong style="color:var(--red)">❌ non</strong>')+' · Rôle administrateur enregistré : '+(ok ? '✅ oui' : '<strong style="color:var(--red)">❌ non</strong>')+'</div>'+
+      (ok ? '<div style="margin-top:6px;color:var(--grn);font-weight:700">Ce compte est reconnu comme administrateur sans l\'adresse écrite dans le code.</div>'
+          : '<button type="button" onclick="adminSelfSave()" style="margin-top:8px;width:100%;padding:9px;border-radius:8px;border:none;background:var(--acc);color:#000;font-family:Open Sans,sans-serif;font-weight:700;font-size:.82rem;cursor:pointer">👑 Enregistrer ce compte comme administrateur</button>');
+  }).catch(function(){ el.textContent = 'Lecture impossible (connexion ?).'; });
+}
+function adminSelfSave(){
+  if(!iAm || !me) return;
+  fbg('users/'+me.uid).then(function(snap){
+    var u = snap.val();
+    return u ? fbu('users/'+me.uid, {role:'admin', email:(me.email || u.email || '')}) : fbs('users/'+me.uid, {name:'Admin', email:(me.email || ''), role:'admin'});
+  }).then(function(){ toast('✅ Compte enregistré comme administrateur'); adminSelfRender(); })
+    .catch(function(){ toast('Écriture impossible', 1); });
+}
 function siteAdminRender(){
   var block = document.getElementById('admin-sites-block'); if(!block) return;
   block.style.display = isDir ? '' : 'none'; if(!isDir) return;
