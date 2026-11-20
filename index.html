@@ -567,8 +567,8 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
   </div>
   <div class="l-card">
     <h3>Connexion</h3>
-    <div class="fld"><label>Email</label><input type="email" id="li-email" placeholder="votre@email.fr"></div>
-    <div class="fld"><label>Mot de passe</label><input type="password" id="li-pwd" placeholder="••••••••"></div>
+    <div class="fld"><label>Email</label><input type="email" id="li-email" name="username" autocomplete="username" placeholder="votre@email.fr"></div>
+    <div class="fld"><label>Mot de passe</label><input type="password" id="li-pwd" name="password" autocomplete="current-password" placeholder="••••••••"></div>
     <div class="l-err" id="li-err"></div>
     <button class="l-btn" onclick="doLogin()">Se connecter</button>
     <div style="text-align:center;margin-top:14px"><a href="#" onclick="doForgotPwd();return false" style="color:var(--mut);font-size:.8rem;text-decoration:underline">Mot de passe oublié ?</a></div>
@@ -1783,8 +1783,8 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
     <div class="dh"></div>
     <h3>👤 Créer un compte collaborateur</h3>
     <div class="ff"><label>Prénom / Nom *</label><input type="text" id="nu-name"></div>
-    <div class="ff"><label>Email *</label><input type="email" id="nu-email"></div>
-    <div class="ff"><label>Mot de passe *</label><input type="password" id="nu-pwd" placeholder="Minimum 6 caractères"></div>
+    <div class="ff"><label>Email *</label><input type="email" id="nu-email" autocomplete="off" data-lpignore="true" data-1p-ignore="true"></div>
+    <div class="ff"><label>Mot de passe *</label><input type="password" id="nu-pwd" placeholder="Minimum 6 caractères" autocomplete="new-password"></div>
     <div class="l-err" id="nu-err"></div>
     <div class="macts"><button class="btn bsec" onclick="cm('m-adduser')">Annuler</button><button class="btn bpri" onclick="createEmp()">Créer le compte</button></div>
   </div>
@@ -2034,7 +2034,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.11.20-1145';
+var APP_VERSION = '2026.11.20-1200';
 var MANUEL_URL = 'manuel-isoprod.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -2993,6 +2993,7 @@ function ecranAutoOpen(tries){
 // Pas de correctif technique invisible ici. tag = qui est concerné :
 //   'all' (tout le monde), 'admin' (admin/direction), 'maint' (maintenance), 'stock' (ajout de stock), 'reprint' (réimpressions)
 var NEWS = [
+  {n:102, d:'20/11/2026', tag:'all', t:'Champs de recherche : plus de remplissage automatique des identifiants', x:'Le navigateur proposait parfois de remplir l\'e-mail ou le mot de passe dans les barres de recherche et autres champs libres. Ces champs sont maintenant marqués pour que le navigateur et les gestionnaires de mots de passe les laissent tranquilles ; la page de connexion est mieux identifiée pour qu\'il remplisse bien la connexion.'},
   {n:101, d:'20/11/2026', tag:'admin', t:'Tableau de bord : colonne et filtre « Livraison » (préparation du suivi automatique)', x:'Nouvelle colonne « Livraison » dans Commandes, avec les états Pris en charge, En acheminement, En livraison, À retirer, Livré et Problème, et un filtre associé. Elle restera à « — » tant que le suivi automatique des transporteurs n\'est pas branché. Quand un colis passera en « Problème », un bandeau rouge et une pastille « LIV » sur l\'onglet Tableau de bord préviendront les administrateurs, la direction et les personnes qui gèrent les expéditions (la pastille reste tant que le problème n\'est pas réglé). Dans Commandes, la colonne « Depuis » est retirée et une commande dont le départ prévu est dépassé s\'affiche en rouge.'},
   {n:100, d:'20/11/2026', tag:'admin', t:'Admin › Machines : tableau avec recherche et filtres, formats de plateau inclus', x:'La carte Machines devient un tableau (nom, type, détail) avec recherche et filtres Toutes / Badges / Numérique / Plateaux. Les formats de plateau y apparaissent, avec leur nombre de configurations, plateaux et têtes. Un clic sur une ligne ouvre la modification ; on peut maintenant renommer un format de plateau.'},
   {n:99, d:'20/11/2026', tag:'admin', t:'Admin : règles de quantité et pôle numérique toujours actifs', x:'Les sections des Réglages tiennent sur une seule ligne. Les deux interrupteurs « Règles de quantité (Ma production) » et « Pôle numérique — commandes mixtes » sont retirés des Réglages : ces deux fonctionnements sont désormais permanents, il n\'est plus possible de revenir à l\'ancien.'},
@@ -25590,6 +25591,38 @@ function saveAbsenceRecurrente(uid, weekday, val){
   });
 }
 
+
+// ── Champs de recherche et de saisie libre : le navigateur / gestionnaire de mots de passe ne doit pas y glisser l'identifiant ──
+// Chrome prend parfois le champ texte situé avant un champ « mot de passe » (connexion, Mon compte) pour l'identifiant et y colle l'e-mail.
+// On marque tous les champs texte/recherche/nombre (y compris ceux créés plus tard par le code) ; la connexion, Mon compte et la création
+// d'utilisateur gardent leurs réglages propres.
+var NOAUTOFILL_SKIP = /^(li-|compte-|nu-)/;
+function noAutofillApply(root){
+  try{
+    var list = (root && root.querySelectorAll) ? root.querySelectorAll('input') : [];
+    for(var i = 0; i < list.length; i++){
+      var el = list[i], t = (el.getAttribute('type') || 'text').toLowerCase();
+      if(t !== 'text' && t !== 'search' && t !== 'number' && t !== 'tel') continue;
+      if(el.getAttribute('data-noaf')) continue;
+      if(NOAUTOFILL_SKIP.test(el.id || '')) continue;
+      el.setAttribute('data-noaf', '1');
+      if(!el.hasAttribute('autocomplete')) el.setAttribute('autocomplete', 'off');
+      el.setAttribute('data-lpignore', 'true'); el.setAttribute('data-1p-ignore', 'true'); el.setAttribute('data-form-type', 'other');
+      if(!el.hasAttribute('name')) el.setAttribute('name', 'f_' + (el.id || 'x' + Math.random().toString(36).slice(2, 7)));
+    }
+  }catch(e){}
+}
+(function(){
+  function go(){
+    noAutofillApply(document);
+    try{
+      var pend = false;
+      new MutationObserver(function(){ if(pend) return; pend = true; setTimeout(function(){ pend = false; noAutofillApply(document); }, 60); })
+        .observe(document.body, {childList:true, subtree:true});
+    }catch(e){}
+  }
+  if(document.body) go(); else document.addEventListener('DOMContentLoaded', go);
+})();
 </script>
 
 
