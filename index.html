@@ -498,6 +498,9 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
 #sav-banner.show{display:flex}
 #suivi-banner{display:none;position:fixed;top:0;left:0;right:0;z-index:9999;background:var(--acc);color:#000;font-family:'Open Sans',sans-serif;font-weight:700;font-size:.82rem;padding:10px 14px;align-items:center;justify-content:space-between;gap:10px;cursor:pointer}
 #suivi-banner.show{display:flex}
+#liv-banner{display:none;position:fixed;top:0;left:0;right:0;z-index:9999;background:var(--red);color:#fff;font-family:'Open Sans',sans-serif;font-weight:700;font-size:.82rem;padding:10px 14px;align-items:center;justify-content:space-between;gap:10px;cursor:pointer}
+#liv-banner.show{display:flex}
+#liv-banner button{background:rgba(255,255,255,.22);color:#fff;border:none;border-radius:8px;padding:6px 10px;font-weight:800;font-size:.82rem;cursor:pointer}
 #emport-banner{display:none;position:fixed;top:0;left:0;right:0;z-index:9999;background:var(--grn);color:#fff;font-family:'Open Sans',sans-serif;font-weight:700;font-size:.82rem;padding:10px 14px;align-items:center;justify-content:space-between;gap:10px;cursor:pointer}
 #emport-banner.show{display:flex}
 #emport-banner button{background:rgba(255,255,255,.22);color:#fff;border:none;border-radius:8px;padding:6px 10px;font-weight:800;font-size:.82rem;cursor:pointer}
@@ -532,6 +535,11 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
 <div id="suivi-banner" onclick="suiviGoToList()">
   <span id="suivi-banner-text"></span>
   <button onclick="event.stopPropagation();suiviDismissBanner()">✕</button>
+</div>
+
+<div id="liv-banner" onclick="livGoToList()">
+  <span id="liv-banner-text"></span>
+  <button onclick="event.stopPropagation();livDismissBanner()">✕</button>
 </div>
 
 <div id="update-banner">
@@ -2026,7 +2034,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.11.20-1115';
+var APP_VERSION = '2026.11.20-1130';
 var MANUEL_URL = 'manuel-isoprod.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -2216,7 +2224,7 @@ document.addEventListener('DOMContentLoaded', function(){
 // chacune un décalage "top" fixe en pixels) sous leur hauteur cumulée, pour
 // ne jamais les cacher — recalculé à chaque affichage/masquage et au
 // redimensionnement (rotation de tablette).
-var TOP_BANNER_ORDER = ['pending-banner', 'sav-banner', 'emport-banner', 'suivi-banner', 'update-banner', 'backup-reminder-banner'];
+var TOP_BANNER_ORDER = ['pending-banner', 'sav-banner', 'emport-banner', 'suivi-banner', 'liv-banner', 'update-banner', 'backup-reminder-banner'];
 
 function showTopBanner(bannerOrId){
   var banner = typeof bannerOrId === 'string' ? document.getElementById(bannerOrId) : bannerOrId;
@@ -2849,6 +2857,7 @@ auth.onAuthStateChanged(function(u) {
       newsAutoShow();
       savAlertsUpdate();
       suiviAlertsUpdate();
+      try{ livAlertsUpdate(); }catch(e){}
       emportAlertsUpdate();
     }).catch(function(err){
       if(isPermDenied(err)) forceSignOutDisabled(u.uid, 'Accès refusé : compte désactivé ou introuvable. Contacte un administrateur.');
@@ -2857,7 +2866,7 @@ auth.onAuthStateChanged(function(u) {
   } else {
     // Réinitialiser TOUTES les variables utilisateur pour éviter les conflits de cache
     try { if(_selfWatchRef){ _selfWatchRef.off(); _selfWatchRef = null; } } catch(e){}
-    refClearCache(); me = null; iAm = false; isDir = false; _newsAuto = false; hideTopBanner('sav-banner'); hideTopBanner('suivi-banner'); hideTopBanner('emport-banner');
+    refClearCache(); me = null; iAm = false; isDir = false; _newsAuto = false; hideTopBanner('sav-banner'); hideTopBanner('suivi-banner'); hideTopBanner('liv-banner'); hideTopBanner('emport-banner');
     me_role = 'employee'; me_perms = {}; me_machineType = 'semi'; me_pole = 'badges'; viewPole = 'badges'; permsLoaded = false;
     // Réinitialiser les variables du rapport
     rptUid = null; rptStoreUid = null;
@@ -2984,6 +2993,7 @@ function ecranAutoOpen(tries){
 // Pas de correctif technique invisible ici. tag = qui est concerné :
 //   'all' (tout le monde), 'admin' (admin/direction), 'maint' (maintenance), 'stock' (ajout de stock), 'reprint' (réimpressions)
 var NEWS = [
+  {n:101, d:'20/11/2026', tag:'admin', t:'Tableau de bord : colonne et filtre « Livraison » (préparation du suivi automatique)', x:'Nouvelle colonne « Livraison » dans Commandes, avec les états Pris en charge, En acheminement, En livraison, À retirer, Livré et Problème, et un filtre associé. Elle restera à « — » tant que le suivi automatique des transporteurs n\'est pas branché. Quand un colis passera en « Problème », un bandeau rouge préviendra les administrateurs, la direction et les personnes qui gèrent les expéditions.'},
   {n:100, d:'20/11/2026', tag:'admin', t:'Admin › Machines : tableau avec recherche et filtres, formats de plateau inclus', x:'La carte Machines devient un tableau (nom, type, détail) avec recherche et filtres Toutes / Badges / Numérique / Plateaux. Les formats de plateau y apparaissent, avec leur nombre de configurations, plateaux et têtes. Un clic sur une ligne ouvre la modification ; on peut maintenant renommer un format de plateau.'},
   {n:99, d:'20/11/2026', tag:'admin', t:'Admin : règles de quantité et pôle numérique toujours actifs', x:'Les sections des Réglages tiennent sur une seule ligne. Les deux interrupteurs « Règles de quantité (Ma production) » et « Pôle numérique — commandes mixtes » sont retirés des Réglages : ces deux fonctionnements sont désormais permanents, il n\'est plus possible de revenir à l\'ancien.'},
   {n:98, d:'20/11/2026', tag:'admin', t:'Admin › Réglages : sections et cartes repliables', x:'Les réglages sont rangés en 6 sections (Stock & produits, Production & commandes, Maintenance, Expédition, Tableau de bord, Outils & base) avec une recherche « Trouver un réglage ». Chaque réglage est une carte repliable (une seule ouverte à la fois) avec un résumé. L\'ancien onglet Interventions devient la section « Outils & base », avec les outils ponctuels regroupés à part.'},
@@ -8838,6 +8848,80 @@ function suiviPendingCmds(){
   });
   return out.sort(function(a,b){ return (b.colis[b.colis.length-1].at||0) - (a.colis[a.colis.length-1].at||0); });
 }
+// ── Livraison : statut de suivi du transporteur, écrit plus tard par le script Google ──
+// Champ additif et facultatif commandes/{id}/colis/{colisId}/liv = {st, at, lbl}
+// (st = clé ci-dessous, at = date de la dernière mise à jour, lbl = libellé brut du transporteur).
+// Sans ce champ (toutes les commandes actuelles) : « — », rien ne change.
+var LIV_STATUTS = [
+  {k:'pris',      l:'Pris en charge',  c:'#9ca3af', bg:'rgba(156,163,175,.16)'},
+  {k:'transit',   l:'En acheminement', c:'#3b82f6', bg:'rgba(59,130,246,.14)'},
+  {k:'livraison', l:'En livraison',    c:'#f97316', bg:'rgba(249,115,22,.15)'},
+  {k:'retirer',   l:'À retirer',       c:'#eab308', bg:'rgba(234,179,8,.17)'},
+  {k:'livre',     l:'Livré',           c:'#10b981', bg:'rgba(16,185,129,.14)'},
+  {k:'probleme',  l:'Problème',        c:'#ef4444', bg:'rgba(239,68,68,.15)'}
+];
+function livInfo(key){ for(var i = 0; i < LIV_STATUTS.length; i++){ if(LIV_STATUTS[i].k === key) return LIV_STATUTS[i]; } return null; }
+function livKeyOfColis(k){ return k && k.liv && livInfo(k.liv.st) ? k.liv.st : null; }
+// Statut d'une commande : « Problème » d'abord, sinon le colis le moins avancé (ordre de LIV_STATUTS). null = aucune info.
+function dashLivCmd(c){
+  var list = colisList(c).filter(function(k){ return String(k.num || '').trim() !== ''; });
+  var keys = list.map(livKeyOfColis).filter(Boolean);
+  if(!keys.length) return null;
+  var key = null;
+  if(keys.indexOf('probleme') >= 0) key = 'probleme';
+  else { var min = 99; keys.forEach(function(x){ var i = LIV_STATUTS.findIndex(function(s){ return s.k === x; }); if(i < min) min = i; }); key = LIV_STATUTS[min].k; }
+  var nbLivre = keys.filter(function(x){ return x === 'livre'; }).length;
+  return {key:key, total:list.length, livre:nbLivre};
+}
+function livPillHtml(key, sub){
+  var i = livInfo(key); if(!i) return '';
+  return '<span style="display:inline-block;font-size:.74rem;font-family:Open Sans,sans-serif;font-weight:800;padding:3px 9px;border-radius:99px;background:'+i.bg+';color:'+i.c+';border:1px solid '+i.c+';white-space:nowrap">'+i.l+'</span>'+(sub ? '<div style="font-size:.66rem;color:var(--mut);margin-top:2px;white-space:nowrap">'+sub+'</div>' : '');
+}
+function dashLivCellHtml(c){
+  var r = dashLivCmd(c);
+  if(!r) return '<span style="color:var(--mut)">—</span>';
+  var sub = (r.total > 1 && r.livre > 0 && r.livre < r.total) ? r.livre+'/'+r.total+' livrés' : '';
+  return livPillHtml(r.key, sub);
+}
+function livOptionsHtml(){
+  return '<option value="">Livraison : tout</option>'+LIV_STATUTS.map(function(s){ return '<option value="'+s.k+'">'+s.l+'</option>'; }).join('')+'<option value="none">— Pas d\'info</option>';
+}
+// Alerte « Problème » : bandeau rouge pour ceux qui gèrent les expéditions, une seule fois par colis et par appareil
+function livCanSee(){ return !!(me && (iAm || isDir || canSuiviSaisie())); }
+function livProblemItems(){
+  var byId = (S_cmdIndex && S_cmdIndex.byId) || {}, out = [];
+  Object.keys(byId).forEach(function(cid){
+    var c = byId[cid]; if(!c) return;
+    colisList(c).forEach(function(k){ if(livKeyOfColis(k) === 'probleme') out.push({cmdId:cid, c:c, k:k, sig:k.id+'@'+((k.liv && k.liv.at) || 0)}); });
+  });
+  return out;
+}
+function livSeenKey(){ return 'isoprod_liv_seen_' + (me && me.uid ? me.uid : 'x'); }
+function livSeenGet(){ try { var v = localStorage.getItem(livSeenKey()); return v==null ? null : JSON.parse(v); } catch(e){ return null; } }
+function livSeenSet(a){ try { localStorage.setItem(livSeenKey(), JSON.stringify(a)); } catch(e){} }
+function livAlertsUpdate(){
+  if(!livCanSee()){ hideTopBanner('liv-banner'); return; }
+  var items = livProblemItems(), sigs = items.map(function(it){ return it.sig; });
+  var seen = livSeenGet();
+  if(seen === null){ livSeenSet(sigs); seen = sigs.slice(); }     // première fois sur cet appareil : l'existant est connu
+  var unseen = items.filter(function(it){ return seen.indexOf(it.sig) < 0; });
+  var tx = document.getElementById('liv-banner-text');
+  if(!unseen.length){ hideTopBanner('liv-banner'); return; }
+  if(tx) tx.textContent = unseen.length === 1 ? '🚨 Problème de livraison : ' + (unseen[0].c.nom || unseen[0].c.cmd || '?') + (unseen[0].k.num ? ' — ' + (unseen[0].k.transp||'') + ' ' + unseen[0].k.num : '') : '🚨 ' + unseen.length + ' colis en problème de livraison';
+  showTopBanner('liv-banner');
+}
+function livMarkAllSeen(){ livSeenSet(livProblemItems().map(function(it){ return it.sig; })); hideTopBanner('liv-banner'); }
+function livDismissBanner(){ livMarkAllSeen(); }
+function livGoToList(){
+  livMarkAllSeen();
+  var g = document.getElementById('grp-dashboard');
+  if(g && g.style.display !== 'none'){
+    switchGroup('dashboard');
+    dashSwitchSection('recherche');
+    var s = document.getElementById('dash-search-liv');
+    if(s){ s.value = 'probleme'; dashRunSearch(); } else { window._dashPresetLiv = 'probleme'; }
+  }
+}
 function suiviSeenKey(){ return 'isoprod_suivi_seen_' + (me && me.uid ? me.uid : 'x'); }
 function suiviSeenGet(){ try { var v = localStorage.getItem(suiviSeenKey()); return v==null ? null : JSON.parse(v); } catch(e){ return null; } }
 function suiviSeenSet(ids){ try { localStorage.setItem(suiviSeenKey(), JSON.stringify(ids)); } catch(e){} }
@@ -10464,6 +10548,7 @@ function startCmdIndexListener(){
     try { cmdReopenNumPending(raw); } catch(e){}
     if(typeof savAlertsUpdate==='function') savAlertsUpdate();
     if(typeof suiviAlertsUpdate==='function') suiviAlertsUpdate();
+    try{ if(typeof livAlertsUpdate==='function') livAlertsUpdate(); }catch(e){}
     if(typeof emportAlertsUpdate==='function') emportAlertsUpdate();
     if(curTab==='reprint') renderReprint();
     updateDepUrgentBadge();
@@ -24789,6 +24874,7 @@ function dashRenderRecherche(){
     '<option value="sans">📭 Sans n° de suivi (hors emport et courrier simple)</option>'+
     '<option value="avec">📦 Avec n° de suivi</option>'+
     '</select>';
+  html += '<select id="dash-search-liv" onchange="dashRunSearch()" style="flex:1;min-width:160px;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.85rem;padding:8px;outline:none">'+livOptionsHtml()+'</select>';
   html += '</div>';
   html += '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">';
   html += '<label style="font-size:.78rem;color:var(--mut);display:flex;align-items:center;gap:4px">Du <input type="date" id="dash-search-from" onchange="dashRunSearch()" style="background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.82rem;padding:6px 8px;outline:none"></label>';
@@ -24799,14 +24885,15 @@ function dashRenderRecherche(){
   html += '<div id="dash-search-count" style="font-size:.72rem;color:var(--mut);margin-bottom:8px"></div>';
   html += '<div style="font-size:.7rem;color:var(--acc);margin-bottom:6px">↔ Sur mobile, faites défiler le tableau horizontalement pour voir toutes les colonnes</div>';
   html += '<div class="dash-tbl-wrap">';
-  html += '<table style="width:100%;min-width:1180px;border-collapse:collapse;font-size:.8rem">';
+  html += '<table style="width:100%;min-width:1300px;border-collapse:collapse;font-size:.8rem">';
   html += '<thead><tr style="text-align:left;border-bottom:1.5px solid var(--brd)">'+
-    ['CMD','SITE','STATUT','FORMATS','QTÉ','PAR','CRÉÉ LE','DÉPART PRÉVU','DEPUIS','EXPÉDIÉ LE','SUIVI'].map(function(h){
+    ['CMD','SITE','STATUT','FORMATS','QTÉ','PAR','CRÉÉ LE','DÉPART PRÉVU','DEPUIS','EXPÉDIÉ LE','SUIVI','LIVRAISON'].map(function(h){
       return '<th style="padding:7px 9px;color:var(--mut);font-family:Open Sans,sans-serif;font-size:0.71rem;font-weight:800;letter-spacing:.03em;white-space:nowrap">'+h+'</th>';
     }).join('')+
     '</tr></thead><tbody id="dash-search-tbody"></tbody></table></div>';
   el.innerHTML = html;
   if(window._dashPresetSituation){ var ps = document.getElementById('dash-search-situation'); if(ps) ps.value = window._dashPresetSituation; window._dashPresetSituation = null; }
+  if(window._dashPresetLiv){ var pl = document.getElementById('dash-search-liv'); if(pl) pl.value = window._dashPresetLiv; window._dashPresetLiv = null; }
   dashRunSearch();
 }
 
@@ -24821,7 +24908,7 @@ function dashSansColisParNature(c){
   return colisList(c).some(function(k){ return /courrier|lettre/i.test(String(k.transp || '')+' '+String(lab[k.transp] || '')); });
 }
 function dashResetRecherche(){
-  ['dash-search-q','dash-search-site','dash-search-situation','dash-search-suivi','dash-search-from','dash-search-to'].forEach(function(id){
+  ['dash-search-q','dash-search-site','dash-search-situation','dash-search-suivi','dash-search-liv','dash-search-from','dash-search-to'].forEach(function(id){
     var e = document.getElementById(id);
     if(e) e.value = '';
   });
@@ -24836,6 +24923,7 @@ function dashRunSearch(){
   var site = document.getElementById('dash-search-site').value;
   var situationFilter = document.getElementById('dash-search-situation').value;
   var suiviEl = document.getElementById('dash-search-suivi'), suiviFilter = suiviEl ? suiviEl.value : '';
+  var livEl = document.getElementById('dash-search-liv'), livFilter = livEl ? livEl.value : '';
   var fromVal = document.getElementById('dash-search-from').value;
   var toVal = document.getElementById('dash-search-to').value;
   var fromMs = fromVal ? new Date(fromVal+'T00:00:00').getTime() : null;
@@ -24848,6 +24936,7 @@ function dashRunSearch(){
     if(toMs!=null && (c.createdAt||0) > toMs) return false;
     if(suiviFilter === 'sans'){ if(dashHasSuiviNum(c) || dashSansColisParNature(c)) return false; }
     else if(suiviFilter === 'avec'){ if(!dashHasSuiviNum(c)) return false; }
+    if(livFilter){ var lv = dashLivCmd(c); if(livFilter === 'none'){ if(lv) return false; } else if(!lv || lv.key !== livFilter) return false; }
     if(situationFilter === 'sav'){ if(!dashSavList(c).length) return false; }
     else if(situationFilter === 'conf'){ if(!suiviPending(c).length) return false; }
     else if(situationFilter === 'prod_all'){ var sk = dashComputeSituation(c).key; if(sk !== 'waiting' && sk !== 'in_progress' && sk !== 'reprint' && sk !== 'produced') return false; }
@@ -24866,7 +24955,7 @@ function dashRunSearch(){
   var tbody = document.getElementById('dash-search-tbody');
   if(!tbody) return;
   if(!list.length){
-    tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;color:var(--mut);padding:24px;font-size:.85rem">Aucune commande ne correspond.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="12" style="text-align:center;color:var(--mut);padding:24px;font-size:.85rem">Aucune commande ne correspond.</td></tr>';
     return;
   }
   var rows = list.slice(0,300).map(function(c){
@@ -24894,9 +24983,10 @@ function dashRunSearch(){
       '<td style="padding:7px 9px;white-space:nowrap;'+(overdue?'color:var(--red);font-weight:700':'color:var(--mut)')+'">'+elapsed+(overdue?' ⚠️':'')+'</td>'+
       '<td style="padding:7px 9px;vertical-align:top;white-space:nowrap">'+suiviShipDatesHtml(c)+'</td>'+
       '<td style="padding:7px 9px;vertical-align:top">'+suiviRowLinksHtml(c)+'</td>'+
+      '<td style="padding:7px 9px;vertical-align:top">'+dashLivCellHtml(c)+'</td>'+
     '</tr>';
   }).join('');
-  tbody.innerHTML = rows + (list.length>300 ? '<tr><td colspan="11" style="text-align:center;color:var(--mut);font-size:.72rem;padding:10px">Affichage limité aux 300 premiers résultats — affinez la recherche.</td></tr>' : '');
+  tbody.innerHTML = rows + (list.length>300 ? '<tr><td colspan="12" style="text-align:center;color:var(--mut);font-size:.72rem;padding:10px">Affichage limité aux 300 premiers résultats — affinez la recherche.</td></tr>' : '');
 }
 
 // ── SAV (service après-vente) sur les commandes ──
