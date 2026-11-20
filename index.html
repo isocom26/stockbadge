@@ -1542,6 +1542,15 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
     <button class="btn bsec" style="width:100%;margin-top:12px" onclick="cm('m-suivi-import')">Fermer</button>
   </div>
 </div>
+<div class="mover" id="m-liv" onclick="cm('m-liv')">
+  <div class="modal" onclick="event.stopPropagation()" style="max-height:85vh;overflow-y:auto">
+    <div class="dh"></div>
+    <h3 style="text-align:center">🚚 Suivi de livraison</h3>
+    <div id="liv-detail-body"></div>
+    <button class="btn bsec" style="width:100%;margin-top:12px" onclick="cm('m-liv')">Fermer</button>
+  </div>
+</div>
+
 <div class="mover" id="m-suivi" onclick="cm('m-suivi')">
   <div class="modal" onclick="event.stopPropagation()" style="max-height:85vh;overflow-y:auto">
     <div class="dh"></div>
@@ -2034,7 +2043,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.11.20-1225';
+var APP_VERSION = '2026.11.20-1250';
 var MANUEL_URL = 'manuel-isoprod.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -2993,6 +3002,7 @@ function ecranAutoOpen(tries){
 // Pas de correctif technique invisible ici. tag = qui est concerné :
 //   'all' (tout le monde), 'admin' (admin/direction), 'maint' (maintenance), 'stock' (ajout de stock), 'reprint' (réimpressions)
 var NEWS = [
+  {n:105, d:'20/11/2026', tag:'admin', t:'Livraison : détail des étapes du transporteur', x:'Dans Tableau de bord > Commandes, la pastille « Livraison » s\'ouvre au clic : liste des étapes du colis (date, heure, agence) et lien vers le suivi du transporteur. En passant la souris dessus, on voit le dernier événement. Les données arriveront avec le suivi automatique (script Google).'},
   {n:104, d:'20/11/2026', tag:'admin', t:'Livraison : nouveau statut « Livraison manquée »', x:'Pour un colis dont la livraison a échoué (destinataire absent) et qui sera en général présenté de nouveau ou déposé en point relais : statut violet « Livraison manquée », sans alerte rouge. Le filtre Livraison du tableau de bord le propose aussi.'},
   {n:103, d:'20/11/2026', tag:'all', t:'Connexion : la touche Entrée valide', x:'Sur l\'écran de connexion, appuyer sur Entrée dans le champ e-mail ou mot de passe lance maintenant la connexion (avant, il fallait cliquer sur « Se connecter »).'},
   {n:102, d:'20/11/2026', tag:'all', t:'Champs de recherche : plus de remplissage automatique des identifiants', x:'Le navigateur proposait parfois de remplir l\'e-mail ou le mot de passe dans les barres de recherche et autres champs libres. Ces champs sont maintenant marqués pour que le navigateur et les gestionnaires de mots de passe les laissent tranquilles ; la page de connexion est mieux identifiée pour qu\'il remplisse bien la connexion.'},
@@ -8885,7 +8895,66 @@ function dashLivCellHtml(c){
   var r = dashLivCmd(c);
   if(!r) return '<span style="color:var(--mut)">—</span>';
   var sub = (r.total > 1 && r.livre > 0 && r.livre < r.total) ? r.livre+'/'+r.total+' livrés' : '';
-  return livPillHtml(r.key, sub);
+  // Survol : dernier événement du transporteur ; clic : liste de toutes les étapes
+  var tip = livLastEventText(c);
+  return '<span style="cursor:pointer" title="'+esc((tip ? tip+' — ' : '')+'cliquer pour le détail')+'" onclick="livOpenDetail(\''+esc(c.id)+'\')">'+livPillHtml(r.key, sub)+'</span>';
+}
+function livFmtDate(ms){
+  if(!ms) return '';
+  var d = new Date(ms);
+  return d.toLocaleDateString('fr-FR', {day:'2-digit', month:'2-digit'})+' '+d.toLocaleTimeString('fr-FR', {hour:'2-digit', minute:'2-digit'});
+}
+// Dernier événement connu parmi les colis de la commande : « Livraison effectuée (12/11 10:14) »
+function livLastEventText(c){
+  var best = null;
+  colisList(c).forEach(function(k){ if(k.liv && k.liv.lbl && (!best || (k.liv.at||0) > (best.at||0))) best = k.liv; });
+  return best ? best.lbl + (best.at ? ' ('+livFmtDate(best.at)+')' : '') : '';
+}
+function livTranspLabel(key){
+  var t = null; try { t = transpCatalogue(true).filter(function(x){ return x.key === key; })[0]; } catch(e){}
+  return t ? t.label : String(key||'');
+}
+function livFindCmd(cid){
+  var c = (S_cmdIndex && S_cmdIndex.byId && S_cmdIndex.byId[cid]) || null;
+  if(!c && S_dash && S_dash.commandes) c = S_dash.commandes.filter(function(x){ return x.id === cid; })[0] || null;
+  return c;
+}
+function livDetailHtml(c){
+  var list = colisList(c).filter(function(k){ return String(k.num||'').trim() !== ''; });
+  var h = '<div style="font-weight:800;font-size:.92rem">'+esc(c.nom || c.cmd || '?')+'</div>'+
+          '<div style="font-size:.76rem;color:var(--mut);margin-bottom:8px">'+esc(c.site||'')+' · '+esc(c.cmd||'')+'</div>';
+  if(!list.length) return h + '<div style="color:var(--mut);font-size:.85rem;text-align:center;padding:12px">Aucun colis avec n° de suivi.</div>';
+  list.forEach(function(k){
+    var key = livKeyOfColis(k), lv = k.liv || null, tl = livTranspLabel(k.transp), url = '';
+    try { url = suiviTrackUrl(tl, k.num); } catch(e){}
+    h += '<div style="border:1.5px solid var(--brd);border-radius:10px;padding:10px;margin-bottom:8px;background:var(--sur)">'+
+      '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px">'+
+        '<div style="font-weight:700;font-size:.84rem">'+esc(tl)+' · '+esc(k.num)+'</div>'+
+        (key ? livPillHtml(key, '') : '<span style="color:var(--mut);font-size:.78rem">Pas d\'info</span>')+
+      '</div>';
+    var ev = lv && Array.isArray(lv.ev) ? lv.ev : [];
+    if(ev.length){
+      h += '<div style="border-left:2px solid var(--brd);margin-left:4px;padding-left:10px">'+ev.map(function(e, i){
+        var dot = i === 0 ? (livInfo(key) ? livInfo(key).c : 'var(--acc)') : 'var(--brd)';
+        return '<div style="position:relative;margin-bottom:7px">'+
+          '<span style="position:absolute;left:-16px;top:3px;width:9px;height:9px;border-radius:50%;background:'+dot+'"></span>'+
+          '<div style="font-size:.8rem;'+(i===0?'font-weight:700':'')+'">'+esc(e.l||e.c||'')+'</div>'+
+          '<div style="font-size:.68rem;color:var(--mut)">'+esc(livFmtDate(e.d))+(e.o ? ' · '+esc(e.o) : '')+'</div></div>';
+      }).join('')+'</div>';
+      if(lv.maj) h += '<div style="font-size:.66rem;color:var(--mut);margin-top:4px">Dernier contrôle automatique : '+esc(livFmtDate(lv.maj))+'</div>';
+    } else {
+      h += '<div style="font-size:.78rem;color:var(--mut)">Pas encore d\'étapes reçues du transporteur.</div>';
+    }
+    if(url) h += '<a href="'+esc(url)+'" target="_blank" rel="noopener" style="display:inline-block;margin-top:6px;font-size:.74rem;color:var(--acc)">Ouvrir le suivi du transporteur ↗</a>';
+    h += '</div>';
+  });
+  return h;
+}
+function livOpenDetail(cid){
+  var c = livFindCmd(cid); if(!c) return;
+  var b = document.getElementById('liv-detail-body'); if(!b) return;
+  b.innerHTML = livDetailHtml(c);
+  om('m-liv');
 }
 function livOptionsHtml(){
   return '<option value="">Livraison : tout</option>'+LIV_STATUTS.map(function(s){ return '<option value="'+s.k+'">'+s.l+'</option>'; }).join('')+'<option value="none">— Pas d\'info</option>';
