@@ -2034,7 +2034,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.11.20-1210';
+var APP_VERSION = '2026.11.20-1225';
 var MANUEL_URL = 'manuel-isoprod.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -2993,6 +2993,7 @@ function ecranAutoOpen(tries){
 // Pas de correctif technique invisible ici. tag = qui est concerné :
 //   'all' (tout le monde), 'admin' (admin/direction), 'maint' (maintenance), 'stock' (ajout de stock), 'reprint' (réimpressions)
 var NEWS = [
+  {n:104, d:'20/11/2026', tag:'admin', t:'Livraison : nouveau statut « Livraison manquée »', x:'Pour un colis dont la livraison a échoué (destinataire absent) et qui sera en général présenté de nouveau ou déposé en point relais : statut violet « Livraison manquée », sans alerte rouge. Le filtre Livraison du tableau de bord le propose aussi.'},
   {n:103, d:'20/11/2026', tag:'all', t:'Connexion : la touche Entrée valide', x:'Sur l\'écran de connexion, appuyer sur Entrée dans le champ e-mail ou mot de passe lance maintenant la connexion (avant, il fallait cliquer sur « Se connecter »).'},
   {n:102, d:'20/11/2026', tag:'all', t:'Champs de recherche : plus de remplissage automatique des identifiants', x:'Le navigateur proposait parfois de remplir l\'e-mail ou le mot de passe dans les barres de recherche et autres champs libres. Ces champs sont maintenant marqués pour que le navigateur et les gestionnaires de mots de passe les laissent tranquilles ; la page de connexion est mieux identifiée pour qu\'il remplisse bien la connexion.'},
   {n:101, d:'20/11/2026', tag:'admin', t:'Tableau de bord : colonne et filtre « Livraison » (préparation du suivi automatique)', x:'Nouvelle colonne « Livraison » dans Commandes, avec les états Pris en charge, En acheminement, En livraison, À retirer, Livré et Problème, et un filtre associé. Elle restera à « — » tant que le suivi automatique des transporteurs n\'est pas branché. Quand un colis passera en « Problème », un bandeau rouge et une pastille « LIV » sur l\'onglet Tableau de bord préviendront les administrateurs, la direction et les personnes qui gèrent les expéditions (la pastille reste tant que le problème n\'est pas réglé). Dans Commandes, la colonne « Depuis » est retirée et une commande dont le départ prévu est dépassé s\'affiche en rouge.'},
@@ -8858,6 +8859,7 @@ var LIV_STATUTS = [
   {k:'pris',      l:'Pris en charge',  c:'#9ca3af', bg:'rgba(156,163,175,.16)'},
   {k:'transit',   l:'En acheminement', c:'#3b82f6', bg:'rgba(59,130,246,.14)'},
   {k:'livraison', l:'En livraison',    c:'#f97316', bg:'rgba(249,115,22,.15)'},
+  {k:'manque',    l:'Livraison manquée', c:'#8b5cf6', bg:'rgba(139,92,246,.15)'},
   {k:'retirer',   l:'À retirer',       c:'#eab308', bg:'rgba(234,179,8,.17)'},
   {k:'livre',     l:'Livré',           c:'#10b981', bg:'rgba(16,185,129,.14)'},
   {k:'probleme',  l:'Problème',        c:'#ef4444', bg:'rgba(239,68,68,.15)'}
