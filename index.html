@@ -901,11 +901,6 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
     <div class="ff" style="margin-bottom:8px">
       <label>Type d'intervention</label>
       <select id="grp-interv-type" style="width:100%;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.88rem;padding:9px 12px;outline:none;margin-top:4px">
-        <option value="Entretien général">🔧 Entretien général</option>
-        <option value="Nettoyage">🧹 Nettoyage</option>
-        <option value="Remplacement pièce">🔩 Remplacement pièce</option>
-        <option value="Réglage">⚙️ Réglage</option>
-        <option value="Panne">🔴 Panne</option>
       </select>
     </div>
     <div class="ff" style="margin-bottom:8px">
@@ -929,12 +924,12 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
   <div id="maint-det-content"></div>
   <div class="stitle" style="margin:14px 0 8px;display:flex;align-items:center;justify-content:space-between">
     <span>🔔 Rappels périodiques</span>
-    <button id="maint-add-reminder-btn" style="display:none;padding:5px 12px;border-radius:8px;border:1.5px solid var(--acc);background:none;color:var(--acc);font-family:Open Sans,sans-serif;font-weight:700;font-size:0.81rem;cursor:pointer" onclick="openAddReminder()">+ Ajouter</button>
+    <button id="maint-add-reminder-btn" style="display:none;padding:5px 12px;border-radius:8px;border:1.5px solid var(--acc);background:none;color:var(--acc);font-family:Open Sans,sans-serif;font-weight:700;font-size:0.81rem;cursor:pointer" onclick="openAddReminder()">+ Ajouter un rappel</button>
   </div>
   <div id="maint-reminders"></div>
+  <div id="maint-add-btn-wrap" style="margin-top:14px"></div>
   <div class="stitle" style="margin:14px 0 8px">Historique des interventions</div>
   <div id="maint-history"></div>
-  <div id="maint-add-btn-wrap"></div>
 </div>
 
 <div id="view-plateau-detail" class="view">
@@ -1272,6 +1267,18 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
 </div>
 
 <div id="view-admin_reglages" class="view">
+  <!-- Machines (maintenance) -->
+  <div id="admin-mach-block" style="display:none;background:var(--card);border:1.5px solid var(--brd);border-radius:14px;padding:14px;margin-bottom:16px">
+    <div style="font-family:Open Sans,sans-serif;font-weight:800;font-size:0.95rem;margin-bottom:6px">🔩 Machines</div>
+    <div style="font-size:.78rem;color:var(--mut);margin-bottom:8px">Créer, modifier ou supprimer une machine. Les interventions et les rappels se gèrent dans l'onglet Maintenance, sur la page de la machine.</div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">
+      <button type="button" onclick="openCreateMach('badges')" style="flex:1;min-width:140px;padding:9px;border-radius:8px;border:none;background:var(--acc);color:#000;font-family:Open Sans,sans-serif;font-weight:700;font-size:.8rem;cursor:pointer">+ Machine (Badges)</button>
+      <button type="button" onclick="openCreateMach('numerique')" style="flex:1;min-width:140px;padding:9px;border-radius:8px;border:none;background:var(--acc);color:#000;font-family:Open Sans,sans-serif;font-weight:700;font-size:.8rem;cursor:pointer">+ Machine (Numérique)</button>
+      <button type="button" onclick="openCreatePlateauFormat(true)" style="flex:1;min-width:140px;padding:9px;border-radius:8px;border:1.5px solid var(--acc);background:none;color:var(--acc);font-family:Open Sans,sans-serif;font-weight:700;font-size:.8rem;cursor:pointer">+ Format de plateau</button>
+    </div>
+    <div id="admin-mach-list"></div>
+  </div>
+
   <!-- Contrôle du compte administrateur -->
   <div id="admin-self-block" style="display:none;background:var(--card);border:1.5px solid var(--brd);border-radius:14px;padding:14px;margin-bottom:16px">
     <div style="font-family:Open Sans,sans-serif;font-weight:800;font-size:0.95rem;margin-bottom:6px">👑 Mon compte administrateur</div>
@@ -2003,7 +2010,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.11.19-1915';
+var APP_VERSION = '2026.11.20-0840';
 var MANUEL_URL = 'manuel-isoprod.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -2961,8 +2968,9 @@ function ecranAutoOpen(tries){
 // Pas de correctif technique invisible ici. tag = qui est concerné :
 //   'all' (tout le monde), 'admin' (admin/direction), 'maint' (maintenance), 'stock' (ajout de stock), 'reprint' (réimpressions)
 var NEWS = [
+  {n:95, d:'20/11/2026', tag:'all', t:'Maintenance : boutons réorganisés, machines et types d\'intervention dans Admin', x:'Sur la page d\'une machine, « + Ajouter une intervention » est maintenant en haut de la liste et le bouton des rappels s\'appelle « + Ajouter un rappel ». Le « + » orange de l\'onglet Maintenance disparaît : créer, modifier ou supprimer une machine se fait dans Admin › Réglages › Machines. Les types d\'intervention (dont le nouveau « Observation ») se gèrent aussi dans Admin › Réglages.'},
+  {n:94, d:'19/11/2026', tag:'dashboard', t:'Recherche : filtre « Sans n° de suivi »', x:'Tableau de bord › Recherche : nouveau filtre « Suivi » pour voir les commandes sans n° de suivi (celles livrées, remises sur place ou envoyées en courrier simple sont écartées) ou, au contraire, celles qui en ont un. Il se combine avec les autres filtres, par exemple « Terminé » + « Sans n° de suivi ».'},
   {n:93, d:'19/11/2026', tag:'all', t:'Rapports : jour sélectionné plus net', x:'Dans les rapports du jour, le bouton orange du jour sélectionné n\'a plus de cadre vert autour quand c\'est aujourd\'hui. Le point ● reste pour repérer la journée en cours.'},
-  {n:93, d:'19/11/2026', tag:'dashboard', t:'Recherche : filtre « Sans n° de suivi »', x:'Tableau de bord › Recherche : nouveau filtre « Suivi » pour voir les commandes sans n° de suivi (celles livrées, remises sur place ou envoyées en courrier simple sont écartées) ou, au contraire, celles qui en ont un. Il se combine avec les autres filtres, par exemple « Terminé » + « Sans n° de suivi ».'},
   {n:92, d:'19/11/2026', tag:'admin', t:'Admin : catalogue, sites, listes et familles gérés depuis Firebase', x:'Le catalogue produits, les fournisseurs, les sites, les listes (motifs SAV, modes d\'emport, types de planning) et les familles de stock ne sont plus écrits dans le code : ils se gèrent depuis Admin. Nouvelle carte « Mon compte administrateur » dans Admin > Réglages pour vérifier ta fiche. Rien ne change dans le travail de chacun.'},
   {n:91, d:'19/11/2026', tag:'all', t:'Admin : mise à jour des références EBP depuis Excel', x:'Admin > Interventions > Catalogue : on peut charger « Base_Articles_EBP.xlsx » ; l\'application montre ce qui est nouveau, modifié ou retiré avant d\'appliquer, et garde une sauvegarde de l\'ancienne liste.'},
   {n:90, d:'19/11/2026', tag:'all', t:'Admin : sites, statuts, listes et familles réglables', x:'Admin > Réglages : on peut maintenant ajouter ou masquer un site, renommer les statuts de commande (nom, emoji, couleur) et en ajouter de manuels, régler les motifs de SAV, les modes d\'emport et les types d\'événements du planning, renommer ou ajouter une famille de stock. Admin > Interventions : le catalogue des formats et des références EBP est copié dans Firebase. Rien ne change dans l\'utilisation courante.'},
@@ -3701,7 +3709,7 @@ function switchTab(name) {
   });
   document.querySelectorAll('.view').forEach(function(v){ v.classList.remove('active'); });
   document.getElementById('view-'+name).classList.add('active');
-  var showFab = name==='atelier'||name==='reserve'||name==='commandes'||name==='maintenance'||name==='reprint';
+  var showFab = name==='atelier'||name==='reserve'||name==='commandes'||name==='reprint';
   document.getElementById('fab').style.display = showFab ? 'flex' : 'none';  document.getElementById('fab').textContent = name==='commandes' ? '🛒' : name==='reprint' ? '🖨️' : '+';
   if (name==='atelier'||name==='reserve'){ document.getElementById('view-detail').classList.remove('active'); renderZone(name); }
   if (name==='search'){ srchRenderChips(null); doSearch(); }
@@ -3719,7 +3727,7 @@ function switchTab(name) {
   if (name==='stats') openStatsTab();
   if (name==='dashboard' && permsLoaded){ openDashboardTab(); dashSwitchSection('recherche'); } // ouverture directe sur « Commandes »
   if (name!=='dashboard') document.body.classList.remove('dash-commandes-wide');
-  if (name.indexOf('admin_')===0) { renderPrestataires(); renderSuppliers(); renderCustomFormatsList(); renderGammesList(); adminSelfRender(); siteAdminRender(); statutAdminRender(); listesAdminRender(); famAdminRender(); renderEtapesSupAdmin(); renderTranspAdmin(); renderQtyRulesAdmin(); renderPoleCfgAdmin(); renderDashboardSettings(); if(name==='admin_interventions') admForgottenRefresh(); }
+  if (name.indexOf('admin_')===0) { renderPrestataires(); renderSuppliers(); renderCustomFormatsList(); renderGammesList(); adminSelfRender(); machAdminRender(); siteAdminRender(); statutAdminRender(); listesAdminRender(); famAdminRender(); renderEtapesSupAdmin(); renderTranspAdmin(); renderQtyRulesAdmin(); renderPoleCfgAdmin(); renderDashboardSettings(); if(name==='admin_interventions') admForgottenRefresh(); }
   if (name==='qualite') openQualiteTab();
 }
 
@@ -6220,7 +6228,9 @@ function statutSetManual(cmdId, key){
 var LISTES_DEF = {   // structure seulement : les valeurs des listes vivent dans Firebase (settings/listes). Seule la ligne « fixe » (Autre) est garantie par le code.
   savMotifs:   {titre:'Motifs de SAV', fixed:'Autre', fixedL:'Autre', def:[]},
   emportModes: {titre:'Modes d\'emport / de livraison (suivi d\'expédition)', fixed:'Autre', fixedL:'Autre', def:[]},
-  planKinds:   {titre:'Types d\'événements du planning', fixed:'autre', fixedL:'📌 Autre', keyed:true, def:[]}
+  planKinds:   {titre:'Types d\'événements du planning', fixed:'autre', fixedL:'📌 Autre', keyed:true, def:[]},
+  // Types d'intervention de la maintenance : valeurs de départ enregistrées UNE fois dans Firebase par un admin (listesSeedMissing), ensuite gérées dans Admin › Réglages. Pas de ligne « fixe ».
+  intervTypes: {titre:'Types d\'intervention (maintenance)', keyed:true, deletable:true, def:[['entretien','Entretien général'],['nettoyage','Nettoyage'],['piece','Remplacement pièce'],['reglage','Réglage'],['panne','Panne'],['observation','Observation']]}
 };
 var S_listes = {};
 function listeItems(name){
@@ -6229,7 +6239,8 @@ function listeItems(name){
   if(st){ arr = (Array.isArray(st) ? st : Object.keys(st).sort(function(a, b){ return a - b; }).map(function(k){ return st[k]; })).filter(function(x){ return x && x.k != null && String(x.k) !== ''; }).map(function(x){ return {k:String(x.k), l:String(x.l != null ? x.l : x.k), actif:x.actif !== false}; }); }
   if(!arr.length) arr = d.def.map(function(x){ return Array.isArray(x) ? {k:x[0], l:x[1], actif:true} : {k:x, l:x, actif:true}; });
   var fixed = null, rest = [];
-  arr.forEach(function(x){ if(x.k === d.fixed) fixed = x; else rest.push(x); });
+  arr.forEach(function(x){ if(d.fixed && x.k === d.fixed) fixed = x; else rest.push(x); });
+  if(!d.fixed) return rest;   // liste sans ligne fixe (ex. types d'intervention)
   if(!fixed) fixed = {k:d.fixed, l:d.fixedL || d.fixed, actif:true};
   fixed.actif = true; rest.push(fixed);
   return rest;
@@ -6249,7 +6260,21 @@ function listeSave(name, items){
   var arr = items.map(function(x){ return {k:x.k, l:x.l, actif:x.actif !== false}; });
   return fbs('settings/listes/'+name, arr).catch(function(){ toast('Erreur d\'enregistrement (règles Firebase à autoriser sur « settings/listes » ?)', 1); });
 }
+// Enregistre UNE fois dans Firebase les valeurs de départ des listes qui en ont (types d'intervention). Un admin seulement ; ne touche jamais une liste déjà présente.
+var _listesSeeded = false;
+function listesSeedMissing(){
+  if(_listesSeeded || !isDir) return; _listesSeeded = true;
+  Object.keys(LISTES_DEF).forEach(function(n){
+    var d = LISTES_DEF[n]; if(!d.def || !d.def.length) return;
+    fbg('settings/listes/'+n).then(function(snap){ if(!snap.exists()) listeSave(n, listeItems(n)); }).catch(function(){});
+  });
+}
+// <option> des types d'intervention actifs (la valeur enregistrée sur l'intervention est le libellé)
+function intervTypeOptionsHtml(){
+  return listeActive('intervTypes').map(function(x){ return '<option value="'+esc(x.l)+'">'+esc(x.l)+'</option>'; }).join('');
+}
 function listesAdminRender(){
+  try{ listesSeedMissing(); }catch(e){}
   var block = document.getElementById('admin-listes-block'); if(!block) return;
   block.style.display = isDir ? '' : 'none'; if(!isDir) return;
   var el = document.getElementById('admin-listes-list'); if(!el || el.contains(document.activeElement)) return;
@@ -6263,25 +6288,32 @@ function listesAdminRender(){
       h += '<div style="display:flex;gap:6px;align-items:center;margin-top:5px;'+(x.actif ? '' : 'opacity:.55')+'">'+
         (d.keyed && !fixed ? '<input type="text" value="'+esc(x.l)+'" maxlength="40" onchange="listeRename(\''+name+'\','+i+',this.value)" style="flex:1;min-width:0;'+inp+'">' : '<span style="flex:1;font-size:.8rem">'+esc(x.l)+(fixed ? ' <span style="color:var(--mut);font-size:.68rem">(toujours présent)</span>' : '')+'</span>')+
         (fixed ? '' : '<button type="button" style="'+btn+'" onclick="listeMove(\''+name+'\','+i+',-1)">▲</button><button type="button" style="'+btn+'" onclick="listeMove(\''+name+'\','+i+',1)">▼</button>'+
-          '<label style="font-size:.72rem"><input type="checkbox" '+(x.actif ? 'checked ' : '')+'onchange="listeToggle(\''+name+'\','+i+',this.checked)"> Actif</label>')+'</div>';
+          '<label style="font-size:.72rem"><input type="checkbox" '+(x.actif ? 'checked ' : '')+'onchange="listeToggle(\''+name+'\','+i+',this.checked)"> Actif</label>'+(d.deletable ? '<button type="button" style="'+btn+';color:var(--red)" onclick="listeDel(\''+name+'\','+i+')">🗑</button>' : ''))+'</div>';
     });
     h += '<div style="display:flex;gap:6px;margin-top:7px"><input type="text" id="liste-new-'+name+'" maxlength="40" placeholder="Ajouter…" style="flex:1;min-width:0;'+inp+'"><button type="button" onclick="listeAdd(\''+name+'\')" style="padding:6px 12px;border-radius:8px;border:none;background:var(--acc);color:#000;font-weight:700;font-size:.78rem;cursor:pointer">➕</button></div></div>';
   });
     el.innerHTML = h;
 }
 function listeMove(name, i, dir){
-  var it = listeItems(name), j = i + dir, last = it.length - 1;   // la dernière entrée (fixe) ne bouge pas
+  var it = listeItems(name), j = i + dir, last = LISTES_DEF[name].fixed ? it.length - 1 : it.length;   // la dernière entrée (fixe) ne bouge pas
   if(j < 0 || j >= last || i >= last) return;
   var t = it[i]; it[i] = it[j]; it[j] = t; listeSave(name, it);
 }
 function listeToggle(name, i, on){ var it = listeItems(name); if(!it[i] || it[i].k === LISTES_DEF[name].fixed) return; it[i].actif = !!on; listeSave(name, it); }
+function listeDel(name, i){
+  var it = listeItems(name), d = LISTES_DEF[name]; if(!d.deletable || !it[i]) return;
+  document.getElementById('cf-title').textContent = 'Retirer « '+it[i].l+' » de la liste ?';
+  document.getElementById('cf-msg').textContent = 'Les interventions déjà enregistrées gardent leur type. Tu peux aussi simplement décocher « Actif » pour le masquer.';
+  cfCb = function(){ var cur = listeItems(name); cur.splice(i, 1); listeSave(name, cur).then(function(){ cm('m-confirm'); toast('🗑 Retiré de la liste'); }); };
+  om('m-confirm');
+}
 function listeRename(name, i, val){ var it = listeItems(name); val = String(val||'').trim(); if(!it[i] || !val) return; it[i].l = val; listeSave(name, it); }
 function listeAdd(name){
   var el = document.getElementById('liste-new-'+name), v = el ? el.value.trim() : ''; if(!v) return;
   var d = LISTES_DEF[name], it = listeItems(name);
   if(it.some(function(x){ return x.l.toLowerCase() === v.toLowerCase() || x.k.toLowerCase() === v.toLowerCase(); })){ toast('Cet élément existe déjà', 1); return; }
-  var fixed = it.pop();   // on insère avant l'élément fixe
-  it.push({k:d.keyed ? 'k'+gid().slice(-6) : v, l:v, actif:true}); it.push(fixed);
+  var fixed = d.fixed ? it.pop() : null;   // on insère avant l'élément fixe
+  it.push({k:d.keyed ? 'k'+gid().slice(-6) : v, l:v, actif:true}); if(fixed) it.push(fixed);
   listeSave(name, it).then(function(){ toast('✅ Ajouté'); if(el) el.value = ''; });
 }
 // ── Familles de stock : libellés et ajout (jamais de suppression : le stock existant y reste rattaché) ──
@@ -13639,7 +13671,7 @@ function mtgMachineWeekSummary(machinesRaw, forPdf, pole){
   var wkEnd = new Date(mtgWeekStart); wkEnd.setDate(wkEnd.getDate()+5); // through end of Friday
   wkEnd = wkEnd.getTime();
   var typeIco = forPdf ? {} : {
-    'Entretien général':'🔧','Nettoyage':'🧹','Remplacement pièce':'🔩','Réglage':'⚙️','Panne':'🔴'
+    'Entretien général':'🔧','Nettoyage':'🧹','Remplacement pièce':'🔩','Réglage':'⚙️','Panne':'🔴','Observation':'👁️'
   };
   var lines = [];
   Object.keys(machinesRaw).forEach(function(mid){
@@ -14292,10 +14324,6 @@ function openMachDet(mid){
   var can = canMaintain();
   var btns = '';
   if(can) btns += '<button class="btn bpri" style="width:100%;margin-top:4px" onclick="openAddInterv()">+ Ajouter une intervention</button>';
-  if(iAm||isDir){
-    btns += '<button class="btn bsec" style="width:100%;margin-top:8px" onclick="openEditMach()">✏️ Modifier la machine</button>';
-    btns += '<button class="btn bdano" style="width:100%;margin-top:8px" onclick="askDelMach()">🗑 Supprimer cette machine</button>';
-  }
   wrap.innerHTML = btns;
   var addReminderBtn = document.getElementById('maint-add-reminder-btn');
   if(addReminderBtn) addReminderBtn.style.display = (can||iAm||isDir) ? '' : 'none';
@@ -14401,7 +14429,7 @@ function openAddInterv(){
       '<div style="text-align:left">'+
       '<div class="ff" style="margin-bottom:8px"><label>Type *</label>'+
       '<select id="interv-type" style="width:100%;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.88rem;padding:9px;outline:none;margin-top:4px">'+
-        '<option>Entretien général</option><option>Nettoyage</option><option>Remplacement pièce</option><option>Réglage</option><option>Panne</option>'+
+        intervTypeOptionsHtml()+
       '</select></div>'+
       '<div class="ff" style="margin-bottom:8px"><label>Description *</label>'+
       '<input type="text" id="interv-desc" placeholder="Décrivez l\'intervention" style="width:100%;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.88rem;padding:9px;outline:none;margin-top:4px;box-sizing:border-box"></div>'+
@@ -14527,13 +14555,13 @@ function openEditMach(){
   om('m-confirm');
 }
 
-function askDelMach(){
+function askDelMach(stay){
   var m = getMach(curMachId);
   document.getElementById('cf-title').textContent = 'Supprimer cette machine ?';
   document.getElementById('cf-msg').textContent = (m?m.name:'Cette machine')+' et tout son historique seront supprimés définitivement.';
   cfCb = function(){
     fbd('machines/'+curMachId).then(function(){
-      cm('m-confirm'); showMaintList(); toast('🗑 Machine supprimée');
+      cm('m-confirm'); if(!stay) showMaintList(); toast('🗑 Machine supprimée');
     });
   };
   om('m-confirm');
@@ -14542,8 +14570,8 @@ function askDelMach(){
 function getMach(mid){ return S_mach.find(function(m){ return m.id===mid; })||null; }
 
 // ── Créer machine (bouton FAB) ──
-function openCreateMach(){
-  var numNew = (maintPole() === 'numerique');
+function openCreateMach(forPole){
+  var numNew = forPole ? (forPole === 'numerique') : (maintPole() === 'numerique');
   document.getElementById('cf-title').textContent = numNew ? '🔧 Nouvelle machine (numérique)' : '🔧 Nouvelle machine';
   document.getElementById('cf-msg').innerHTML =
     '<div style="text-align:left">'+
@@ -14551,7 +14579,7 @@ function openCreateMach(){
     '<input type="text" id="new-mach-name" placeholder="Ex: Machine N°1" style="width:100%;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.88rem;padding:9px;outline:none;margin-top:4px;box-sizing:border-box"></div>'+
     '<div class="ff" style="margin-bottom:8px"><label>Type *</label>'+
     '<select id="new-mach-type" style="width:100%;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.88rem;padding:9px;outline:none;margin-top:4px">'+
-      (numNew ? machTypeOptions('numerique', curMaintSub) :
+      (numNew ? machTypeOptions('numerique', forPole ? '' : curMaintSub) :
       machTypeOptions('badges', '').replace('🧰 Machine diverse<', '🧰 Machine diverse (sécheur, compresseur…)<'))+
     '</select></div>'+
     '<div class="ff" style="margin-bottom:8px"><label>N° de série fabricant</label>'+
@@ -14589,6 +14617,7 @@ function openGroupInterv(){
       '<span style="font-size:.88rem">'+esc(m.name)+'</span></label>';
   }).join('');
   document.getElementById('grp-interv-desc').value = '';
+  document.getElementById('grp-interv-type').innerHTML = intervTypeOptionsHtml();
   block.style.display = 'block';
   block.scrollIntoView({behavior:'smooth'});
 }
@@ -15095,7 +15124,7 @@ function openAddPlateauInterv(){
       '<div style="text-align:left">'+
       '<div class="ff" style="margin-bottom:8px"><label>Type *</label>'+
       '<select id="pinterv-type" style="width:100%;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.88rem;padding:9px;outline:none;margin-top:4px">'+
-        '<option>Entretien général</option><option>Nettoyage</option><option>Remplacement pièce</option><option>Réglage</option><option>Panne</option>'+
+        intervTypeOptionsHtml()+
       '</select></div>'+
       '<div class="ff" style="margin-bottom:8px"><label>Description *</label>'+
       '<input type="text" id="pinterv-desc" placeholder="Décrivez l\'intervention" style="width:100%;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.88rem;padding:9px;outline:none;margin-top:4px;box-sizing:border-box"></div>'+
@@ -15319,7 +15348,7 @@ function openEditCombo(formatId, empId){
 }
 
 // ── Créer un nouveau format ──
-function openCreatePlateauFormat(){
+function openCreatePlateauFormat(fromAdmin){
   document.getElementById('cf-title').textContent = '🔩 Nouveau format';
   document.getElementById('cf-msg').innerHTML =
     '<div style="text-align:left"><div class="ff"><label>Nom du format *</label>'+
@@ -15333,6 +15362,7 @@ function openCreatePlateauFormat(){
     var newId = gid();
     fbs('plateaux/'+newId, { nom:nom, createdAt:Date.now() }).then(function(){
       toast('✅ Format créé');
+      if(fromAdmin){ cm('m-confirm'); fbg('plateaux').then(function(snap){ var raw = snap.val()||{}; S_plateaux = Object.keys(raw).map(function(id){ return Object.assign({id:id},raw[id]); }); }); return; }
       curMaintSub = 'plateaux';
       // Lire directement depuis Firebase sans attendre le listener
       fbg('plateaux').then(function(snap){
@@ -15886,6 +15916,29 @@ function startSitesListener(){
 }
 function siteKeyOf(code){ return String(code||'').toUpperCase().replace(/[^A-Z0-9]+/g, '_').replace(/^_+|_+$/g, ''); }
 // ── Écran Admin : liste des sites ──
+// ── Machines : liste dans Admin › Réglages (créer / modifier / supprimer) ──
+function machAdminRender(){
+  var block = document.getElementById('admin-mach-block'); if(!block) return;
+  var ok = !!(iAm || isDir); block.style.display = ok ? '' : 'none'; if(!ok) return;
+  var el = document.getElementById('admin-mach-list'); if(!el) return;
+  var btn = 'padding:4px 9px;border-radius:6px;border:1.5px solid var(--brd);background:none;color:var(--txt);font-size:.74rem;cursor:pointer';
+  var h = '';
+  [['badges','🏷️ Badges'],['numerique','🖨️ Numérique']].forEach(function(pp){
+    var list = S_mach.filter(function(m){ return machPole(m) === pp[0]; }).sort(function(a, b){ return String(a.name||'').localeCompare(String(b.name||''), 'fr', {numeric:true}); });
+    h += '<div style="margin-top:8px;font-weight:700;font-size:.8rem">'+pp[1]+' <span style="font-weight:400;color:var(--mut)">('+list.length+')</span></div>';
+    if(!list.length) h += '<div style="font-size:.76rem;color:var(--mut);padding:4px 0">Aucune machine.</div>';
+    list.forEach(function(m){
+      var t = MACH_TYPES[m.type || 'semi'], tl = t ? t.label : (m.type || '');
+      h += '<div style="display:flex;gap:6px;align-items:center;padding:6px 0;border-top:1px solid var(--brd)">'+
+        '<div style="flex:1;min-width:0"><div style="font-size:.82rem;font-weight:700">'+esc(m.name||'?')+'</div><div style="font-size:.7rem;color:var(--mut)">'+esc(tl)+(m.serialNumber ? ' · N° '+esc(m.serialNumber) : '')+'</div></div>'+
+        '<button type="button" style="'+btn+'" onclick="machAdminEdit(\''+esc(m.id)+'\')">✏️ Modifier</button>'+
+        '<button type="button" style="'+btn+';border-color:var(--red);color:var(--red)" onclick="machAdminDel(\''+esc(m.id)+'\')">🗑</button></div>';
+    });
+  });
+  el.innerHTML = h;
+}
+function machAdminEdit(id){ curMachId = id; openEditMach(); }
+function machAdminDel(id){ curMachId = id; askDelMach(true); }
 // ── Contrôle du compte administrateur (Admin > Réglages) ──
 function adminSelfRender(){
   var block = document.getElementById('admin-self-block'); if(!block) return;
@@ -15961,6 +16014,7 @@ function startMachListener(){
     }).sort(function(a,b){ return (a.order||99)-(b.order||99); }) : [];
     // Mettre à jour le badge de rappels
     updateMaintBadge();
+    try{ machAdminRender(); }catch(e){}
     try{ if(typeof ecranScheduleRender==='function') ecranScheduleRender(); }catch(e){}
     // Always update S_mach, re-render if on maintenance
     if(curTab==='maintenance'){
