@@ -2045,7 +2045,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.11.20-1245';
+var APP_VERSION = '2026.11.20-1640';
 var MANUEL_URL = 'manuel-isoprod.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -3004,7 +3004,8 @@ function ecranAutoOpen(tries){
 // Pas de correctif technique invisible ici. tag = qui est concerné :
 //   'all' (tout le monde), 'admin' (admin/direction), 'maint' (maintenance), 'stock' (ajout de stock), 'reprint' (réimpressions)
 var NEWS = [
-  {n:107, d:'20/11/2026', tag:'admin', t:'Tableau de bord › Commandes : un seul statut, de la production à la livraison', x:'La colonne Depuis revient et la colonne Livraison disparaît : une commande terminée et expédiée affiche directement son statut de livraison (camion, Livré en vert plein, Problème en rouge plein), en cliquant on voit les étapes. Le filtre unique « Statut » regroupe tout : Attente production, Production en cours, Produite, Terminée (toutes les commandes terminées, livrées ou non), Disponible à l\'emport, Pris en charge, En acheminement, En livraison, Livraison manquée, À retirer, Livré, Problème, Avec SAV, À confirmer, En production (tout). Nouvelles couleurs de livraison.'},
+  {n:108, d:'20/11/2026', tag:'all', t:'Emport : statut « Emport récupéré »', x:'Dans le détail d\'une commande disponible à l\'emport, le bouton « Récupéré par le client » enregistre le retrait (date et nom). Le statut passe alors de « Disponible à l\'emport » à « Emport récupéré » (vert plein), avec son choix dans le filtre Statut. Une croix permet d\'annuler. Le bandeau d\'alerte ne prévient plus pour une commande déjà récupérée.'},
+  {n:107, d:'20/11/2026', tag:'admin', t:'Tableau de bord › Commandes : un seul statut, de la production à la livraison', x:'La colonne Depuis revient et la colonne Livraison disparaît : une commande terminée et expédiée affiche directement son statut de livraison (camion, Livré en vert plein, Problème en rouge plein), en cliquant on voit les étapes. Le filtre unique « Statut » regroupe tout : Attente production, Production en cours, Produite, Terminée (toutes les commandes terminées, livrées ou non), Disponible à l\'emport, Emport récupéré, Pris en charge, En acheminement, En livraison, Livraison manquée, À retirer, Livré, Problème, Avec SAV, À confirmer, En production (tout). Nouvelles couleurs de livraison.'},
   {n:106, d:'20/11/2026', tag:'admin', t:'Tableau de bord › Commandes : colonne Livraison toujours visible', x:'Le tableau est un peu plus compact (marges réduites, formats et producteurs sur plusieurs lignes) pour que la colonne Livraison ne soit plus coupée sur un écran moyen.'},
   {n:105, d:'20/11/2026', tag:'admin', t:'Livraison : détail des étapes du transporteur', x:'Dans Tableau de bord > Commandes, la pastille « Livraison » s\'ouvre au clic : liste des étapes du colis (date, heure, agence) et lien vers le suivi du transporteur. En passant la souris dessus, on voit le dernier événement. Les données arriveront avec le suivi automatique (script Google).'},
   {n:104, d:'20/11/2026', tag:'admin', t:'Livraison : nouveau statut « Livraison manquée »', x:'Pour un colis dont la livraison a échoué (destinataire absent) et qui sera en général présenté de nouveau ou déposé en point relais : statut violet « Livraison manquée », sans alerte rouge. Le filtre Livraison du tableau de bord le propose aussi.'},
@@ -6204,7 +6205,7 @@ function statutSelectOptionsHtml(){
 // Liste unique de la recherche : production, livraison, puis filtres transversaux
 function dashStatutFilterOptionsHtml(){
   var prod = ['waiting', 'in_progress', 'reprint', 'produced', 'done'].map(function(k){ return '<option value="'+k+'">'+esc(stLabel(k, 'sel'))+'</option>'; }).join('');
-  prod += '<option value="emport">🛍 Disponible à l\'emport</option>';
+  prod += '<option value="emport">🛍 Disponible à l\'emport</option><option value="emport_recup">✓ Emport récupéré</option>';
   var liv = LIV_STATUTS.map(function(x){ return '<option value="l:'+x.k+'">'+(x.ico || '🚚')+' '+x.l+'</option>'; }).join('');
   var cust = statutCustoms(false).map(function(d){ return '<option value="m:'+esc(d.key)+'">'+esc((d.emoji ? d.emoji+' ' : '')+d.label)+'</option>'; }).join('');
   return '<option value="">Tous les statuts</option>'+prod+liv+cust+
@@ -8915,6 +8916,7 @@ function dashStatutAffiche(c, sit){
   var r = null; try{ r = dashLivCmd(c); }catch(e){}
   if(!r || !livInfo(r.key)){
     // Emport : n'apparaît qu'une fois le bouton « Disponible à l'emport » coché
+    if(c.emportDispo && c.emportDispo.at && c.emportDispo.recup && c.emportDispo.recup.at) return {key:'emport_recup', emport:true, solid:true, label:'✓ Emport récupéré', color:'#047857', bg:'#047857'};
     if(c.emportDispo && c.emportDispo.at) return {key:'emport', emport:true, label:'🛍 Disponible à l\'emport', color:'#92400e', bg:'rgba(146,64,14,.14)'};
     return sit;
   }
@@ -9200,6 +9202,14 @@ function dashSuiviBlockHtml(c){
     html += '<div style="margin-top:8px;padding:8px 10px;border:1.5px solid var(--grn);border-radius:10px;font-size:.8rem;display:flex;gap:8px;align-items:center;background:rgba(5,150,105,.08)">'+
       '<div style="flex:1;min-width:0">✅ <strong>Disponible à l\'emport</strong><div style="font-size:.7rem;color:var(--mut)">depuis le '+edd.toLocaleDateString('fr-FR')+' à '+edd.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})+(ed.byName ? ' · '+esc(ed.byName) : '')+'</div></div>'+
       (canSuiviSaisie() ? '<button onclick="emportDispoUndo(\''+c.id+'\')" title="Retirer" style="background:none;border:1px solid var(--brd);border-radius:8px;color:var(--mut);padding:4px 8px;cursor:pointer">✕</button>' : '')+'</div>';
+    if(ed.recup && ed.recup.at){
+      var rd = new Date(ed.recup.at);
+      html += '<div style="margin-top:6px;padding:8px 10px;border:1.5px solid #047857;border-radius:10px;font-size:.8rem;display:flex;gap:8px;align-items:center;background:rgba(4,120,87,.10)">'+
+        '<div style="flex:1;min-width:0">✓ <strong>Emport récupéré</strong><div style="font-size:.7rem;color:var(--mut)">le '+rd.toLocaleDateString('fr-FR')+' à '+rd.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})+(ed.recup.byName ? ' · '+esc(ed.recup.byName) : '')+'</div></div>'+
+        (canEmportRecup() ? '<button onclick="emportRecupUndo(\''+c.id+'\')" title="Annuler" style="background:none;border:1px solid var(--brd);border-radius:8px;color:var(--mut);padding:4px 8px;cursor:pointer">✕</button>' : '')+'</div>';
+    } else if(canEmportRecup()){
+      html += '<button onclick="emportRecupSet(\''+c.id+'\')" style="width:100%;margin-top:6px;padding:9px;border-radius:10px;border:none;background:#047857;color:#fff;font-family:Open Sans,sans-serif;font-weight:800;font-size:.84rem;cursor:pointer">✓ Récupéré par le client</button>';
+    }
   } else if(c.status === 'done' && !list.length && canSuiviSaisie()){
     html += '<button onclick="emportDispoSet(\''+c.id+'\')" style="width:100%;margin-top:8px;padding:9px;border-radius:10px;border:none;background:var(--grn);color:#fff;font-family:Open Sans,sans-serif;font-weight:800;font-size:.84rem;cursor:pointer">🚶 Disponible à l\'emport</button>';
   }
@@ -9280,6 +9290,22 @@ function emportDispoUndo(cmdId){
   if(c.emportDispo.setShip && c.livraison){ if(c.livraison.src === 'dispo') upd['livraison'] = null; else upd['livraison/shipAt'] = null; }
   fbu('commandes/'+cmdId, upd).then(function(){ dashSuiviRefreshAll(cmdId); }).catch(function(){ toast('Erreur de suppression', 1); });
 }
+// « Emport récupéré » : champ additif commandes/{id}/emportDispo/recup = {at, byName, byUid}. Pour l'instant ouvert à tous (un droit Admin viendra plus tard).
+function canEmportRecup(){ return !!me; }
+function emportRecupSet(cmdId){
+  if(!canEmportRecup()) return;
+  var c = ((S_cmdIndex && S_cmdIndex.byId) || {})[cmdId]; if(!c || !c.emportDispo || !c.emportDispo.at || (c.emportDispo.recup && c.emportDispo.recup.at)) return;
+  var rc = {at:Date.now(), byName:getMyName()}; if(me && me.uid) rc.byUid = me.uid;
+  fbu('commandes/'+cmdId, {'emportDispo/recup': rc})
+    .then(function(){ toast('✓ Emport récupéré'); dashSuiviRefreshAll(cmdId); })
+    .catch(function(){ toast('Erreur d\'enregistrement', 1); });
+}
+function emportRecupUndo(cmdId){
+  if(!canEmportRecup()) return;
+  var c = ((S_cmdIndex && S_cmdIndex.byId) || {})[cmdId]; if(!c || !c.emportDispo || !c.emportDispo.recup) return;
+  if(!confirm('Annuler « Emport récupéré » pour cette commande ?')) return;
+  fbu('commandes/'+cmdId, {'emportDispo/recup': null}).then(function(){ dashSuiviRefreshAll(cmdId); }).catch(function(){ toast('Erreur de suppression', 1); });
+}
 function canEmportAlert(){ return !!(iAm || isDir || (permsLoaded && me_perms && me_perms.emportAlert === true)); }
 function emportSeenKey(){ return 'isoprod_emport_seen_' + (me && me.uid ? me.uid : 'x'); }
 function emportSeenGet(){ try { var v = localStorage.getItem(emportSeenKey()); return v==null ? null : JSON.parse(v); } catch(e){ return null; } }
@@ -9287,7 +9313,7 @@ function emportSeenSet(ids){ try { localStorage.setItem(emportSeenKey(), JSON.st
 function emportItems(){
   var byId = (S_cmdIndex && S_cmdIndex.byId) || {}, out = [];
   Object.keys(byId).forEach(function(cid){
-    var c = byId[cid]; if(c && c.emportDispo && c.emportDispo.at) out.push({id:cid+'@'+c.emportDispo.at, c:c, ed:c.emportDispo});
+    var c = byId[cid]; if(c && c.emportDispo && c.emportDispo.at && !(c.emportDispo.recup && c.emportDispo.recup.at)) out.push({id:cid+'@'+c.emportDispo.at, c:c, ed:c.emportDispo});
   });
   return out.sort(function(a,b){ return b.ed.at - a.ed.at; });
 }
@@ -25038,7 +25064,7 @@ function dashRunSearch(){
     if(situationFilter === 'sav'){ if(!dashSavList(c).length) return false; }
     else if(situationFilter === 'conf'){ if(!suiviPending(c).length) return false; }
     else if(situationFilter === 'prod_all'){ var sk = dashComputeSituation(c).key; if(sk !== 'waiting' && sk !== 'in_progress' && sk !== 'reprint' && sk !== 'produced') return false; }
-    else if(situationFilter === 'emport'){ var ue = dashStatutAffiche(c); if(!ue || !ue.emport) return false; }
+    else if(situationFilter === 'emport' || situationFilter === 'emport_recup'){ var ue = dashStatutAffiche(c); if(!ue || ue.key !== situationFilter) return false; }
     else if(/^l:/.test(situationFilter||'')){ var ua = dashStatutAffiche(c); if(!ua || !ua.liv || ua.livKey !== situationFilter.slice(2)) return false; }
     else if(/^m:/.test(situationFilter||'')){ var mk = situationFilter.slice(2); if(!(c.statutManuel && c.statutManuel.key === mk && statusDisplay(c, dashComputeSituationBase(c)).manual)) return false; }
     else if(situationFilter && dashComputeSituation(c).key !== situationFilter) return false;
@@ -25066,7 +25092,7 @@ function dashRunSearch(){
     var overdue = dashIsOverdue(c);
     var depart = c.dateDepart ? new Date(c.dateDepart+'T00:00:00').toLocaleDateString('fr-FR') : '—';
     var situationU = dashStatutAffiche(c, situation);
-    var situationHtml = situationU.liv ? dashLivCellHtml(c) : situationU.emport ? '<span title="Mise à disposition le '+esc(new Date(c.emportDispo.at).toLocaleDateString('fr-FR'))+'" style="display:inline-block;font-size:.74rem;font-family:Open Sans,sans-serif;font-weight:800;padding:3px 9px;border-radius:99px;background:'+situationU.bg+';color:'+situationU.color+';border:1px solid '+situationU.color+';white-space:nowrap">'+situationU.label+'</span>' :
+    var situationHtml = situationU.liv ? dashLivCellHtml(c) : situationU.emport ? '<span title="'+(situationU.solid ? 'Récupéré le '+esc(new Date(c.emportDispo.recup.at).toLocaleDateString('fr-FR')) : 'Mise à disposition le '+esc(new Date(c.emportDispo.at).toLocaleDateString('fr-FR')))+'" style="display:inline-block;font-size:.74rem;font-family:Open Sans,sans-serif;font-weight:800;padding:3px 9px;border-radius:99px;background:'+situationU.bg+';color:'+(situationU.solid ? '#fff' : situationU.color)+';border:1px solid '+situationU.color+';white-space:nowrap">'+situationU.label+'</span>' :
       '<span style="display:inline-block;font-size:0.78rem;font-family:Open Sans,sans-serif;font-weight:800;padding:3px 9px;border-radius:99px;background:'+situation.bg+';color:'+situation.color+';border:1px solid '+situation.color+';white-space:nowrap">'+situation.label+'</span>'+
       (situation.sub ? '<div style="margin-top:3px"><span style="display:inline-block;font-size:0.69rem;font-family:Open Sans,sans-serif;font-weight:700;padding:2px 7px;border-radius:99px;background:none;color:'+situation.color+';border:1px solid '+situation.color+';white-space:nowrap">'+situation.sub+'</span></div>' : '');
     if(suiviPending(c).length) situationHtml += '<div style="margin-top:3px"><span style="display:inline-block;font-size:0.69rem;font-weight:800;padding:2px 7px;border-radius:99px;background:rgba(217,119,6,.15);color:var(--acc)">📮 À confirmer</span></div>';
