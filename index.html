@@ -2045,7 +2045,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.11.20-1135';
+var APP_VERSION = '2026.11.20-1215';
 var MANUEL_URL = 'manuel-isoprod.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -3004,6 +3004,7 @@ function ecranAutoOpen(tries){
 // Pas de correctif technique invisible ici. tag = qui est concerné :
 //   'all' (tout le monde), 'admin' (admin/direction), 'maint' (maintenance), 'stock' (ajout de stock), 'reprint' (réimpressions)
 var NEWS = [
+  {n:107, d:'20/11/2026', tag:'admin', t:'Tableau de bord › Commandes : un seul statut, de la production à la livraison', x:'La colonne Livraison disparaît : une commande terminée et expédiée affiche directement son statut de livraison (camion, Livré en vert plein, Problème en rouge plein), en cliquant on voit les étapes. Le filtre unique « Statut » regroupe tout : Attente production, Production en cours, Produite, Terminée (toutes les commandes terminées, livrées ou non), Pris en charge, En acheminement, En livraison, Livraison manquée, À retirer, Livré, Problème, Avec SAV, À confirmer, En production (tout). Nouvelles couleurs de livraison.'},
   {n:106, d:'20/11/2026', tag:'admin', t:'Tableau de bord › Commandes : colonne Livraison toujours visible', x:'Le tableau est un peu plus compact (marges réduites, formats et producteurs sur plusieurs lignes) pour que la colonne Livraison ne soit plus coupée sur un écran moyen.'},
   {n:105, d:'20/11/2026', tag:'admin', t:'Livraison : détail des étapes du transporteur', x:'Dans Tableau de bord > Commandes, la pastille « Livraison » s\'ouvre au clic : liste des étapes du colis (date, heure, agence) et lien vers le suivi du transporteur. En passant la souris dessus, on voit le dernier événement. Les données arriveront avec le suivi automatique (script Google).'},
   {n:104, d:'20/11/2026', tag:'admin', t:'Livraison : nouveau statut « Livraison manquée »', x:'Pour un colis dont la livraison a échoué (destinataire absent) et qui sera en général présenté de nouveau ou déposé en point relais : statut violet « Livraison manquée », sans alerte rouge. Le filtre Livraison du tableau de bord le propose aussi.'},
@@ -6200,6 +6201,14 @@ function statutSelectOptionsHtml(){
   var h = ['waiting', 'in_progress', 'reprint', 'produced', 'done'].map(function(k){ return '<option value="'+k+'">'+esc(stLabel(k, 'sel'))+'</option>'; }).join('');
   return h + statutCustoms(false).map(function(d){ return '<option value="m:'+esc(d.key)+'">'+esc((d.emoji ? d.emoji+' ' : '')+d.label)+'</option>'; }).join('');
 }
+// Liste unique de la recherche : production, livraison, puis filtres transversaux
+function dashStatutFilterOptionsHtml(){
+  var prod = ['waiting', 'in_progress', 'reprint', 'produced', 'done'].map(function(k){ return '<option value="'+k+'">'+esc(stLabel(k, 'sel'))+'</option>'; }).join('');
+  var liv = LIV_STATUTS.map(function(x){ return '<option value="l:'+x.k+'">'+(x.ico || '🚚')+' '+x.l+'</option>'; }).join('');
+  var cust = statutCustoms(false).map(function(d){ return '<option value="m:'+esc(d.key)+'">'+esc((d.emoji ? d.emoji+' ' : '')+d.label)+'</option>'; }).join('');
+  return '<option value="">Tous les statuts</option>'+prod+liv+cust+
+    '<option value="sav">🛠 Avec SAV</option><option value="conf">📮 À confirmer</option><option value="prod_all">🏭 En production (tout)</option>';
+}
 function startStatutsListener(){
   db.ref('settings/statuts').on('value', function(snap){
     S_statuts = snap.val() || {};
@@ -8869,13 +8878,13 @@ function suiviPendingCmds(){
 // (st = clé ci-dessous, at = date de la dernière mise à jour, lbl = libellé brut du transporteur).
 // Sans ce champ (toutes les commandes actuelles) : « — », rien ne change.
 var LIV_STATUTS = [
-  {k:'pris',      l:'Pris en charge',  c:'#9ca3af', bg:'rgba(156,163,175,.16)'},
-  {k:'transit',   l:'En acheminement', c:'#3b82f6', bg:'rgba(59,130,246,.14)'},
-  {k:'livraison', l:'En livraison',    c:'#f97316', bg:'rgba(249,115,22,.15)'},
-  {k:'manque',    l:'Livraison manquée', c:'#8b5cf6', bg:'rgba(139,92,246,.15)'},
-  {k:'retirer',   l:'À retirer',       c:'#eab308', bg:'rgba(234,179,8,.17)'},
-  {k:'livre',     l:'Livré',           c:'#10b981', bg:'rgba(16,185,129,.14)'},
-  {k:'probleme',  l:'Problème',        c:'#ef4444', bg:'rgba(239,68,68,.15)'}
+  {k:'pris',      l:'Pris en charge',  c:'#64748b', bg:'rgba(100,116,139,.16)'},
+  {k:'transit',   l:'En acheminement', c:'#0284c7', bg:'rgba(2,132,199,.14)'},
+  {k:'livraison', l:'En livraison',    c:'#0d9488', bg:'rgba(13,148,136,.15)'},
+  {k:'manque',    l:'Livraison manquée', c:'#db2777', bg:'rgba(219,39,119,.14)'},
+  {k:'retirer',   l:'À retirer',       c:'#65a30d', bg:'rgba(101,163,13,.17)'},
+  {k:'livre',     l:'Livré',           c:'#047857', bg:'#047857', solid:true, ico:'✓'},
+  {k:'probleme',  l:'Problème',        c:'#dc2626', bg:'#dc2626', solid:true, ico:'⚠'}
 ];
 function livInfo(key){ for(var i = 0; i < LIV_STATUTS.length; i++){ if(LIV_STATUTS[i].k === key) return LIV_STATUTS[i]; } return null; }
 function livKeyOfColis(k){ return k && k.liv && livInfo(k.liv.st) ? k.liv.st : null; }
@@ -8892,7 +8901,19 @@ function dashLivCmd(c){
 }
 function livPillHtml(key, sub){
   var i = livInfo(key); if(!i) return '';
-  return '<span style="display:inline-block;font-size:.74rem;font-family:Open Sans,sans-serif;font-weight:800;padding:3px 9px;border-radius:99px;background:'+i.bg+';color:'+i.c+';border:1px solid '+i.c+';white-space:nowrap">'+i.l+'</span>'+(sub ? '<div style="font-size:.66rem;color:var(--mut);margin-top:2px;white-space:nowrap">'+sub+'</div>' : '');
+  var ico = i.ico || '🚚';
+  var st = i.solid
+    ? 'background:'+i.bg+';color:#fff;border:1px solid '+i.c
+    : 'background:'+i.bg+';color:'+i.c+';border:1px solid '+i.c;
+  return '<span style="display:inline-block;font-size:.74rem;font-family:Open Sans,sans-serif;font-weight:800;padding:3px 9px;border-radius:99px;'+st+';white-space:nowrap">'+ico+' '+i.l+'</span>'+(sub ? '<div style="font-size:.66rem;color:var(--mut);margin-top:2px;white-space:nowrap">'+sub+'</div>' : '');
+}
+// Statut unique affiché dans la recherche : statut de production, puis statut de livraison une fois la commande terminée et suivie
+function dashStatutAffiche(c, sit){
+  sit = sit || dashComputeSituation(c);
+  if(!sit || sit.key !== 'done' || sit.manual) return sit;
+  var r = null; try{ r = dashLivCmd(c); }catch(e){}
+  if(!r || !livInfo(r.key)) return sit;
+  return {key:'l:'+r.key, liv:true, livKey:r.key, label:livInfo(r.key).l, color:livInfo(r.key).c, bg:livInfo(r.key).bg};
 }
 function dashLivCellHtml(c){
   var r = dashLivCmd(c);
@@ -8997,8 +9018,8 @@ function livGoToList(){
   if(g && g.style.display !== 'none'){
     switchGroup('dashboard');
     dashSwitchSection('recherche');
-    var s = document.getElementById('dash-search-liv');
-    if(s){ s.value = 'probleme'; dashRunSearch(); } else { window._dashPresetLiv = 'probleme'; }
+    var s = document.getElementById('dash-search-situation');
+    if(s){ s.value = 'l:probleme'; dashRunSearch(); } else { window._dashPresetSituation = 'l:probleme'; }
   }
 }
 function suiviSeenKey(){ return 'isoprod_suivi_seen_' + (me && me.uid ? me.uid : 'x'); }
@@ -24942,18 +24963,13 @@ function dashRenderRecherche(){
   html += '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">';
   html += '<select id="dash-search-site" onchange="dashRunSearch()" style="flex:1;min-width:130px;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.85rem;padding:8px;outline:none"><option value="">Tous les sites</option>'+siteOpts+'</select>';
   html += '<select id="dash-search-situation" onchange="dashRunSearch()" style="flex:1;min-width:180px;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.85rem;padding:8px;outline:none">'+
-    '<option value="">Tous les statuts</option>'+
-    '<option value="prod_all">🏭 À la production (tout)</option>'+
-    statutSelectOptionsHtml()+
-    '<option value="sav">🛠 Avec SAV</option>'+
-    '<option value="conf">📮 À confirmer</option>'+
+    dashStatutFilterOptionsHtml()+
     '</select>';
   html += '<select id="dash-search-suivi" onchange="dashRunSearch()" style="flex:1;min-width:180px;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.85rem;padding:8px;outline:none">'+
     '<option value="">Suivi : tout</option>'+
     '<option value="sans">📭 Sans n° de suivi (hors emport et courrier simple)</option>'+
     '<option value="avec">📦 Avec n° de suivi</option>'+
     '</select>';
-  html += '<select id="dash-search-liv" onchange="dashRunSearch()" style="flex:1;min-width:160px;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.85rem;padding:8px;outline:none">'+livOptionsHtml()+'</select>';
   html += '</div>';
   html += '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">';
   html += '<label style="font-size:.78rem;color:var(--mut);display:flex;align-items:center;gap:4px">Du <input type="date" id="dash-search-from" onchange="dashRunSearch()" style="background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.82rem;padding:6px 8px;outline:none"></label>';
@@ -24964,15 +24980,15 @@ function dashRenderRecherche(){
   html += '<div id="dash-search-count" style="font-size:.72rem;color:var(--mut);margin-bottom:8px"></div>';
   html += '<div style="font-size:.7rem;color:var(--acc);margin-bottom:6px">↔ Sur mobile, faites défiler le tableau horizontalement pour voir toutes les colonnes</div>';
   html += '<div class="dash-tbl-wrap">';
-  html += '<table class="dash-cmd-tbl" style="width:100%;min-width:1000px;border-collapse:collapse;font-size:.8rem">';
+  html += '<table class="dash-cmd-tbl" style="width:100%;min-width:920px;border-collapse:collapse;font-size:.8rem">';
   html += '<thead><tr style="text-align:left;border-bottom:1.5px solid var(--brd)">'+
-    ['CMD','SITE','STATUT','FORMATS','QTÉ','PAR','CRÉÉ LE','DÉPART PRÉVU','EXPÉDIÉ LE','SUIVI','LIVRAISON'].map(function(h){
+    ['CMD','SITE','STATUT','FORMATS','QTÉ','PAR','CRÉÉ LE','DÉPART PRÉVU','EXPÉDIÉ LE','SUIVI'].map(function(h){
       return '<th style="padding:7px 9px;color:var(--mut);font-family:Open Sans,sans-serif;font-size:0.71rem;font-weight:800;letter-spacing:.03em;white-space:nowrap">'+h+'</th>';
     }).join('')+
     '</tr></thead><tbody id="dash-search-tbody"></tbody></table></div>';
   el.innerHTML = html;
   if(window._dashPresetSituation){ var ps = document.getElementById('dash-search-situation'); if(ps) ps.value = window._dashPresetSituation; window._dashPresetSituation = null; }
-  if(window._dashPresetLiv){ var pl = document.getElementById('dash-search-liv'); if(pl) pl.value = window._dashPresetLiv; window._dashPresetLiv = null; }
+  
   dashRunSearch();
 }
 
@@ -24987,7 +25003,7 @@ function dashSansColisParNature(c){
   return colisList(c).some(function(k){ return /courrier|lettre/i.test(String(k.transp || '')+' '+String(lab[k.transp] || '')); });
 }
 function dashResetRecherche(){
-  ['dash-search-q','dash-search-site','dash-search-situation','dash-search-suivi','dash-search-liv','dash-search-from','dash-search-to'].forEach(function(id){
+  ['dash-search-q','dash-search-site','dash-search-situation','dash-search-suivi','dash-search-from','dash-search-to'].forEach(function(id){
     var e = document.getElementById(id);
     if(e) e.value = '';
   });
@@ -25002,7 +25018,6 @@ function dashRunSearch(){
   var site = document.getElementById('dash-search-site').value;
   var situationFilter = document.getElementById('dash-search-situation').value;
   var suiviEl = document.getElementById('dash-search-suivi'), suiviFilter = suiviEl ? suiviEl.value : '';
-  var livEl = document.getElementById('dash-search-liv'), livFilter = livEl ? livEl.value : '';
   var fromVal = document.getElementById('dash-search-from').value;
   var toVal = document.getElementById('dash-search-to').value;
   var fromMs = fromVal ? new Date(fromVal+'T00:00:00').getTime() : null;
@@ -25015,10 +25030,10 @@ function dashRunSearch(){
     if(toMs!=null && (c.createdAt||0) > toMs) return false;
     if(suiviFilter === 'sans'){ if(dashHasSuiviNum(c) || dashSansColisParNature(c)) return false; }
     else if(suiviFilter === 'avec'){ if(!dashHasSuiviNum(c)) return false; }
-    if(livFilter){ var lv = dashLivCmd(c); if(livFilter === 'none'){ if(lv) return false; } else if(!lv || lv.key !== livFilter) return false; }
     if(situationFilter === 'sav'){ if(!dashSavList(c).length) return false; }
     else if(situationFilter === 'conf'){ if(!suiviPending(c).length) return false; }
     else if(situationFilter === 'prod_all'){ var sk = dashComputeSituation(c).key; if(sk !== 'waiting' && sk !== 'in_progress' && sk !== 'reprint' && sk !== 'produced') return false; }
+    else if(/^l:/.test(situationFilter||'')){ var ua = dashStatutAffiche(c); if(!ua || !ua.liv || ua.livKey !== situationFilter.slice(2)) return false; }
     else if(/^m:/.test(situationFilter||'')){ var mk = situationFilter.slice(2); if(!(c.statutManuel && c.statutManuel.key === mk && statusDisplay(c, dashComputeSituationBase(c)).manual)) return false; }
     else if(situationFilter && dashComputeSituation(c).key !== situationFilter) return false;
     if(q){
@@ -25034,7 +25049,7 @@ function dashRunSearch(){
   var tbody = document.getElementById('dash-search-tbody');
   if(!tbody) return;
   if(!list.length){
-    tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;color:var(--mut);padding:24px;font-size:.85rem">Aucune commande ne correspond.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;color:var(--mut);padding:24px;font-size:.85rem">Aucune commande ne correspond.</td></tr>';
     return;
   }
   var rows = list.slice(0,300).map(function(c){
@@ -25044,7 +25059,8 @@ function dashRunSearch(){
     var elapsed = c.status==='done' ? '—' : dashFormatElapsed(Date.now()-(c.createdAt||Date.now()));
     var overdue = dashIsOverdue(c);
     var depart = c.dateDepart ? new Date(c.dateDepart+'T00:00:00').toLocaleDateString('fr-FR') : '—';
-    var situationHtml =
+    var situationU = dashStatutAffiche(c, situation);
+    var situationHtml = situationU.liv ? dashLivCellHtml(c) :
       '<span style="display:inline-block;font-size:0.78rem;font-family:Open Sans,sans-serif;font-weight:800;padding:3px 9px;border-radius:99px;background:'+situation.bg+';color:'+situation.color+';border:1px solid '+situation.color+';white-space:nowrap">'+situation.label+'</span>'+
       (situation.sub ? '<div style="margin-top:3px"><span style="display:inline-block;font-size:0.69rem;font-family:Open Sans,sans-serif;font-weight:700;padding:2px 7px;border-radius:99px;background:none;color:'+situation.color+';border:1px solid '+situation.color+';white-space:nowrap">'+situation.sub+'</span></div>' : '');
     if(suiviPending(c).length) situationHtml += '<div style="margin-top:3px"><span style="display:inline-block;font-size:0.69rem;font-weight:800;padding:2px 7px;border-radius:99px;background:rgba(217,119,6,.15);color:var(--acc)">📮 À confirmer</span></div>';
@@ -25061,10 +25077,9 @@ function dashRunSearch(){
       '<td style="padding:7px 9px;white-space:nowrap;'+(overdue?'color:var(--red);font-weight:700':'color:var(--mut)')+'">'+(c.urgent && c.status!=='done'?'🚨 ':'')+depart+(overdue?' ⚠️':'')+dashDepartEditBtn(c)+'</td>'+
       '<td style="padding:7px 9px;vertical-align:top;white-space:nowrap">'+suiviShipDatesHtml(c)+'</td>'+
       '<td style="padding:7px 9px;vertical-align:top">'+suiviRowLinksHtml(c)+'</td>'+
-      '<td style="padding:7px 9px;vertical-align:top">'+dashLivCellHtml(c)+'</td>'+
     '</tr>';
   }).join('');
-  tbody.innerHTML = rows + (list.length>300 ? '<tr><td colspan="11" style="text-align:center;color:var(--mut);font-size:.72rem;padding:10px">Affichage limité aux 300 premiers résultats — affinez la recherche.</td></tr>' : '');
+  tbody.innerHTML = rows + (list.length>300 ? '<tr><td colspan="10" style="text-align:center;color:var(--mut);font-size:.72rem;padding:10px">Affichage limité aux 300 premiers résultats — affinez la recherche.</td></tr>' : '');
 }
 
 // ── SAV (service après-vente) sur les commandes ──
