@@ -1304,7 +1304,9 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
       <button type="button" onclick="openCreateMach('numerique')" style="flex:1;min-width:140px;padding:9px;border-radius:8px;border:none;background:var(--acc);color:#000;font-family:Open Sans,sans-serif;font-weight:700;font-size:.8rem;cursor:pointer">+ Machine (Numérique)</button>
       <button type="button" onclick="openCreatePlateauFormat(true)" style="flex:1;min-width:140px;padding:9px;border-radius:8px;border:1.5px solid var(--acc);background:none;color:var(--acc);font-family:Open Sans,sans-serif;font-weight:700;font-size:.8rem;cursor:pointer">+ Format de plateau</button>
     </div>
-    <div id="admin-mach-list"></div>
+    <input type="text" id="admin-mach-q" placeholder="🔍 Rechercher une machine ou un format" oninput="machAdminQ(this.value)" style="width:100%;box-sizing:border-box;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.82rem;padding:8px 10px;outline:none;margin-bottom:8px">
+    <div id="admin-mach-chips" style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:8px"></div>
+    <div id="admin-mach-list" style="overflow-x:auto"></div>
   </div>
 
   <!-- Contrôle du compte administrateur -->
@@ -2024,7 +2026,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.11.20-1045';
+var APP_VERSION = '2026.11.20-1115';
 var MANUEL_URL = 'manuel-isoprod.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -2982,6 +2984,7 @@ function ecranAutoOpen(tries){
 // Pas de correctif technique invisible ici. tag = qui est concerné :
 //   'all' (tout le monde), 'admin' (admin/direction), 'maint' (maintenance), 'stock' (ajout de stock), 'reprint' (réimpressions)
 var NEWS = [
+  {n:100, d:'20/11/2026', tag:'admin', t:'Admin › Machines : tableau avec recherche et filtres, formats de plateau inclus', x:'La carte Machines devient un tableau (nom, type, détail) avec recherche et filtres Toutes / Badges / Numérique / Plateaux. Les formats de plateau y apparaissent, avec leur nombre de configurations, plateaux et têtes. Un clic sur une ligne ouvre la modification ; on peut maintenant renommer un format de plateau.'},
   {n:99, d:'20/11/2026', tag:'admin', t:'Admin : règles de quantité et pôle numérique toujours actifs', x:'Les sections des Réglages tiennent sur une seule ligne. Les deux interrupteurs « Règles de quantité (Ma production) » et « Pôle numérique — commandes mixtes » sont retirés des Réglages : ces deux fonctionnements sont désormais permanents, il n\'est plus possible de revenir à l\'ancien.'},
   {n:98, d:'20/11/2026', tag:'admin', t:'Admin › Réglages : sections et cartes repliables', x:'Les réglages sont rangés en 6 sections (Stock & produits, Production & commandes, Maintenance, Expédition, Tableau de bord, Outils & base) avec une recherche « Trouver un réglage ». Chaque réglage est une carte repliable (une seule ouverte à la fois) avec un résumé. L\'ancien onglet Interventions devient la section « Outils & base », avec les outils ponctuels regroupés à part.'},
   {n:97, d:'20/11/2026', tag:'all', t:'Approvisionnement et Réimpression : bouton « Nouvelle… » sous les onglets', x:'Le bouton rond en bas à droite disparaît. Dans Approvisionnement, « 🛒 Nouvelle commande » se trouve sous les onglets En cours / Historique ; dans Réimpression, « 🖨️ Nouvelle demande de réimpression » se trouve sous les onglets, dans le sous-onglet En attente.'},
@@ -15385,7 +15388,7 @@ function openCreatePlateauFormat(fromAdmin){
     var newId = gid();
     fbs('plateaux/'+newId, { nom:nom, createdAt:Date.now() }).then(function(){
       toast('✅ Format créé');
-      if(fromAdmin){ cm('m-confirm'); fbg('plateaux').then(function(snap){ var raw = snap.val()||{}; S_plateaux = Object.keys(raw).map(function(id){ return Object.assign({id:id},raw[id]); }); }); return; }
+      if(fromAdmin){ cm('m-confirm'); fbg('plateaux').then(function(snap){ var raw = snap.val()||{}; S_plateaux = Object.keys(raw).map(function(id){ return Object.assign({id:id},raw[id]); }); try{ machAdminRender(); }catch(e){} }); return; }
       curMaintSub = 'plateaux';
       // Lire directement depuis Firebase sans attendre le listener
       fbg('plateaux').then(function(snap){
@@ -15474,8 +15477,34 @@ function openAddElement(type, formatId, empId){
   om('m-confirm');
 }
 
+// ── Renommer un format (depuis Admin › Réglages) ──
+function openEditPlateauFormat(formatId){
+  var fmt = S_plateaux.find(function(f){ return f.id===formatId; });
+  if(!fmt) return;
+  document.getElementById('cf-title').textContent = '✏️ Modifier le format';
+  document.getElementById('cf-msg').innerHTML =
+    '<div style="text-align:left"><div class="ff"><label>Nom du format *</label>'+
+    '<input type="text" id="edit-fmt-nom" value="'+esc(fmt.nom||'')+'" style="width:100%;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.88rem;padding:9px;outline:none;margin-top:4px;box-sizing:border-box">'+
+    '</div><div style="font-size:.72rem;color:var(--mut);margin-top:8px">Les plateaux, têtes et configurations se gèrent dans Maintenance › Plateaux.</div></div>';
+  var cfBtn = document.querySelector('#m-confirm .btn.bdan');
+  if(cfBtn){ cfBtn.textContent='✅ Enregistrer'; cfBtn.style.background='var(--grn)'; cfBtn.style.color='#000'; }
+  cfCb = function(){
+    var nom = document.getElementById('edit-fmt-nom').value.trim().toUpperCase();
+    if(!nom){ toast('Nom obligatoire',1); return; }
+    fbu('plateaux/'+formatId, {nom:nom}).then(function(){
+      cm('m-confirm'); toast('✅ Format mis à jour');
+      fbg('plateaux').then(function(snap){
+        var raw = snap.val()||{};
+        S_plateaux = Object.keys(raw).map(function(id){ return Object.assign({id:id},raw[id]); });
+        try{ machAdminRender(); }catch(e){}
+      });
+    });
+  };
+  om('m-confirm');
+}
+
 // ── Suppressions ──
-function askDelPlateauFormat(formatId){
+function askDelPlateauFormat(formatId, stay){
   document.getElementById('cf-title').textContent = 'Supprimer ce format ?';
   document.getElementById('cf-msg').textContent = 'Tous les plateaux, têtes et combinaisons associés seront supprimés.';
   cfCb = function(){
@@ -15484,6 +15513,7 @@ function askDelPlateauFormat(formatId){
       fbg('plateaux').then(function(snap){
         var raw = snap.val()||{};
         S_plateaux = Object.keys(raw).map(function(id){ return Object.assign({id:id},raw[id]); });
+        if(stay){ cm('m-confirm'); try{ machAdminRender(); }catch(e){} return; }
         curMaintSub = 'plateaux';
         document.getElementById('view-maint-detail').classList.remove('active');
         document.getElementById('view-maintenance').classList.add('active');
@@ -16081,27 +16111,60 @@ function stockrefAdminRender(){
   el.innerHTML = h;
 }
 // ── Machines : liste dans Admin › Réglages (créer / modifier / supprimer) ──
+var _machAdminQ = '', _machAdminF = 'all', _machPltTried = false;
+function machAdminQ(v){ _machAdminQ = String(v||'').toLowerCase(); machAdminRender(); }
+function machAdminF(f){ _machAdminF = f; machAdminRender(); }
 function machAdminRender(){
   try{ stockrefAdminRender(); }catch(e){}
   var block = document.getElementById('admin-mach-block'); if(!block) return;
   var ok = !!(iAm || isDir); block.style.display = ok ? '' : 'none'; if(!ok) return;
   var el = document.getElementById('admin-mach-list'); if(!el) return;
-  var btn = 'padding:4px 9px;border-radius:6px;border:1.5px solid var(--brd);background:none;color:var(--txt);font-size:.74rem;cursor:pointer';
-  var h = '';
-  [['badges','🏷️ Badges'],['numerique','🖨️ Numérique']].forEach(function(pp){
-    var list = S_mach.filter(function(m){ return machPole(m) === pp[0]; }).sort(function(a, b){ return String(a.name||'').localeCompare(String(b.name||''), 'fr', {numeric:true}); });
-    h += '<div style="margin-top:8px;font-weight:700;font-size:.8rem">'+pp[1]+' <span style="font-weight:400;color:var(--mut)">('+list.length+')</span></div>';
-    if(!list.length) h += '<div style="font-size:.76rem;color:var(--mut);padding:4px 0">Aucune machine.</div>';
-    list.forEach(function(m){
-      var t = MACH_TYPES[m.type || 'semi'], tl = t ? t.label : (m.type || '');
-      h += '<div style="display:flex;gap:6px;align-items:center;padding:6px 0;border-top:1px solid var(--brd)">'+
-        '<div style="flex:1;min-width:0"><div style="font-size:.82rem;font-weight:700">'+esc(m.name||'?')+'</div><div style="font-size:.7rem;color:var(--mut)">'+esc(tl)+(m.serialNumber ? ' · N° '+esc(m.serialNumber) : '')+'</div></div>'+
-        '<button type="button" style="'+btn+'" onclick="machAdminEdit(\''+esc(m.id)+'\')">✏️ Modifier</button>'+
-        '<button type="button" style="'+btn+';border-color:var(--red);color:var(--red)" onclick="machAdminDel(\''+esc(m.id)+'\')">🗑</button></div>';
-    });
+  // formats de plateau : chargés une fois si pas encore en mémoire
+  if(!S_plateaux.length && !_machPltTried){
+    _machPltTried = true;
+    try{ fbg('plateaux').then(function(snap){ var raw = snap.val()||{}; S_plateaux = Object.keys(raw).map(function(id){ return Object.assign({id:id},raw[id]); }); if(S_plateaux.length) machAdminRender(); }); }catch(e){}
+  }
+  var cmp = function(a, b){ return String(a.n||'').localeCompare(String(b.n||''), 'fr', {numeric:true}); };
+  var rows = [];
+  S_mach.forEach(function(m){
+    var t = MACH_TYPES[m.type || 'semi'], tl = t ? t.label : (m.type || '');
+    rows.push({k:machPole(m)==='numerique'?'numerique':'badges', n:m.name||'?', cat:tl, det:m.serialNumber ? 'N° '+m.serialNumber : '', id:m.id, plt:false});
   });
-  el.innerHTML = h;
+  S_plateaux.forEach(function(f){
+    var emps = f.emplacements||{}, nbPl = 0, nbTe = 0;
+    Object.values(emps).forEach(function(emp){ var c = pltEmpCounts(emp); nbPl += c.nbPl; nbTe += c.nbTe; });
+    var nc = Object.keys(emps).length;
+    rows.push({k:'plateaux', n:f.nom||'?', cat:'Format de plateau', det:nc+' config'+(nc>1?'s':'')+' · '+nbPl+' plateau'+(nbPl>1?'x':'')+' · '+nbTe+' tête'+(nbTe>1?'s':''), id:f.id, plt:true});
+  });
+  var cnt = {all:rows.length, badges:0, numerique:0, plateaux:0};
+  rows.forEach(function(r){ cnt[r.k]++; });
+  var chipsEl = document.getElementById('admin-mach-chips');
+  if(chipsEl) chipsEl.innerHTML = [['all','Toutes'],['badges','🏷️ Badges'],['numerique','🖨️ Numérique'],['plateaux','🔩 Plateaux']].map(function(c){
+    var on = _machAdminF === c[0];
+    return '<button type="button" onclick="machAdminF(\''+c[0]+'\')" style="padding:5px 11px;border-radius:99px;border:1.5px solid '+(on?'var(--acc)':'var(--brd)')+';background:'+(on?'var(--acc)':'none')+';color:'+(on?'#000':'var(--mut)')+';font-family:Open Sans,sans-serif;font-weight:700;font-size:.74rem;cursor:pointer;white-space:nowrap">'+c[1]+' '+cnt[c[0]]+'</button>';
+  }).join('');
+  var q = _machAdminQ;
+  var list = rows.filter(function(r){ return (_machAdminF === 'all' || r.k === _machAdminF) && (!q || (r.n+' '+r.cat+' '+r.det).toLowerCase().indexOf(q) >= 0); });
+  var ord = {badges:0, numerique:1, plateaux:2};
+  list.sort(function(a, b){ return (ord[a.k]-ord[b.k]) || cmp(a, b); });
+  var btn = 'padding:4px 8px;border-radius:6px;border:1.5px solid var(--brd);background:none;color:var(--txt);font-size:.74rem;cursor:pointer';
+  if(!list.length){ el.innerHTML = '<div style="font-size:.76rem;color:var(--mut);padding:8px 0">'+(q ? 'Aucun résultat.' : 'Aucune machine.')+'</div>'; return; }
+  var lab = {badges:'🏷️ Badges', numerique:'🖨️ Numérique', plateaux:'🔩 Plateaux'};
+  var h = '<table style="width:100%;border-collapse:collapse;font-size:.8rem;min-width:420px"><thead><tr style="text-align:left;color:var(--mut);font-size:.7rem"><th style="padding:5px 6px;font-weight:600">NOM</th><th style="padding:5px 6px;font-weight:600">TYPE</th><th style="padding:5px 6px;font-weight:600">DÉTAIL</th><th></th></tr></thead><tbody>';
+  list.forEach(function(r){
+    var eid = esc(r.id);
+    var onEdit = r.plt ? 'machAdminEditPlt(\''+eid+'\')' : 'machAdminEdit(\''+eid+'\')';
+    var onDel = r.plt ? 'machAdminDelPlt(\''+eid+'\')' : 'machAdminDel(\''+eid+'\')';
+    h += '<tr onclick="'+onEdit+'" style="border-top:1px solid var(--brd);cursor:pointer">'+
+      '<td style="padding:8px 6px;font-weight:700">'+esc(r.n)+(_machAdminF==='all' ? '<div style="font-weight:400;font-size:.66rem;color:var(--mut)">'+lab[r.k]+'</div>' : '')+'</td>'+
+      '<td style="padding:8px 6px;color:var(--mut)">'+esc(r.cat)+'</td>'+
+      '<td style="padding:8px 6px;color:var(--mut)">'+esc(r.det)+'</td>'+
+      '<td style="padding:8px 6px;text-align:right;white-space:nowrap"><button type="button" style="'+btn+'" onclick="event.stopPropagation();'+onEdit+'">✏️</button> <button type="button" style="'+btn+';border-color:var(--red);color:var(--red)" onclick="event.stopPropagation();'+onDel+'">🗑</button></td></tr>';
+  });
+  el.innerHTML = h+'</tbody></table>';
 }
+function machAdminEditPlt(id){ openEditPlateauFormat(id); }
+function machAdminDelPlt(id){ askDelPlateauFormat(id, true); }
 function machAdminEdit(id){ curMachId = id; openEditMach(); }
 function machAdminDel(id){ curMachId = id; askDelMach(true); }
 // ── Contrôle du compte administrateur (Admin > Réglages) ──
