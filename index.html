@@ -423,6 +423,18 @@ body.dash-commandes-wide main{max-width:1500px}
 .fmt-warn{font-size:.68rem;color:var(--acc);margin-top:2px;display:none}
 .maint-sub-btn{padding:7px 14px;border-radius:8px;border:1.5px solid var(--brd);background:none;color:var(--mut);font-family:Open Sans,sans-serif;font-weight:700;font-size:0.84rem;cursor:pointer;white-space:nowrap;transition:all .15s}
 .maint-sub-btn.active{background:var(--acc);color:#000;border-color:var(--acc)}
+/* Admin › Réglages : sections + cartes repliables */
+.reg-chip{padding:8px 13px;border-radius:99px;border:1.5px solid var(--brd);background:var(--card);color:var(--mut);font-family:Open Sans,sans-serif;font-weight:700;font-size:.8rem;cursor:pointer;white-space:nowrap}
+.reg-chip.active{background:var(--acc);color:#000;border-color:var(--acc)}
+.reg-hide{display:none!important}
+.reg-card .reg-head{display:flex;align-items:center;gap:8px;cursor:pointer;margin-bottom:0!important;user-select:none}
+.reg-card .reg-chev{display:inline-block;transition:transform .15s;color:var(--mut);font-size:.8rem;flex:none}
+.reg-card.reg-open .reg-chev{transform:rotate(90deg)}
+.reg-card .reg-sum{margin-left:auto;font-family:'DM Sans',sans-serif;font-weight:400;font-size:.72rem;color:var(--mut);white-space:nowrap}
+.reg-card .reg-body{display:none;margin-top:12px}
+.reg-card.reg-open .reg-body{display:block}
+.reg-card .reg-body [id$="-list"]{max-height:65vh;overflow-y:auto;overscroll-behavior:contain}
+.reg-sep{font-family:Open Sans,sans-serif;font-weight:800;font-size:.74rem;letter-spacing:.04em;text-transform:uppercase;color:var(--mut);margin:14px 2px 8px}
 .maint-sub-btn:hover:not(.active){background:var(--card);color:var(--txt)}
 .mpole-btn{flex:1;padding:7px 10px;border-radius:8px;border:1.5px solid var(--brd);background:none;color:var(--mut);font-family:Open Sans,sans-serif;font-weight:700;font-size:.82rem;cursor:pointer}
 .mpole-btn.active{background:var(--acc);color:#000;border-color:var(--acc)}
@@ -618,7 +630,7 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
 </div>
 <div class="tab-sub-bar" id="sub-bar-admin" style="display:none">
   <a href="#/admin_droits" data-route="admin_droits" class="tab-sub-btn active" id="sub-admin-droits" onclick="if(tabLinkNew(event))return true;switchSubTab('admin_droits',this);return false">👥 Droits</a>
-  <a href="#/admin_interventions" data-route="admin_interventions" class="tab-sub-btn" id="sub-admin-interventions" onclick="if(tabLinkNew(event))return true;switchSubTab('admin_interventions',this);return false">🛠️ Interventions</a>
+  <a href="#/admin_interventions" data-route="admin_interventions" class="tab-sub-btn" id="sub-admin-interventions" style="display:none" onclick="if(tabLinkNew(event))return true;switchSubTab('admin_interventions',this);return false">🛠️ Interventions</a>
   <a href="#/admin_reglages" data-route="admin_reglages" class="tab-sub-btn" id="sub-admin-reglages" onclick="if(tabLinkNew(event))return true;switchSubTab('admin_reglages',this);return false">⚙️ Réglages</a>
 </div>
   <main>
@@ -1269,6 +1281,11 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
 </div>
 
 <div id="view-admin_reglages" class="view">
+  <div id="reg-top">
+    <div id="reg-nav" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px"></div>
+    <input type="text" id="reg-q" placeholder="🔍 Trouver un réglage…" oninput="regSearch(this.value)" style="width:100%;background:var(--card);border:1.5px solid var(--brd);border-radius:10px;color:var(--txt);font-size:.85rem;padding:9px 12px;outline:none;box-sizing:border-box;margin-bottom:12px">
+  </div>
+  <div id="reg-cards"></div>
   <!-- Références de stock -->
   <div id="admin-stockref-block" style="display:none;background:var(--card);border:1.5px solid var(--brd);border-radius:14px;padding:14px;margin-bottom:16px">
     <div style="font-family:Open Sans,sans-serif;font-weight:800;font-size:0.95rem;margin-bottom:6px">📦 Références de stock</div>
@@ -2021,7 +2038,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.11.20-0940';
+var APP_VERSION = '2026.11.20-1015';
 var MANUEL_URL = 'manuel-isoprod.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -2979,6 +2996,7 @@ function ecranAutoOpen(tries){
 // Pas de correctif technique invisible ici. tag = qui est concerné :
 //   'all' (tout le monde), 'admin' (admin/direction), 'maint' (maintenance), 'stock' (ajout de stock), 'reprint' (réimpressions)
 var NEWS = [
+  {n:98, d:'20/11/2026', tag:'admin', t:'Admin › Réglages : sections et cartes repliables', x:'Les réglages sont rangés en 6 sections (Stock & produits, Production & commandes, Maintenance, Expédition, Tableau de bord, Outils & base) avec une recherche « Trouver un réglage ». Chaque réglage est une carte repliable (une seule ouverte à la fois) avec un résumé. L\'ancien onglet Interventions devient la section « Outils & base », avec les outils ponctuels regroupés à part.'},
   {n:97, d:'20/11/2026', tag:'all', t:'Approvisionnement et Réimpression : bouton « Nouvelle… » sous les onglets', x:'Le bouton rond en bas à droite disparaît. Dans Approvisionnement, « 🛒 Nouvelle commande » se trouve sous les onglets En cours / Historique ; dans Réimpression, « 🖨️ Nouvelle demande de réimpression » se trouve sous les onglets, dans le sous-onglet En attente.'},
   {n:96, d:'20/11/2026', tag:'admin', t:'Stock : références gérées depuis Admin', x:'Le « + » orange des écrans Atelier et Réserve disparaît pour tout le monde. Créer, modifier ou supprimer une référence (ou un produit) se fait dans Admin › Réglages › Références de stock, avec la liste de toutes les références et une recherche. Sur la page d\'une référence, les boutons Modifier et Supprimer ne sont plus affichés à l\'administrateur.'},
   {n:95, d:'20/11/2026', tag:'all', t:'Maintenance : boutons réorganisés, machines et types d\'intervention dans Admin', x:'Sur la page d\'une machine, « + Ajouter une intervention » est maintenant en haut de la liste et le bouton des rappels s\'appelle « + Ajouter un rappel ». Le « + » orange de l\'onglet Maintenance disparaît : créer, modifier ou supprimer une machine se fait dans Admin › Réglages › Machines. Les types d\'intervention (dont le nouveau « Observation ») se gèrent aussi dans Admin › Réglages.'},
@@ -3714,6 +3732,7 @@ function emoji(cat){ var n=(cat.name||'').toLowerCase(); return n.includes('badg
 
 // ── TABS ──
 function switchTab(name) {
+  if(name === 'admin_interventions'){ name = 'admin_reglages'; regGo('outils'); }   // l'ancien onglet Interventions est devenu la section « Outils & base » des Réglages
   curTab = name;
   updateGroupNav(name);
   if(name!=='dashboard' && TAB_GROUP_MAP[name]) setRouteHash(name);
@@ -3741,7 +3760,7 @@ function switchTab(name) {
   if (name==='stats') openStatsTab();
   if (name==='dashboard' && permsLoaded){ openDashboardTab(); dashSwitchSection('recherche'); } // ouverture directe sur « Commandes »
   if (name!=='dashboard') document.body.classList.remove('dash-commandes-wide');
-  if (name.indexOf('admin_')===0) { renderPrestataires(); renderSuppliers(); renderCustomFormatsList(); renderGammesList(); adminSelfRender(); machAdminRender(); siteAdminRender(); statutAdminRender(); listesAdminRender(); famAdminRender(); renderEtapesSupAdmin(); renderTranspAdmin(); renderQtyRulesAdmin(); renderPoleCfgAdmin(); renderDashboardSettings(); if(name==='admin_interventions') admForgottenRefresh(); }
+  if (name.indexOf('admin_')===0) { renderPrestataires(); renderSuppliers(); renderCustomFormatsList(); renderGammesList(); adminSelfRender(); machAdminRender(); siteAdminRender(); statutAdminRender(); listesAdminRender(); famAdminRender(); renderEtapesSupAdmin(); renderTranspAdmin(); renderQtyRulesAdmin(); renderPoleCfgAdmin(); renderDashboardSettings(); regRefresh(); }
   if (name==='qualite') openQualiteTab();
 }
 
@@ -15933,6 +15952,122 @@ function startSitesListener(){
 }
 function siteKeyOf(code){ return String(code||'').toUpperCase().replace(/[^A-Z0-9]+/g, '_').replace(/^_+|_+$/g, ''); }
 // ── Écran Admin : liste des sites ──
+// ── Admin › Réglages : sections + cartes repliables (les cartes existantes sont rangées, pas réécrites) ──
+var REG_SECS = [['stock','📦 Stock & produits'], ['prod','🏭 Production & commandes'], ['maint','🔧 Maintenance'], ['exp','🚚 Expédition'], ['dash','📈 Tableau de bord'], ['outils','🛠️ Outils & base']];
+// [motif du titre, section, ordre, groupe (ponctuel = outils rarement utilisés)]
+var REG_MAP = [
+  [/Références de stock/, 'stock', 1], [/Familles de stock/, 'stock', 2], [/Produits & composants/, 'stock', 3], [/Formats par pôle/, 'stock', 4], [/Fournisseurs/, 'stock', 5],
+  [/Statuts de commande/, 'prod', 1], [/Sites/, 'prod', 2], [/Listes réglables/, 'prod', 3], [/Gammes de fabrication/, 'prod', 4], [/Règles de quantité/, 'prod', 5], [/Étapes supplémentaires/, 'prod', 6], [/Pôle numérique/, 'prod', 7],
+  [/Machines/, 'maint', 1], [/Prestataires/, 'maint', 2],
+  [/Transporteurs/, 'exp', 1],
+  [/Tableau de bord/, 'dash', 1],
+  [/Mon compte administrateur/, 'outils', 1], [/Sauvegarde de la base/, 'outils', 2], [/cohérence des stocks/, 'outils', 3], [/Forcer le statut/, 'outils', 4], [/Lignes oubliées/, 'outils', 5], [/Clôturer une commande/, 'outils', 6], [/Corriger la quantité/, 'outils', 7],
+  [/Références ISOCOM des fournitures/, 'outils', 20, 'ponctuel'], [/Dupliquer les références/, 'outils', 21, 'ponctuel'], [/Articles Divers/, 'outils', 22, 'ponctuel'], [/Rattrapage des commandes/, 'outils', 23, 'ponctuel']
+];
+function regPl(n, w){ return n+' '+w+(n > 1 ? 's' : ''); }
+var REG_SUM = [
+  [/Références de stock/, function(){ return regPl((S.allCats||[]).length, 'référence'); }],
+  [/Familles de stock/, function(){ return regPl(STOCK_FAMS.length, 'famille'); }],
+  [/Sites/, function(){ return regPl(siteEntries().length, 'site'); }],
+  [/Machines/, function(){ return regPl(S_mach.length, 'machine'); }],
+  [/Transporteurs/, function(){ return regPl(transpCatalogue(false).length, 'actif'); }],
+  [/Listes réglables/, function(){ return regPl(Object.keys(LISTES_DEF).length, 'liste'); }],
+  [/Règles de quantité/, function(){ return qtyRulesOn() ? 'activées' : 'désactivées'; }],
+  [/Pôle numérique/, function(){ return poleCfgOn() ? 'activée' : 'désactivée'; }]
+];
+var _regBuilt = false, _regSec = '', _regPending = '';
+function regTitle(card){ var h = card.firstElementChild; return h ? h.textContent.replace(/\s+/g, ' ').trim() : ''; }
+function regBuild(){
+  if(_regBuilt) return; var host = document.getElementById('reg-cards'); if(!host) return;
+  var cards = [];
+  ['view-admin_reglages', 'view-admin_interventions'].forEach(function(vid){
+    var v = document.getElementById(vid); if(!v) return;
+    Array.prototype.slice.call(v.children).forEach(function(c){ if(c.tagName === 'DIV' && c.id !== 'reg-top' && c.id !== 'reg-cards') cards.push(c); });
+  });
+  var items = cards.map(function(c, i){
+    var t = regTitle(c), sec = 'outils', ord = 90 + i, grp = '';
+    for(var k = 0; k < REG_MAP.length; k++){ if(REG_MAP[k][0].test(t)){ sec = REG_MAP[k][1]; ord = REG_MAP[k][2]; grp = REG_MAP[k][3] || ''; break; } }
+    return {c:c, t:t, sec:sec, ord:ord, grp:grp};
+  });
+  items.sort(function(a, b){ return a.ord - b.ord; });
+  var sepDone = false;
+  items.forEach(function(it){
+    var c = it.c, head = c.firstElementChild; if(!head) return;
+    if(it.grp === 'ponctuel' && !sepDone){ sepDone = true; var sp = document.createElement('div'); sp.className = 'reg-sep'; sp.setAttribute('data-sec', 'outils'); sp.textContent = 'Outils ponctuels (rarement utilisés)'; host.appendChild(sp); }
+    var body = document.createElement('div'); body.className = 'reg-body';
+    while(head.nextSibling) body.appendChild(head.nextSibling);
+    c.appendChild(body);
+    c.classList.add('reg-card'); c.setAttribute('data-sec', it.sec);
+    c.setAttribute('data-keys', (it.t+' '+(body.textContent||'').replace(/\s+/g, ' ').slice(0, 220)).toLowerCase());
+    head.classList.add('reg-head');
+    head.insertAdjacentHTML('afterbegin', '<span class="reg-chev">▸</span>');
+    head.insertAdjacentHTML('beforeend', '<span class="reg-sum"></span>');
+    head.addEventListener('click', function(ev){ if(ev.target.closest && ev.target.closest('button,input,select,a,textarea,label')) return; regToggle(c); });
+    host.appendChild(c);
+  });
+  _regBuilt = true;
+  var nav = document.getElementById('reg-nav');
+  if(nav) nav.innerHTML = REG_SECS.map(function(s){ return '<button type="button" class="reg-chip" data-sec="'+s[0]+'" onclick="regGo(\''+s[0]+'\')">'+s[1]+'</button>'; }).join('');
+  var st = null; try{ st = JSON.parse(localStorage.getItem('isoprod_reg_v1') || 'null'); }catch(e){}
+  regGo(_regPending || (st && st.sec) || 'stock', st && !_regPending ? st.open : '');
+  _regPending = '';
+}
+function regVisible(c){ return c.style.display !== 'none'; }
+function regSave(sec, open){ try{ localStorage.setItem('isoprod_reg_v1', JSON.stringify({sec:sec, open:open||''})); }catch(e){} }
+function regToggle(c){
+  var wasOpen = c.classList.contains('reg-open');
+  document.querySelectorAll('#reg-cards .reg-card.reg-open').forEach(function(x){ x.classList.remove('reg-open'); });   // une seule carte ouverte à la fois
+  if(!wasOpen){ c.classList.add('reg-open'); try{ c.scrollIntoView({block:'nearest'}); }catch(e){} }
+  regSave(_regSec, wasOpen ? '' : regTitle(c));
+}
+function regGo(sec, openTitle){
+  if(!_regBuilt){ _regPending = sec; return; }
+  _regSec = sec;
+  var q = document.getElementById('reg-q'); if(q) q.value = '';
+  document.querySelectorAll('#reg-nav .reg-chip').forEach(function(b){ b.classList.toggle('active', b.getAttribute('data-sec') === sec); });
+  var shown = [];
+  document.querySelectorAll('#reg-cards [data-sec]').forEach(function(el){
+    var on = el.getAttribute('data-sec') === sec;
+    el.classList.toggle('reg-hide', !on);
+    if(on && el.classList.contains('reg-card') && regVisible(el)) shown.push(el);
+  });
+  document.querySelectorAll('#reg-cards .reg-card.reg-open').forEach(function(x){ x.classList.remove('reg-open'); });
+  var target = null;
+  if(openTitle) shown.forEach(function(c){ if(regTitle(c) === openTitle) target = c; });
+  if(!target && shown.length === 1) target = shown[0];
+  if(target) target.classList.add('reg-open');
+  regSave(sec, target ? regTitle(target) : '');
+  if(sec === 'outils'){ try{ admForgottenRefresh(); }catch(e){} }
+}
+function regSearch(v){
+  v = String(v||'').trim().toLowerCase();
+  if(!v){ regGo(_regSec || 'stock'); return; }
+  document.querySelectorAll('#reg-nav .reg-chip').forEach(function(b){ b.classList.remove('active'); });
+  var hits = [];
+  document.querySelectorAll('#reg-cards [data-sec]').forEach(function(el){
+    var ok = el.classList.contains('reg-card') && regVisible(el) && (el.getAttribute('data-keys') || '').indexOf(v) >= 0;
+    el.classList.toggle('reg-hide', !ok);
+    if(ok) hits.push(el);
+  });
+  document.querySelectorAll('#reg-cards .reg-card.reg-open').forEach(function(x){ x.classList.remove('reg-open'); });
+  if(hits.length === 1) hits[0].classList.add('reg-open');
+}
+// À appeler après les rendus : résumés des cartes + sections vides masquées
+function regRefresh(){
+  if(!_regBuilt){ regBuild(); }
+  if(!_regBuilt) return;
+  document.querySelectorAll('#reg-cards .reg-card').forEach(function(c){
+    var sum = c.querySelector(':scope > .reg-head > .reg-sum'); if(!sum) return;
+    var t = regTitle(c), txt = '';
+    for(var k = 0; k < REG_SUM.length; k++){ if(REG_SUM[k][0].test(t)){ try{ txt = REG_SUM[k][1](); }catch(e){} break; } }
+    sum.textContent = txt;
+  });
+  document.querySelectorAll('#reg-nav .reg-chip').forEach(function(b){
+    var any = false;
+    document.querySelectorAll('#reg-cards .reg-card[data-sec="'+b.getAttribute('data-sec')+'"]').forEach(function(c){ if(regVisible(c)) any = true; });
+    b.style.display = any ? '' : 'none';
+  });
+}
 // ── Références de stock : liste dans Admin › Réglages (créer / modifier / supprimer) ──
 function stockrefAdminRender(){
   var block = document.getElementById('admin-stockref-block'); if(!block) return;
@@ -16782,6 +16917,7 @@ function switchGroup(group){
 }
 
 function switchSubTab(tabName, el){
+  if(tabName === 'admin_interventions'){ tabName = 'admin_reglages'; el = document.getElementById('sub-admin-reglages'); regGo('outils'); }
   activeSubTab = tabName;
   var group = TAB_GROUP_MAP[tabName] || activeGroup;
   // Activer le bon bouton dans la sous-barre
