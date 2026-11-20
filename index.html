@@ -424,7 +424,7 @@ body.dash-commandes-wide main{max-width:1500px}
 .maint-sub-btn{padding:7px 14px;border-radius:8px;border:1.5px solid var(--brd);background:none;color:var(--mut);font-family:Open Sans,sans-serif;font-weight:700;font-size:0.84rem;cursor:pointer;white-space:nowrap;transition:all .15s}
 .maint-sub-btn.active{background:var(--acc);color:#000;border-color:var(--acc)}
 /* Admin › Réglages : sections + cartes repliables */
-.reg-chip{padding:8px 13px;border-radius:99px;border:1.5px solid var(--brd);background:var(--card);color:var(--mut);font-family:Open Sans,sans-serif;font-weight:700;font-size:.8rem;cursor:pointer;white-space:nowrap}
+.reg-chip{flex:none;padding:7px 11px;border-radius:99px;border:1.5px solid var(--brd);background:var(--card);color:var(--mut);font-family:Open Sans,sans-serif;font-weight:700;font-size:.76rem;cursor:pointer;white-space:nowrap}
 .reg-chip.active{background:var(--acc);color:#000;border-color:var(--acc)}
 .reg-hide{display:none!important}
 .reg-card .reg-head{display:flex;align-items:center;gap:8px;cursor:pointer;margin-bottom:0!important;user-select:none}
@@ -1282,7 +1282,7 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
 
 <div id="view-admin_reglages" class="view">
   <div id="reg-top">
-    <div id="reg-nav" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px"></div>
+    <div id="reg-nav" style="display:flex;gap:5px;flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;margin-bottom:10px;padding-bottom:2px"></div>
     <input type="text" id="reg-q" placeholder="🔍 Trouver un réglage…" oninput="regSearch(this.value)" style="width:100%;background:var(--card);border:1.5px solid var(--brd);border-radius:10px;color:var(--txt);font-size:.85rem;padding:9px 12px;outline:none;box-sizing:border-box;margin-bottom:12px">
   </div>
   <div id="reg-cards"></div>
@@ -2024,7 +2024,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.11.20-1030';
+var APP_VERSION = '2026.11.20-1045';
 var MANUEL_URL = 'manuel-isoprod.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -2982,7 +2982,7 @@ function ecranAutoOpen(tries){
 // Pas de correctif technique invisible ici. tag = qui est concerné :
 //   'all' (tout le monde), 'admin' (admin/direction), 'maint' (maintenance), 'stock' (ajout de stock), 'reprint' (réimpressions)
 var NEWS = [
-  {n:99, d:'20/11/2026', tag:'admin', t:'Admin : règles de quantité et pôle numérique toujours actifs', x:'Les deux interrupteurs « Règles de quantité (Ma production) » et « Pôle numérique — commandes mixtes » sont retirés des Réglages : ces deux fonctionnements sont désormais permanents, il n\'est plus possible de revenir à l\'ancien.'},
+  {n:99, d:'20/11/2026', tag:'admin', t:'Admin : règles de quantité et pôle numérique toujours actifs', x:'Les sections des Réglages tiennent sur une seule ligne. Les deux interrupteurs « Règles de quantité (Ma production) » et « Pôle numérique — commandes mixtes » sont retirés des Réglages : ces deux fonctionnements sont désormais permanents, il n\'est plus possible de revenir à l\'ancien.'},
   {n:98, d:'20/11/2026', tag:'admin', t:'Admin › Réglages : sections et cartes repliables', x:'Les réglages sont rangés en 6 sections (Stock & produits, Production & commandes, Maintenance, Expédition, Tableau de bord, Outils & base) avec une recherche « Trouver un réglage ». Chaque réglage est une carte repliable (une seule ouverte à la fois) avec un résumé. L\'ancien onglet Interventions devient la section « Outils & base », avec les outils ponctuels regroupés à part.'},
   {n:97, d:'20/11/2026', tag:'all', t:'Approvisionnement et Réimpression : bouton « Nouvelle… » sous les onglets', x:'Le bouton rond en bas à droite disparaît. Dans Approvisionnement, « 🛒 Nouvelle commande » se trouve sous les onglets En cours / Historique ; dans Réimpression, « 🖨️ Nouvelle demande de réimpression » se trouve sous les onglets, dans le sous-onglet En attente.'},
   {n:96, d:'20/11/2026', tag:'admin', t:'Stock : références gérées depuis Admin', x:'Le « + » orange des écrans Atelier et Réserve disparaît pour tout le monde. Créer, modifier ou supprimer une référence (ou un produit) se fait dans Admin › Réglages › Références de stock, avec la liste de toutes les références et une recherche. Sur la page d\'une référence, les boutons Modifier et Supprimer ne sont plus affichés à l\'administrateur.'},
