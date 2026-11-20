@@ -1267,6 +1267,15 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
 </div>
 
 <div id="view-admin_reglages" class="view">
+  <!-- Références de stock -->
+  <div id="admin-stockref-block" style="display:none;background:var(--card);border:1.5px solid var(--brd);border-radius:14px;padding:14px;margin-bottom:16px">
+    <div style="font-family:Open Sans,sans-serif;font-weight:800;font-size:0.95rem;margin-bottom:6px">📦 Références de stock</div>
+    <div style="font-size:.78rem;color:var(--mut);margin-bottom:8px">Créer, modifier ou supprimer une référence (ou un produit pour le numérique). Les composants, les quantités et le stock se gèrent dans l'onglet Stock, sur la page de la référence.</div>
+    <button type="button" onclick="openAddCatModal(true)" style="width:100%;padding:9px;border-radius:8px;border:none;background:var(--acc);color:#000;font-family:Open Sans,sans-serif;font-weight:700;font-size:.82rem;cursor:pointer">+ Nouvelle référence</button>
+    <input type="text" id="admin-stockref-q" placeholder="Rechercher une référence…" oninput="stockrefAdminRender()" style="width:100%;margin-top:8px;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.85rem;padding:8px 10px;outline:none;box-sizing:border-box">
+    <div id="admin-stockref-list" style="margin-top:6px"></div>
+  </div>
+
   <!-- Machines (maintenance) -->
   <div id="admin-mach-block" style="display:none;background:var(--card);border:1.5px solid var(--brd);border-radius:14px;padding:14px;margin-bottom:16px">
     <div style="font-family:Open Sans,sans-serif;font-weight:800;font-size:0.95rem;margin-bottom:6px">🔩 Machines</div>
@@ -2010,7 +2019,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.11.20-0840';
+var APP_VERSION = '2026.11.20-0915';
 var MANUEL_URL = 'manuel-isoprod.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -2968,6 +2977,7 @@ function ecranAutoOpen(tries){
 // Pas de correctif technique invisible ici. tag = qui est concerné :
 //   'all' (tout le monde), 'admin' (admin/direction), 'maint' (maintenance), 'stock' (ajout de stock), 'reprint' (réimpressions)
 var NEWS = [
+  {n:96, d:'20/11/2026', tag:'admin', t:'Stock : références gérées depuis Admin', x:'Le « + » orange des écrans Atelier et Réserve disparaît pour tout le monde. Créer, modifier ou supprimer une référence (ou un produit) se fait dans Admin › Réglages › Références de stock, avec la liste de toutes les références et une recherche. Sur la page d\'une référence, les boutons Modifier et Supprimer ne sont plus affichés à l\'administrateur.'},
   {n:95, d:'20/11/2026', tag:'all', t:'Maintenance : boutons réorganisés, machines et types d\'intervention dans Admin', x:'Sur la page d\'une machine, « + Ajouter une intervention » est maintenant en haut de la liste et le bouton des rappels s\'appelle « + Ajouter un rappel ». Le « + » orange de l\'onglet Maintenance disparaît : créer, modifier ou supprimer une machine se fait dans Admin › Réglages › Machines. Les types d\'intervention (dont le nouveau « Observation ») se gèrent aussi dans Admin › Réglages.'},
   {n:94, d:'19/11/2026', tag:'dashboard', t:'Recherche : filtre « Sans n° de suivi »', x:'Tableau de bord › Recherche : nouveau filtre « Suivi » pour voir les commandes sans n° de suivi (celles livrées, remises sur place ou envoyées en courrier simple sont écartées) ou, au contraire, celles qui en ont un. Il se combine avec les autres filtres, par exemple « Terminé » + « Sans n° de suivi ».'},
   {n:93, d:'19/11/2026', tag:'all', t:'Rapports : jour sélectionné plus net', x:'Dans les rapports du jour, le bouton orange du jour sélectionné n\'a plus de cadre vert autour quand c\'est aujourd\'hui. Le point ● reste pour repérer la journée en cours.'},
@@ -3530,6 +3540,7 @@ function startDB() {
       });
     }) : [];
     S.allCats = unsorted.sort(function(a,b){ return (a.order||99)-(b.order||99); });
+    try{ stockrefAdminRender(); }catch(e){}
     stockApplyPole();
     renderZone(curTab === 'atelier' ? 'atelier' : curTab === 'reserve' ? 'reserve' : null);
     if (curTab==='alertes') renderAlertes();
@@ -3709,7 +3720,7 @@ function switchTab(name) {
   });
   document.querySelectorAll('.view').forEach(function(v){ v.classList.remove('active'); });
   document.getElementById('view-'+name).classList.add('active');
-  var showFab = name==='atelier'||name==='reserve'||name==='commandes'||name==='reprint';
+  var showFab = name==='commandes'||name==='reprint';   // Atelier / Réserve : les références se créent depuis Admin › Réglages
   document.getElementById('fab').style.display = showFab ? 'flex' : 'none';  document.getElementById('fab').textContent = name==='commandes' ? '🛒' : name==='reprint' ? '🖨️' : '+';
   if (name==='atelier'||name==='reserve'){ document.getElementById('view-detail').classList.remove('active'); renderZone(name); }
   if (name==='search'){ srchRenderChips(null); doSearch(); }
@@ -3916,7 +3927,7 @@ function openDet(cid, zone) {
   // Produit numérique : un seul composant (le produit lui-même) — pas d'ajout ni de lien de composant
   ['det-add-item','det-link-item'].forEach(function(id){ var b = document.getElementById(id); if(b) b.style.display = numCat ? 'none' : ''; });
   var dt = document.getElementById('det-items-title'); if(dt) dt.textContent = numCat ? 'Stock du produit' : 'Composants';
-  document.getElementById('det-del').innerHTML = stockAdmin(cat)?'<button class="btn bdano" style="width:100%;margin-top:6px" onclick="askDelCat()">🗑 Supprimer '+(numCat?'ce produit':'cette référence')+'</button>':'';
+  document.getElementById('det-del').innerHTML = (stockAdmin(cat) && !iAm)?'<button class="btn bdano" style="width:100%;margin-top:6px" onclick="askDelCat()">🗑 Supprimer '+(numCat?'ce produit':'cette référence')+'</button>':'';
 }
 
 function renderDet(cat) {
@@ -3925,7 +3936,7 @@ function renderDet(cat) {
   // vérifier visuellement le format) ; la modification passe par un bouton
   // dédié à côté, plutôt que par un clic sur l'image elle-même.
   var ec = cat.photo ? ' onclick="openLightboxStatic(\''+cat.photo+'\')" style="cursor:pointer"' : '';
-  var editBtn = stockAdmin(cat) ? '<button onclick="openEditCat(\''+cat.id+'\')" style="margin-top:8px;padding:7px 14px;border-radius:8px;border:1px solid var(--brd);background:var(--sur);color:var(--mut);font-family:Open Sans,sans-serif;font-weight:700;font-size:.8rem;cursor:pointer">✏️ Modifier</button>' : '';
+  var editBtn = (stockAdmin(cat) && !iAm) ? '<button onclick="openEditCat(\''+cat.id+'\')" style="margin-top:8px;padding:7px 14px;border-radius:8px;border:1px solid var(--brd);background:var(--sur);color:var(--mut);font-family:Open Sans,sans-serif;font-weight:700;font-size:.8rem;cursor:pointer">✏️ Modifier</button>' : '';
   document.getElementById('det-content').innerHTML='<div class="dhdr"><div class="dthumb"'+ec+'>'+th+'</div>'+
     '<div class="dmeta"><h2>'+esc(cat.name)+'</h2><p>'+(cat.desc||'')+'</p>'+
     '<p style="color:var(--grn);font-size:.74rem;margin-top:4px">🟢 Synchronisé en temps réel</p>'+editBtn+'</div></div>';
@@ -5247,16 +5258,17 @@ function numImportRun(){
   cm('m-impnum');
   toast(n ? '✅ '+n+' produit(s) créé(s)' : 'Aucun produit créé');
 }
-function openAddCatModal(){
+function openAddCatModal(fromAdmin){
   if(!iAm && !(me_pole==='numerique')){toast('Seul l\'admin peut créer des références',1);return;}
   PT.cat=null;
   document.getElementById('cat-n').value='';
   document.getElementById('cat-d').value='';
   document.getElementById('cat-o').value='';
-  document.getElementById('cat-fam').innerHTML=famOptionsHtml(zoneFamille[curTab]);
-  document.getElementById('cat-fam').value=zoneFamille[curTab] || 'badge_magnet';
+  // Depuis Admin › Réglages : toutes les familles (badges ET numérique), quelle que soit la vue du pôle
+  document.getElementById('cat-fam').innerHTML = fromAdmin === true ? STOCK_FAMS.map(function(f){ return '<option value="'+esc(f[0])+'">'+esc(f[1])+'</option>'; }).join('') : famOptionsHtml(zoneFamille[curTab]);
+  document.getElementById('cat-fam').value = fromAdmin === true ? (STOCK_FAMS[0] ? STOCK_FAMS[0][0] : 'badge_magnet') : (zoneFamille[curTab] || 'badge_magnet');
   document.getElementById('cat-ph-prev').innerHTML='📷 Ajouter une photo';
-  document.getElementById('m-cat-title').textContent = famPole(zoneFamille[curTab]) === 'numerique' ? '➕ Nouveau produit' : '➕ Nouvelle référence';
+  document.getElementById('m-cat-title').textContent = fromAdmin === true ? '➕ Nouvelle référence / produit' : (famPole(zoneFamille[curTab]) === 'numerique' ? '➕ Nouveau produit' : '➕ Nouvelle référence');
   om('m-cat');
 }
 
@@ -5819,14 +5831,14 @@ function openEditItem(cid,iid,dbp){
   om('m-item');
 }
 
-function openEditCat(cid){
+function openEditCat(cid, fromAdmin){
   if(!stockAdmin(gc(cid))) return; editCatId=cid;
   var cat=gc(cid); PT.ecat=cat.photo||null;
   document.getElementById('ecat-n').value=cat.name;
   document.getElementById('ecat-d').value=cat.desc||'';
   document.getElementById('ecat-o').value=cat.order||'';
-  document.getElementById('ecat-fam').innerHTML=famOptionsHtml(catFamille(cat));
-  if(!famsInView().some(function(f){ return f[0]===catFamille(cat); })) document.getElementById('ecat-fam').insertAdjacentHTML('afterbegin','<option value="'+catFamille(cat)+'" selected>'+famLabel(catFamille(cat))+'</option>');
+  document.getElementById('ecat-fam').innerHTML = fromAdmin === true ? STOCK_FAMS.map(function(f){ return '<option value="'+esc(f[0])+'">'+esc(f[1])+'</option>'; }).join('') : famOptionsHtml(catFamille(cat));
+  if(fromAdmin !== true && !famsInView().some(function(f){ return f[0]===catFamille(cat); })) document.getElementById('ecat-fam').insertAdjacentHTML('afterbegin','<option value="'+catFamille(cat)+'" selected>'+famLabel(catFamille(cat))+'</option>');
   document.getElementById('ecat-fam').value=catFamille(cat);
   document.getElementById('ecat-ph-prev').innerHTML=cat.photo?'<img src="'+cat.photo+'" style="max-height:80px;border-radius:8px">':'📷 Changer la photo';
   om('m-ecat');
@@ -5946,12 +5958,13 @@ function updRecipe(){
   cm('m-recipe'); toast('✅ Combinaison modifiée !');
 }
 
-function askDelCat(){
-  if(!stockAdmin(gc(catId))) return;
-  var cat=gc(catId);
+function askDelCat(cidArg){
+  var id = cidArg || catId;
+  if(!stockAdmin(gc(id))) return;
+  var cat=gc(id);
   document.getElementById('cf-title').textContent='Supprimer "'+(cat?cat.name:'cette référence')+'" ?';
   document.getElementById('cf-msg').textContent='Tous les composants seront supprimés définitivement.';
-  cfCb=function(){fbd('categories/'+catId);cm('m-confirm');goBack();toast('🗑 Référence supprimée');};
+  cfCb=function(){fbd('categories/'+id);cm('m-confirm');if(!cidArg) goBack();toast('🗑 Référence supprimée');};
   om('m-confirm');
 }
 
@@ -15916,8 +15929,36 @@ function startSitesListener(){
 }
 function siteKeyOf(code){ return String(code||'').toUpperCase().replace(/[^A-Z0-9]+/g, '_').replace(/^_+|_+$/g, ''); }
 // ── Écran Admin : liste des sites ──
+// ── Références de stock : liste dans Admin › Réglages (créer / modifier / supprimer) ──
+function stockrefAdminRender(){
+  var block = document.getElementById('admin-stockref-block'); if(!block) return;
+  block.style.display = iAm ? '' : 'none'; if(!iAm) return;
+  var el = document.getElementById('admin-stockref-list'); if(!el) return;
+  if(el.contains(document.activeElement)) return;
+  var qEl = document.getElementById('admin-stockref-q'), q = qEl ? qEl.value.trim().toLowerCase() : '';
+  var all = (S.allCats && S.allCats.length) ? S.allCats : (S.cats || []);
+  var btn = 'padding:4px 9px;border-radius:6px;border:1.5px solid var(--brd);background:none;color:var(--txt);font-size:.74rem;cursor:pointer';
+  var h = '', shown = 0;
+  STOCK_FAMS.forEach(function(f){
+    var list = all.filter(function(c){ return catFamille(c) === f[0] && (!q || String(c.name||'').toLowerCase().indexOf(q) >= 0); })
+      .sort(function(a, b){ return String(a.name||'').localeCompare(String(b.name||''), 'fr', {numeric:true}); });
+    if(!list.length) return;
+    h += '<div style="margin-top:8px;font-weight:700;font-size:.8rem">'+esc(f[1])+' <span style="font-weight:400;color:var(--mut)">('+list.length+')</span></div>';
+    list.forEach(function(c){
+      shown++;
+      var nb = (c.items||[]).length + (c.reserve_items||[]).length;
+      h += '<div style="display:flex;gap:6px;align-items:center;padding:6px 0;border-top:1px solid var(--brd)">'+
+        '<div style="flex:1;min-width:0"><div style="font-size:.82rem;font-weight:700">'+esc(c.name||'?')+'</div><div style="font-size:.7rem;color:var(--mut)">'+nb+' composant(s)'+(c.desc ? ' · '+esc(c.desc) : '')+'</div></div>'+
+        '<button type="button" style="'+btn+'" onclick="openEditCat(\''+esc(c.id)+'\', true)">✏️ Modifier</button>'+
+        '<button type="button" style="'+btn+';border-color:var(--red);color:var(--red)" onclick="askDelCat(\''+esc(c.id)+'\')">🗑</button></div>';
+    });
+  });
+  if(!shown) h = '<div style="font-size:.76rem;color:var(--mut);padding:6px 0">'+(q ? 'Aucune référence ne correspond.' : 'Aucune référence.')+'</div>';
+  el.innerHTML = h;
+}
 // ── Machines : liste dans Admin › Réglages (créer / modifier / supprimer) ──
 function machAdminRender(){
+  try{ stockrefAdminRender(); }catch(e){}
   var block = document.getElementById('admin-mach-block'); if(!block) return;
   var ok = !!(iAm || isDir); block.style.display = ok ? '' : 'none'; if(!ok) return;
   var el = document.getElementById('admin-mach-list'); if(!el) return;
