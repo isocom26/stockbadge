@@ -2045,7 +2045,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.11.20-1225';
+var APP_VERSION = '2026.11.20-1245';
 var MANUEL_URL = 'manuel-isoprod.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -3004,7 +3004,7 @@ function ecranAutoOpen(tries){
 // Pas de correctif technique invisible ici. tag = qui est concerné :
 //   'all' (tout le monde), 'admin' (admin/direction), 'maint' (maintenance), 'stock' (ajout de stock), 'reprint' (réimpressions)
 var NEWS = [
-  {n:107, d:'20/11/2026', tag:'admin', t:'Tableau de bord › Commandes : un seul statut, de la production à la livraison', x:'La colonne Depuis revient et la colonne Livraison disparaît : une commande terminée et expédiée affiche directement son statut de livraison (camion, Livré en vert plein, Problème en rouge plein), en cliquant on voit les étapes. Le filtre unique « Statut » regroupe tout : Attente production, Production en cours, Produite, Terminée (toutes les commandes terminées, livrées ou non), Pris en charge, En acheminement, En livraison, Livraison manquée, À retirer, Livré, Problème, Avec SAV, À confirmer, En production (tout). Nouvelles couleurs de livraison.'},
+  {n:107, d:'20/11/2026', tag:'admin', t:'Tableau de bord › Commandes : un seul statut, de la production à la livraison', x:'La colonne Depuis revient et la colonne Livraison disparaît : une commande terminée et expédiée affiche directement son statut de livraison (camion, Livré en vert plein, Problème en rouge plein), en cliquant on voit les étapes. Le filtre unique « Statut » regroupe tout : Attente production, Production en cours, Produite, Terminée (toutes les commandes terminées, livrées ou non), Disponible à l\'emport, Pris en charge, En acheminement, En livraison, Livraison manquée, À retirer, Livré, Problème, Avec SAV, À confirmer, En production (tout). Nouvelles couleurs de livraison.'},
   {n:106, d:'20/11/2026', tag:'admin', t:'Tableau de bord › Commandes : colonne Livraison toujours visible', x:'Le tableau est un peu plus compact (marges réduites, formats et producteurs sur plusieurs lignes) pour que la colonne Livraison ne soit plus coupée sur un écran moyen.'},
   {n:105, d:'20/11/2026', tag:'admin', t:'Livraison : détail des étapes du transporteur', x:'Dans Tableau de bord > Commandes, la pastille « Livraison » s\'ouvre au clic : liste des étapes du colis (date, heure, agence) et lien vers le suivi du transporteur. En passant la souris dessus, on voit le dernier événement. Les données arriveront avec le suivi automatique (script Google).'},
   {n:104, d:'20/11/2026', tag:'admin', t:'Livraison : nouveau statut « Livraison manquée »', x:'Pour un colis dont la livraison a échoué (destinataire absent) et qui sera en général présenté de nouveau ou déposé en point relais : statut violet « Livraison manquée », sans alerte rouge. Le filtre Livraison du tableau de bord le propose aussi.'},
@@ -6204,6 +6204,7 @@ function statutSelectOptionsHtml(){
 // Liste unique de la recherche : production, livraison, puis filtres transversaux
 function dashStatutFilterOptionsHtml(){
   var prod = ['waiting', 'in_progress', 'reprint', 'produced', 'done'].map(function(k){ return '<option value="'+k+'">'+esc(stLabel(k, 'sel'))+'</option>'; }).join('');
+  prod += '<option value="emport">🛍 Disponible à l\'emport</option>';
   var liv = LIV_STATUTS.map(function(x){ return '<option value="l:'+x.k+'">'+(x.ico || '🚚')+' '+x.l+'</option>'; }).join('');
   var cust = statutCustoms(false).map(function(d){ return '<option value="m:'+esc(d.key)+'">'+esc((d.emoji ? d.emoji+' ' : '')+d.label)+'</option>'; }).join('');
   return '<option value="">Tous les statuts</option>'+prod+liv+cust+
@@ -8912,7 +8913,11 @@ function dashStatutAffiche(c, sit){
   sit = sit || dashComputeSituation(c);
   if(!sit || sit.key !== 'done' || sit.manual) return sit;
   var r = null; try{ r = dashLivCmd(c); }catch(e){}
-  if(!r || !livInfo(r.key)) return sit;
+  if(!r || !livInfo(r.key)){
+    // Emport : n'apparaît qu'une fois le bouton « Disponible à l'emport » coché
+    if(c.emportDispo && c.emportDispo.at) return {key:'emport', emport:true, label:'🛍 Disponible à l\'emport', color:'#92400e', bg:'rgba(146,64,14,.14)'};
+    return sit;
+  }
   return {key:'l:'+r.key, liv:true, livKey:r.key, label:livInfo(r.key).l, color:livInfo(r.key).c, bg:livInfo(r.key).bg};
 }
 function dashLivCellHtml(c){
@@ -25033,6 +25038,7 @@ function dashRunSearch(){
     if(situationFilter === 'sav'){ if(!dashSavList(c).length) return false; }
     else if(situationFilter === 'conf'){ if(!suiviPending(c).length) return false; }
     else if(situationFilter === 'prod_all'){ var sk = dashComputeSituation(c).key; if(sk !== 'waiting' && sk !== 'in_progress' && sk !== 'reprint' && sk !== 'produced') return false; }
+    else if(situationFilter === 'emport'){ var ue = dashStatutAffiche(c); if(!ue || !ue.emport) return false; }
     else if(/^l:/.test(situationFilter||'')){ var ua = dashStatutAffiche(c); if(!ua || !ua.liv || ua.livKey !== situationFilter.slice(2)) return false; }
     else if(/^m:/.test(situationFilter||'')){ var mk = situationFilter.slice(2); if(!(c.statutManuel && c.statutManuel.key === mk && statusDisplay(c, dashComputeSituationBase(c)).manual)) return false; }
     else if(situationFilter && dashComputeSituation(c).key !== situationFilter) return false;
@@ -25060,7 +25066,7 @@ function dashRunSearch(){
     var overdue = dashIsOverdue(c);
     var depart = c.dateDepart ? new Date(c.dateDepart+'T00:00:00').toLocaleDateString('fr-FR') : '—';
     var situationU = dashStatutAffiche(c, situation);
-    var situationHtml = situationU.liv ? dashLivCellHtml(c) :
+    var situationHtml = situationU.liv ? dashLivCellHtml(c) : situationU.emport ? '<span title="Mise à disposition le '+esc(new Date(c.emportDispo.at).toLocaleDateString('fr-FR'))+'" style="display:inline-block;font-size:.74rem;font-family:Open Sans,sans-serif;font-weight:800;padding:3px 9px;border-radius:99px;background:'+situationU.bg+';color:'+situationU.color+';border:1px solid '+situationU.color+';white-space:nowrap">'+situationU.label+'</span>' :
       '<span style="display:inline-block;font-size:0.78rem;font-family:Open Sans,sans-serif;font-weight:800;padding:3px 9px;border-radius:99px;background:'+situation.bg+';color:'+situation.color+';border:1px solid '+situation.color+';white-space:nowrap">'+situation.label+'</span>'+
       (situation.sub ? '<div style="margin-top:3px"><span style="display:inline-block;font-size:0.69rem;font-family:Open Sans,sans-serif;font-weight:700;padding:2px 7px;border-radius:99px;background:none;color:'+situation.color+';border:1px solid '+situation.color+';white-space:nowrap">'+situation.sub+'</span></div>' : '');
     if(suiviPending(c).length) situationHtml += '<div style="margin-top:3px"><span style="display:inline-block;font-size:0.69rem;font-weight:800;padding:2px 7px;border-radius:99px;background:rgba(217,119,6,.15);color:var(--acc)">📮 À confirmer</span></div>';
