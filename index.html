@@ -1396,20 +1396,6 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
     <div id="gam-list" style="max-height:420px;overflow-y:auto"></div>
   </div>
 
-  <!-- Règles de quantité (interrupteur) -->
-  <div id="admin-qty-block" style="background:var(--card);border:1.5px solid var(--brd);border-radius:14px;padding:14px;margin-bottom:16px">
-    <div style="font-family:Open Sans,sans-serif;font-weight:800;font-size:0.95rem;margin-bottom:6px">📏 Règles de quantité (Ma production)</div>
-    <div style="font-size:.78rem;color:var(--mut);margin-bottom:10px">Activées : on choisit la commande dans la liste, la quantité se saisit en appuyant sur « Terminer » et ne peut pas dépasser le reste à produire ; une commande n'est « Terminée » que si tous ses formats sont à 100 %, sans ligne en cours ni réimpression ouverte. Désactivées : Ma production fonctionne comme avant. Interrupteur de sécurité, effet immédiat pour tout le monde.</div>
-    <div id="admin-qty-state"></div>
-  </div>
-
-  <!-- Pôle numérique : commandes mixtes -->
-  <div id="admin-pole-block" style="display:none;background:var(--card);border:1.5px solid var(--brd);border-radius:14px;padding:14px;margin-bottom:16px">
-    <div style="font-family:Open Sans,sans-serif;font-weight:800;font-size:0.95rem;margin-bottom:6px">🖨️ Pôle numérique — commandes mixtes</div>
-    <div style="font-size:.78rem;color:var(--mut);margin-bottom:10px">Désactivé : une commande qui contient des badges et du numérique se termine comme avant, sans attendre le numérique. Activé : elle n'est terminée que quand les deux pôles ont produit, chaque pôle fait son propre contrôle qualité, et le départ est signalé « bloqué » tant que les deux contrôles ne sont pas faits.</div>
-    <div id="admin-pole-state"></div>
-  </div>
-
   <!-- Étapes supplémentaires (cartonnette, sachet…) -->
   <div id="admin-transp-block" style="background:var(--card);border:1.5px solid var(--brd);border-radius:14px;padding:14px;margin-bottom:16px">
     <div style="font-family:Open Sans,sans-serif;font-weight:800;font-size:0.95rem;margin-bottom:6px">📮 Transporteurs</div>
@@ -2038,7 +2024,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.11.20-1015';
+var APP_VERSION = '2026.11.20-1030';
 var MANUEL_URL = 'manuel-isoprod.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -2526,7 +2512,7 @@ function rptLineInView(l){
 // lorsque les deux pôles ont produit ; chaque pôle fait son propre contrôle qualité ;
 // le départ est signalé bloqué tant que les contrôles ne sont pas tous faits.
 var S_poleCfg = {on:false, cqFrom:null};
-function poleCfgOn(){ return S_poleCfg.on === true; }
+function poleCfgOn(){ return true; }   // pôle numérique / commandes mixtes : toujours actif (l'ancien interrupteur Admin a été retiré)
 // Contrôle qualité numérique : exigé seulement pour les commandes créées à partir de cette date
 // (réglage settings/poleNumerique/cqFrom ; repli = 30/10/2026, début des tests du pôle).
 // Les commandes plus anciennes se comportent comme avant (terminées dès le contrôle badges).
@@ -2996,6 +2982,7 @@ function ecranAutoOpen(tries){
 // Pas de correctif technique invisible ici. tag = qui est concerné :
 //   'all' (tout le monde), 'admin' (admin/direction), 'maint' (maintenance), 'stock' (ajout de stock), 'reprint' (réimpressions)
 var NEWS = [
+  {n:99, d:'20/11/2026', tag:'admin', t:'Admin : règles de quantité et pôle numérique toujours actifs', x:'Les deux interrupteurs « Règles de quantité (Ma production) » et « Pôle numérique — commandes mixtes » sont retirés des Réglages : ces deux fonctionnements sont désormais permanents, il n\'est plus possible de revenir à l\'ancien.'},
   {n:98, d:'20/11/2026', tag:'admin', t:'Admin › Réglages : sections et cartes repliables', x:'Les réglages sont rangés en 6 sections (Stock & produits, Production & commandes, Maintenance, Expédition, Tableau de bord, Outils & base) avec une recherche « Trouver un réglage ». Chaque réglage est une carte repliable (une seule ouverte à la fois) avec un résumé. L\'ancien onglet Interventions devient la section « Outils & base », avec les outils ponctuels regroupés à part.'},
   {n:97, d:'20/11/2026', tag:'all', t:'Approvisionnement et Réimpression : bouton « Nouvelle… » sous les onglets', x:'Le bouton rond en bas à droite disparaît. Dans Approvisionnement, « 🛒 Nouvelle commande » se trouve sous les onglets En cours / Historique ; dans Réimpression, « 🖨️ Nouvelle demande de réimpression » se trouve sous les onglets, dans le sous-onglet En attente.'},
   {n:96, d:'20/11/2026', tag:'admin', t:'Stock : références gérées depuis Admin', x:'Le « + » orange des écrans Atelier et Réserve disparaît pour tout le monde. Créer, modifier ou supprimer une référence (ou un produit) se fait dans Admin › Réglages › Références de stock, avec la liste de toutes les références et une recherche. Sur la page d\'une référence, les boutons Modifier et Supprimer ne sont plus affichés à l\'administrateur.'},
@@ -15957,7 +15944,7 @@ var REG_SECS = [['stock','📦 Stock & produits'], ['prod','🏭 Production & co
 // [motif du titre, section, ordre, groupe (ponctuel = outils rarement utilisés)]
 var REG_MAP = [
   [/Références de stock/, 'stock', 1], [/Familles de stock/, 'stock', 2], [/Produits & composants/, 'stock', 3], [/Formats par pôle/, 'stock', 4], [/Fournisseurs/, 'stock', 5],
-  [/Statuts de commande/, 'prod', 1], [/Sites/, 'prod', 2], [/Listes réglables/, 'prod', 3], [/Gammes de fabrication/, 'prod', 4], [/Règles de quantité/, 'prod', 5], [/Étapes supplémentaires/, 'prod', 6], [/Pôle numérique/, 'prod', 7],
+  [/Statuts de commande/, 'prod', 1], [/Sites/, 'prod', 2], [/Listes réglables/, 'prod', 3], [/Gammes de fabrication/, 'prod', 4], [/Étapes supplémentaires/, 'prod', 5],
   [/Machines/, 'maint', 1], [/Prestataires/, 'maint', 2],
   [/Transporteurs/, 'exp', 1],
   [/Tableau de bord/, 'dash', 1],
@@ -15971,9 +15958,7 @@ var REG_SUM = [
   [/Sites/, function(){ return regPl(siteEntries().length, 'site'); }],
   [/Machines/, function(){ return regPl(S_mach.length, 'machine'); }],
   [/Transporteurs/, function(){ return regPl(transpCatalogue(false).length, 'actif'); }],
-  [/Listes réglables/, function(){ return regPl(Object.keys(LISTES_DEF).length, 'liste'); }],
-  [/Règles de quantité/, function(){ return qtyRulesOn() ? 'activées' : 'désactivées'; }],
-  [/Pôle numérique/, function(){ return poleCfgOn() ? 'activée' : 'désactivée'; }]
+  [/Listes réglables/, function(){ return regPl(Object.keys(LISTES_DEF).length, 'liste'); }]
 ];
 var _regBuilt = false, _regSec = '', _regPending = '';
 function regTitle(card){ var h = card.firstElementChild; return h ? h.textContent.replace(/\s+/g, ' ').trim() : ''; }
@@ -19769,7 +19754,7 @@ function qtyMaxFor(c, lines, format, sec, opts){
 // ══════════════════════════════════════════════════════════════
 var QTY_PREFILL_MAX = 1000;
 var S_qtyRules = {on:false};
-function qtyRulesOn(){ return S_qtyRules.on === true; }
+function qtyRulesOn(){ return true; }   // règles de quantité : toujours actives (l'ancien interrupteur Admin a été retiré)
 function startQtyRulesListener(){
   db.ref('settings/qtyRules').on('value', function(snap){
     var v = snap.val(), was = S_qtyRules.on;
