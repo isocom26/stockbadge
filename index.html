@@ -266,6 +266,8 @@ input[type=file]{display:none}
 @media (max-width:700px){.maint-tbl{display:none}.maint-cards{display:block}}
 .maint-tbl th.srt{cursor:pointer;user-select:none}.maint-tbl tbody tr:hover{background:var(--sur)}
 .dash-tbl-wrap{overflow-x:auto;background:var(--card);border:1.5px solid var(--brd);border-radius:12px;scrollbar-width:auto;scrollbar-color:var(--acc) var(--sur)}
+.dash-cmd-tbl th,.dash-cmd-tbl td{padding-left:6px!important;padding-right:6px!important}
+.dash-cmd-tbl td.c-wrap{white-space:normal;max-width:130px;overflow-wrap:anywhere}
 .dash-tbl-wrap::-webkit-scrollbar{height:10px}
 .dash-tbl-wrap::-webkit-scrollbar-track{background:var(--sur)}
 .dash-tbl-wrap::-webkit-scrollbar-thumb{background:var(--acc);border-radius:5px}
@@ -2043,7 +2045,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.11.20-1250';
+var APP_VERSION = '2026.11.20-1135';
 var MANUEL_URL = 'manuel-isoprod.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -3002,6 +3004,7 @@ function ecranAutoOpen(tries){
 // Pas de correctif technique invisible ici. tag = qui est concerné :
 //   'all' (tout le monde), 'admin' (admin/direction), 'maint' (maintenance), 'stock' (ajout de stock), 'reprint' (réimpressions)
 var NEWS = [
+  {n:106, d:'20/11/2026', tag:'admin', t:'Tableau de bord › Commandes : colonne Livraison toujours visible', x:'Le tableau est un peu plus compact (marges réduites, formats et producteurs sur plusieurs lignes) pour que la colonne Livraison ne soit plus coupée sur un écran moyen.'},
   {n:105, d:'20/11/2026', tag:'admin', t:'Livraison : détail des étapes du transporteur', x:'Dans Tableau de bord > Commandes, la pastille « Livraison » s\'ouvre au clic : liste des étapes du colis (date, heure, agence) et lien vers le suivi du transporteur. En passant la souris dessus, on voit le dernier événement. Les données arriveront avec le suivi automatique (script Google).'},
   {n:104, d:'20/11/2026', tag:'admin', t:'Livraison : nouveau statut « Livraison manquée »', x:'Pour un colis dont la livraison a échoué (destinataire absent) et qui sera en général présenté de nouveau ou déposé en point relais : statut violet « Livraison manquée », sans alerte rouge. Le filtre Livraison du tableau de bord le propose aussi.'},
   {n:103, d:'20/11/2026', tag:'all', t:'Connexion : la touche Entrée valide', x:'Sur l\'écran de connexion, appuyer sur Entrée dans le champ e-mail ou mot de passe lance maintenant la connexion (avant, il fallait cliquer sur « Se connecter »).'},
@@ -24961,7 +24964,7 @@ function dashRenderRecherche(){
   html += '<div id="dash-search-count" style="font-size:.72rem;color:var(--mut);margin-bottom:8px"></div>';
   html += '<div style="font-size:.7rem;color:var(--acc);margin-bottom:6px">↔ Sur mobile, faites défiler le tableau horizontalement pour voir toutes les colonnes</div>';
   html += '<div class="dash-tbl-wrap">';
-  html += '<table style="width:100%;min-width:1180px;border-collapse:collapse;font-size:.8rem">';
+  html += '<table class="dash-cmd-tbl" style="width:100%;min-width:1000px;border-collapse:collapse;font-size:.8rem">';
   html += '<thead><tr style="text-align:left;border-bottom:1.5px solid var(--brd)">'+
     ['CMD','SITE','STATUT','FORMATS','QTÉ','PAR','CRÉÉ LE','DÉPART PRÉVU','EXPÉDIÉ LE','SUIVI','LIVRAISON'].map(function(h){
       return '<th style="padding:7px 9px;color:var(--mut);font-family:Open Sans,sans-serif;font-size:0.71rem;font-weight:800;letter-spacing:.03em;white-space:nowrap">'+h+'</th>';
@@ -25048,12 +25051,12 @@ function dashRunSearch(){
     var formatsTxt = (c.formats||[]).map(function(f){return f.format;}).join(', ')||'—';
     var producersTxt = S_dash.producersLoaded ? (dashProducersFor(c).join(', ')||'—') : '…';
     return '<tr style="border-bottom:1px solid var(--brd)'+(overdue ? ';background:rgba(220,38,38,.16);box-shadow:inset 4px 0 0 var(--red)' : (c.urgent && c.status!=='done'?';background:rgba(220,38,38,.08)':''))+'">'+
-      '<td style="padding:7px 9px;font-weight:700;white-space:nowrap;max-width:170px;overflow:hidden;text-overflow:ellipsis;cursor:pointer;text-decoration:underline;text-decoration-color:var(--brd);text-underline-offset:3px" title="'+esc(dashCmdLabel(c))+' — cliquer pour le détail" onclick="dashOpenCommandeDetail(\''+c.id+'\')">'+dashSavBadgeHtml(c)+esupBadgeHtml(c)+dashCmdLabel(c)+'</td>'+
+      '<td style="padding:7px 9px;font-weight:700;white-space:nowrap;max-width:130px;overflow:hidden;text-overflow:ellipsis;cursor:pointer;text-decoration:underline;text-decoration-color:var(--brd);text-underline-offset:3px" title="'+esc(dashCmdLabel(c))+' — cliquer pour le détail" onclick="dashOpenCommandeDetail(\''+c.id+'\')">'+dashSavBadgeHtml(c)+esupBadgeHtml(c)+dashCmdLabel(c)+'</td>'+
       '<td style="padding:7px 9px;color:var(--mut);white-space:nowrap">'+(c.site||'—')+'</td>'+
       '<td style="padding:7px 9px">'+situationHtml+'</td>'+
-      '<td style="padding:7px 9px;color:var(--mut)">'+formatsTxt+'</td>'+
+      '<td class="c-wrap" style="padding:7px 9px;color:var(--mut)">'+formatsTxt+'</td>'+
       '<td style="padding:7px 9px;text-align:right;font-family:Open Sans,sans-serif;font-weight:700;white-space:nowrap">'+qty.toLocaleString('fr-FR')+'</td>'+
-      '<td style="padding:7px 9px;color:var(--mut)">'+producersTxt+'</td>'+
+      '<td class="c-wrap" style="padding:7px 9px;color:var(--mut)">'+producersTxt+'</td>'+
       '<td style="padding:7px 9px;color:var(--mut);white-space:nowrap">'+created+'</td>'+
       '<td style="padding:7px 9px;white-space:nowrap;'+(overdue?'color:var(--red);font-weight:700':'color:var(--mut)')+'">'+(c.urgent && c.status!=='done'?'🚨 ':'')+depart+(overdue?' ⚠️':'')+dashDepartEditBtn(c)+'</td>'+
       '<td style="padding:7px 9px;vertical-align:top;white-space:nowrap">'+suiviShipDatesHtml(c)+'</td>'+
