@@ -776,6 +776,7 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
     <button id="com-tab-active" onclick="switchComTab('active')" style="flex:1;padding:9px;border-radius:10px;border:none;font-family:Open Sans,sans-serif;font-weight:700;font-size:0.84rem;cursor:pointer;background:var(--acc);color:#000">En cours</button>
     <button id="com-tab-history" onclick="switchComTab('history')" style="flex:1;padding:9px;border-radius:10px;border:none;font-family:Open Sans,sans-serif;font-weight:700;font-size:0.84rem;cursor:pointer;background:var(--card);color:var(--mut);border:1.5px solid var(--brd)">📋 Historique</button>
   </div>
+  <button type="button" class="btn bpri" style="width:100%;margin-bottom:14px" onclick="openOrderModal()">🛒 Nouvelle commande</button>
   <div id="com-active-view">
     <div id="com-waiting"></div>
     <div id="com-ordered"></div>
@@ -802,6 +803,7 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
     <button id="rp-tab-toproduce" onclick="switchRpTab('toproduce')" style="flex:1;padding:9px;border-radius:10px;border:none;font-family:Open Sans,sans-serif;font-weight:700;font-size:0.76rem;cursor:pointer;background:var(--card);color:var(--mut);border:1.5px solid var(--brd)">🏭 À produire</button>
     <button id="rp-tab-done" onclick="switchRpTab('done')" style="flex:1;padding:9px;border-radius:10px;border:none;font-family:Open Sans,sans-serif;font-weight:700;font-size:0.76rem;cursor:pointer;background:var(--card);color:var(--mut);border:1.5px solid var(--brd)">✅ Archivées</button>
   </div>
+  <button type="button" class="btn bpri" style="width:100%;margin-bottom:14px" onclick="openReprintModal()">🖨️ Nouvelle demande de réimpression</button>
   <div id="rp-notif-banner" style="display:none"></div>
   <div style="display:flex;gap:8px;margin-bottom:14px">
     <select id="rp-sort" onchange="renderReprint()" style="flex:1;background:var(--card);border:1.5px solid var(--brd);border-radius:10px;color:var(--txt);font-size:.8rem;padding:9px 10px;outline:none">
@@ -2019,7 +2021,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.11.20-0915';
+var APP_VERSION = '2026.11.20-0930';
 var MANUEL_URL = 'manuel-isoprod.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -2977,6 +2979,7 @@ function ecranAutoOpen(tries){
 // Pas de correctif technique invisible ici. tag = qui est concerné :
 //   'all' (tout le monde), 'admin' (admin/direction), 'maint' (maintenance), 'stock' (ajout de stock), 'reprint' (réimpressions)
 var NEWS = [
+  {n:97, d:'20/11/2026', tag:'all', t:'Approvisionnement et Réimpression : bouton « Nouvelle… » sous les onglets', x:'Le bouton rond en bas à droite disparaît. Dans Approvisionnement, « 🛒 Nouvelle commande » se trouve sous les onglets En cours / Historique ; dans Réimpression, « 🖨️ Nouvelle demande de réimpression » se trouve sous les onglets En attente, Imprimé, À produire et Archivées.'},
   {n:96, d:'20/11/2026', tag:'admin', t:'Stock : références gérées depuis Admin', x:'Le « + » orange des écrans Atelier et Réserve disparaît pour tout le monde. Créer, modifier ou supprimer une référence (ou un produit) se fait dans Admin › Réglages › Références de stock, avec la liste de toutes les références et une recherche. Sur la page d\'une référence, les boutons Modifier et Supprimer ne sont plus affichés à l\'administrateur.'},
   {n:95, d:'20/11/2026', tag:'all', t:'Maintenance : boutons réorganisés, machines et types d\'intervention dans Admin', x:'Sur la page d\'une machine, « + Ajouter une intervention » est maintenant en haut de la liste et le bouton des rappels s\'appelle « + Ajouter un rappel ». Le « + » orange de l\'onglet Maintenance disparaît : créer, modifier ou supprimer une machine se fait dans Admin › Réglages › Machines. Les types d\'intervention (dont le nouveau « Observation ») se gèrent aussi dans Admin › Réglages.'},
   {n:94, d:'19/11/2026', tag:'dashboard', t:'Recherche : filtre « Sans n° de suivi »', x:'Tableau de bord › Recherche : nouveau filtre « Suivi » pour voir les commandes sans n° de suivi (celles livrées, remises sur place ou envoyées en courrier simple sont écartées) ou, au contraire, celles qui en ont un. Il se combine avec les autres filtres, par exemple « Terminé » + « Sans n° de suivi ».'},
@@ -3720,7 +3723,7 @@ function switchTab(name) {
   });
   document.querySelectorAll('.view').forEach(function(v){ v.classList.remove('active'); });
   document.getElementById('view-'+name).classList.add('active');
-  var showFab = name==='commandes'||name==='reprint';   // Atelier / Réserve : les références se créent depuis Admin › Réglages
+  var showFab = false;   // plus de bouton rond : Atelier / Réserve → Admin › Réglages ; Approvisionnement et Réimpression → bouton sous les onglets
   document.getElementById('fab').style.display = showFab ? 'flex' : 'none';  document.getElementById('fab').textContent = name==='commandes' ? '🛒' : name==='reprint' ? '🖨️' : '+';
   if (name==='atelier'||name==='reserve'){ document.getElementById('view-detail').classList.remove('active'); renderZone(name); }
   if (name==='search'){ srchRenderChips(null); doSearch(); }
