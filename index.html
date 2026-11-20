@@ -2045,7 +2045,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.11.20-1215';
+var APP_VERSION = '2026.11.20-1225';
 var MANUEL_URL = 'manuel-isoprod.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -3004,7 +3004,7 @@ function ecranAutoOpen(tries){
 // Pas de correctif technique invisible ici. tag = qui est concerné :
 //   'all' (tout le monde), 'admin' (admin/direction), 'maint' (maintenance), 'stock' (ajout de stock), 'reprint' (réimpressions)
 var NEWS = [
-  {n:107, d:'20/11/2026', tag:'admin', t:'Tableau de bord › Commandes : un seul statut, de la production à la livraison', x:'La colonne Livraison disparaît : une commande terminée et expédiée affiche directement son statut de livraison (camion, Livré en vert plein, Problème en rouge plein), en cliquant on voit les étapes. Le filtre unique « Statut » regroupe tout : Attente production, Production en cours, Produite, Terminée (toutes les commandes terminées, livrées ou non), Pris en charge, En acheminement, En livraison, Livraison manquée, À retirer, Livré, Problème, Avec SAV, À confirmer, En production (tout). Nouvelles couleurs de livraison.'},
+  {n:107, d:'20/11/2026', tag:'admin', t:'Tableau de bord › Commandes : un seul statut, de la production à la livraison', x:'La colonne Depuis revient et la colonne Livraison disparaît : une commande terminée et expédiée affiche directement son statut de livraison (camion, Livré en vert plein, Problème en rouge plein), en cliquant on voit les étapes. Le filtre unique « Statut » regroupe tout : Attente production, Production en cours, Produite, Terminée (toutes les commandes terminées, livrées ou non), Pris en charge, En acheminement, En livraison, Livraison manquée, À retirer, Livré, Problème, Avec SAV, À confirmer, En production (tout). Nouvelles couleurs de livraison.'},
   {n:106, d:'20/11/2026', tag:'admin', t:'Tableau de bord › Commandes : colonne Livraison toujours visible', x:'Le tableau est un peu plus compact (marges réduites, formats et producteurs sur plusieurs lignes) pour que la colonne Livraison ne soit plus coupée sur un écran moyen.'},
   {n:105, d:'20/11/2026', tag:'admin', t:'Livraison : détail des étapes du transporteur', x:'Dans Tableau de bord > Commandes, la pastille « Livraison » s\'ouvre au clic : liste des étapes du colis (date, heure, agence) et lien vers le suivi du transporteur. En passant la souris dessus, on voit le dernier événement. Les données arriveront avec le suivi automatique (script Google).'},
   {n:104, d:'20/11/2026', tag:'admin', t:'Livraison : nouveau statut « Livraison manquée »', x:'Pour un colis dont la livraison a échoué (destinataire absent) et qui sera en général présenté de nouveau ou déposé en point relais : statut violet « Livraison manquée », sans alerte rouge. Le filtre Livraison du tableau de bord le propose aussi.'},
@@ -24980,9 +24980,9 @@ function dashRenderRecherche(){
   html += '<div id="dash-search-count" style="font-size:.72rem;color:var(--mut);margin-bottom:8px"></div>';
   html += '<div style="font-size:.7rem;color:var(--acc);margin-bottom:6px">↔ Sur mobile, faites défiler le tableau horizontalement pour voir toutes les colonnes</div>';
   html += '<div class="dash-tbl-wrap">';
-  html += '<table class="dash-cmd-tbl" style="width:100%;min-width:920px;border-collapse:collapse;font-size:.8rem">';
+  html += '<table class="dash-cmd-tbl" style="width:100%;min-width:980px;border-collapse:collapse;font-size:.8rem">';
   html += '<thead><tr style="text-align:left;border-bottom:1.5px solid var(--brd)">'+
-    ['CMD','SITE','STATUT','FORMATS','QTÉ','PAR','CRÉÉ LE','DÉPART PRÉVU','EXPÉDIÉ LE','SUIVI'].map(function(h){
+    ['CMD','SITE','STATUT','FORMATS','QTÉ','PAR','CRÉÉ LE','DÉPART PRÉVU','DEPUIS','EXPÉDIÉ LE','SUIVI'].map(function(h){
       return '<th style="padding:7px 9px;color:var(--mut);font-family:Open Sans,sans-serif;font-size:0.71rem;font-weight:800;letter-spacing:.03em;white-space:nowrap">'+h+'</th>';
     }).join('')+
     '</tr></thead><tbody id="dash-search-tbody"></tbody></table></div>';
@@ -25049,7 +25049,7 @@ function dashRunSearch(){
   var tbody = document.getElementById('dash-search-tbody');
   if(!tbody) return;
   if(!list.length){
-    tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;color:var(--mut);padding:24px;font-size:.85rem">Aucune commande ne correspond.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;color:var(--mut);padding:24px;font-size:.85rem">Aucune commande ne correspond.</td></tr>';
     return;
   }
   var rows = list.slice(0,300).map(function(c){
@@ -25075,11 +25075,12 @@ function dashRunSearch(){
       '<td class="c-wrap" style="padding:7px 9px;color:var(--mut)">'+producersTxt+'</td>'+
       '<td style="padding:7px 9px;color:var(--mut);white-space:nowrap">'+created+'</td>'+
       '<td style="padding:7px 9px;white-space:nowrap;'+(overdue?'color:var(--red);font-weight:700':'color:var(--mut)')+'">'+(c.urgent && c.status!=='done'?'🚨 ':'')+depart+(overdue?' ⚠️':'')+dashDepartEditBtn(c)+'</td>'+
+      '<td style="padding:7px 9px;white-space:nowrap;'+(overdue?'color:var(--red);font-weight:700':'color:var(--mut)')+'">'+elapsed+'</td>'+
       '<td style="padding:7px 9px;vertical-align:top;white-space:nowrap">'+suiviShipDatesHtml(c)+'</td>'+
       '<td style="padding:7px 9px;vertical-align:top">'+suiviRowLinksHtml(c)+'</td>'+
     '</tr>';
   }).join('');
-  tbody.innerHTML = rows + (list.length>300 ? '<tr><td colspan="10" style="text-align:center;color:var(--mut);font-size:.72rem;padding:10px">Affichage limité aux 300 premiers résultats — affinez la recherche.</td></tr>' : '');
+  tbody.innerHTML = rows + (list.length>300 ? '<tr><td colspan="11" style="text-align:center;color:var(--mut);font-size:.72rem;padding:10px">Affichage limité aux 300 premiers résultats — affinez la recherche.</td></tr>' : '');
 }
 
 // ── SAV (service après-vente) sur les commandes ──
