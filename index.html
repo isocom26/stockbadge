@@ -1453,6 +1453,7 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
   <div style="background:var(--card);border:1.5px solid var(--brd);border-radius:14px;padding:14px;margin-bottom:16px">
     <div style="font-family:Open Sans,sans-serif;font-weight:800;font-size:0.95rem;margin-bottom:10px">🚚 Fournisseurs</div>
     <div id="admin-supplier-list"><div style="color:var(--mut);font-size:.82rem">Chargement…</div></div>
+    <button onclick="refsFournPDF()" style="margin-top:10px;width:100%;padding:9px 14px;border-radius:8px;border:1.5px solid var(--acc);background:none;color:var(--acc);font-family:Open Sans,sans-serif;font-weight:700;font-size:.85rem;cursor:pointer">📄 PDF : références fournisseurs à compléter</button>
     <div style="display:flex;gap:8px;margin-top:10px">
       <input type="text" id="admin-supplier-inp" placeholder="Nom du fournisseur" style="flex:1;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.85rem;padding:8px 10px;outline:none">
       <button onclick="addSupplier()" style="padding:8px 14px;border-radius:8px;border:none;background:var(--acc);color:#000;font-family:Open Sans,sans-serif;font-weight:700;font-size:0.89rem;cursor:pointer">+ Ajouter</button>
@@ -2056,7 +2057,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.11.23-1100';
+var APP_VERSION = '2026.11.23-1130';
 var MANUEL_URL = 'manuel-isoprod.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -3015,6 +3016,7 @@ function ecranAutoOpen(tries){
 // Pas de correctif technique invisible ici. tag = qui est concerné :
 //   'all' (tout le monde), 'admin' (admin/direction), 'maint' (maintenance), 'stock' (ajout de stock), 'reprint' (réimpressions)
 var NEWS = [
+  {n:110, d:'23/11/2026', tag:'admin', t:'Admin : PDF des références fournisseurs à compléter', x:'Dans Admin › Fournisseurs, le bouton « PDF : références fournisseurs à compléter » imprime tous les composants (Badges, Porte-clés, Pins…) classés par famille et catégorie, avec les fournisseurs déjà saisis et deux colonnes vides (Fournisseur, Réf. fournisseur) à remplir à la main.'},
   {n:109, d:'23/11/2026', tag:'stock', t:'Nouvelle commande : filtres Bas / Presque bas / Fournisseur', x:'Dans « Nouvelle commande », des boutons filtrent la liste : produits en stock bas, presque bas (marge réglable dans Admin, 50 % par défaut), ou les deux, et une liste permet de ne voir que les produits d\'un fournisseur (se cale sur le fournisseur choisi). Le bouton « Cocher les produits affichés » coche tout d\'un coup (sauf les produits déjà commandés, marqués « déjà commandé »). Les filtres ne font que masquer des lignes : les cases cochées restent.'},
   {n:108, d:'20/11/2026', tag:'all', t:'Emport : statut « Emport récupéré »', x:'Dans le détail d\'une commande disponible à l\'emport, le bouton « Récupéré par le client » enregistre le retrait (date et nom). Le statut passe alors de « Disponible à l\'emport » à « Emport récupéré » (vert plein), avec son choix dans le filtre Statut. Une croix permet d\'annuler. Le bandeau d\'alerte ne prévient plus pour une commande déjà récupérée.'},
   {n:107, d:'20/11/2026', tag:'admin', t:'Tableau de bord › Commandes : un seul statut, de la production à la livraison', x:'La colonne Depuis revient et la colonne Livraison disparaît : une commande terminée et expédiée affiche directement son statut de livraison (camion, Livré en vert plein, Problème en rouge plein), en cliquant on voit les étapes. Le filtre unique « Statut » regroupe tout : Attente production, Production en cours, Produite, Terminée (toutes les commandes terminées, livrées ou non), Disponible à l\'emport, Emport récupéré, Pris en charge, En acheminement, En livraison, Livraison manquée, À retirer, Livré, Problème, Avec SAV, À confirmer, En production (tout). Nouvelles couleurs de livraison.'},
@@ -8680,6 +8682,65 @@ function invcReportXlsx(){
     X.writeFile(wb, 'inventaire_'+(invcPhase()==='valide'?'valide_':'brouillon_')+new Date().toISOString().slice(0,10)+'.xlsx');
     toast('✅ Tableau Excel exporté');
   }).catch(function(){ toast('Impossible de générer le fichier Excel', 1); });
+}
+
+// Fiche à imprimer pour noter les références fournisseurs de chaque composant (toutes familles : Badges, Porte-clés, Pins…).
+// Les fournisseurs déjà saisis dans l'app sont rappelés dans la colonne « Déjà dans l'app » ; les deux colonnes suivantes restent vides pour écrire à la main.
+function pdfLatin(t){ return String(t == null ? '' : t).replace(/[\u2013\u2014]/g, '-').replace(/[\u2018\u2019]/g, "'").replace(/[\u201c\u201d]/g, '"').replace(/\u2026/g, '...').replace(/\u0153/g, 'oe').replace(/\u0152/g, 'OE').replace(/[\u202f\u00a0]/g, ' ').replace(/[^\u0020-\u00ff]/g, '').replace(/\s+/g, ' ').trim(); }
+function refsFournPDF(){
+  if(!iAm) return;
+  var jsPDF = window.jspdf ? window.jspdf.jsPDF : null;
+  if(!jsPDF){ toast('⚠️ PDF indisponible', 1); return; }
+  var famOrder = STOCK_FAMS.map(function(f){ return f[0]; });
+  var cats = invAllCats().slice().sort(function(a, b){
+    var fa = famOrder.indexOf(catFamille(a)), fb = famOrder.indexOf(catFamille(b));
+    if(fa < 0) fa = 99; if(fb < 0) fb = 99;
+    return fa !== fb ? fa - fb : ((a.order || 99) - (b.order || 99)) || String(a.name).localeCompare(String(b.name), 'fr');
+  });
+  var doc = new jsPDF({unit:'pt', format:'a4', orientation:'landscape'});
+  var pageW = doc.internal.pageSize.getWidth(), margin = 30;
+  var dateLabel = new Date().toLocaleDateString('fr-FR');
+  var y = pdfHeader(doc, pageW, 'Références fournisseurs à compléter', 'Date : ' + dateLabel);
+  var nbItems = 0;
+  var famGroups = [];
+  cats.forEach(function(cat){
+    var rows = (cat.items || []).filter(function(i){ return !i.linked; }).slice().sort(function(a, b){ return String(a.name).localeCompare(String(b.name), 'fr'); });
+    if(!rows.length) return;
+    var fam = catFamille(cat), g = famGroups[famGroups.length - 1];
+    if(!g || g.fam !== fam){ g = {fam: fam, cats: []}; famGroups.push(g); }
+    g.cats.push({cat: cat, items: rows});
+  });
+  var pageH = doc.internal.pageSize.getHeight();
+  var title = 'Références fournisseurs à compléter', sub = 'Date : ' + dateLabel;
+  famGroups.forEach(function(g, gi){
+    if(gi > 0){ doc.addPage(); y = pdfHeader(doc, pageW, title, sub); }
+    pdfSectionTitle(doc, pdfLatin(famLabel(g.fam).replace(/^\S+\s+/, '')), margin, y + 12);
+    y += 22;
+    g.cats.forEach(function(c){
+      // Pas de titre de catégorie orphelin en bas de page : il faut la place du titre + 3 lignes
+      if(y + 26 * 4 + 20 > pageH - 40){ doc.addPage(); y = pdfHeader(doc, pageW, title, sub) + 10; }
+      var body = [[{content: pdfLatin(c.cat.name), colSpan: 6, styles: {fontStyle: 'bold', fillColor: PDF_C.accLight, textColor: PDF_C.txt}}]];
+      c.items.forEach(function(item){
+        nbItems++;
+        var deja = itemFourns(item).map(function(f){ return pdfLatin((f.nom || '?') + (f.ref ? ' : ' + f.ref : '')); }).join('\n');
+        body.push([pdfLatin(item.refIso || ''), pdfLatin(item.name), deja, '', '', '']);
+      });
+      var startPage = doc.internal.getNumberOfPages();
+      doc.autoTable({
+        startY: y, margin: {left: margin, right: margin, top: 62},
+        head: [['Réf. ISOCOM', 'Composant', 'Déjà dans l\'app', 'Fournisseur', 'Réf. fournisseur', 'Remarques']],
+        body: body, theme: 'grid', rowPageBreak: 'avoid',
+        styles: {fontSize: 8.5, cellPadding: {top: 7, bottom: 7, left: 5, right: 5}, textColor: PDF_C.txt, lineColor: PDF_C.brd, minCellHeight: 26, valign: 'middle'},
+        headStyles: pdfTableHead(),
+        columnStyles: {0: {cellWidth: 70}, 1: {cellWidth: 150}, 2: {cellWidth: 120, textColor: PDF_C.mut, fontSize: 7.5}, 3: {cellWidth: 150}, 4: {cellWidth: 130}, 5: {cellWidth: 'auto'}},
+        didDrawPage: function(d){ if(d.pageNumber > startPage) pdfHeader(doc, pageW, title, sub); }
+      });
+      y = doc.lastAutoTable.finalY + 14;
+    });
+  });
+  pdfFooterAllPages(doc, 'Références fournisseurs');
+  doc.save('references_fournisseurs_' + dateLabel.replace(/\//g, '-') + '.pdf');
+  toast('✅ PDF exporté (' + nbItems + ' composants)');
 }
 
 // Feuille vierge à imprimer (comptage à l'aveugle : aucune quantité théorique).
