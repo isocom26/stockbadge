@@ -1439,6 +1439,16 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
     </div>
   </div>
 
+  <!-- Stock : presque bas -->
+  <div style="background:var(--card);border:1.5px solid var(--brd);border-radius:14px;padding:14px;margin-bottom:16px">
+    <div style="font-family:Open Sans,sans-serif;font-weight:800;font-size:0.95rem;margin-bottom:6px">🟠 Stock « presque bas »</div>
+    <div style="font-size:.78rem;color:var(--mut);margin-bottom:10px">Un produit est « presque bas » quand son stock est au-dessus du seuil d'alerte, mais à moins de ce pourcentage au-dessus (ex. seuil 1 000 pcs et 50 % : presque bas entre 1 001 et 1 500). Sert de filtre dans « Nouvelle commande ».</div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <input type="number" id="admin-presquebas-inp" min="1" max="1000" value="50" style="width:90px;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.85rem;padding:8px 10px;outline:none"> <span style="font-size:.85rem">%</span>
+      <button onclick="savePresqueBasPct()" style="padding:8px 14px;border-radius:8px;border:none;background:var(--acc);color:#000;font-family:Open Sans,sans-serif;font-weight:700;font-size:0.89rem;cursor:pointer">Enregistrer</button>
+    </div>
+  </div>
+
   <!-- Fournisseurs -->
   <div style="background:var(--card);border:1.5px solid var(--brd);border-radius:14px;padding:14px;margin-bottom:16px">
     <div style="font-family:Open Sans,sans-serif;font-weight:800;font-size:0.95rem;margin-bottom:10px">🚚 Fournisseurs</div>
@@ -1705,6 +1715,7 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
     <div class="ff">
       <label>Produits à commander</label>
       <div style="font-size:.72rem;color:var(--mut);margin-top:2px;margin-bottom:4px">Renseigne la quantité totale commandée en pièces — le conditionnement (cartons) sera précisé à la réception.</div>
+      <div id="ob-filters" style="margin-top:6px"></div>
       <input type="text" id="ob-search" placeholder="🔍 Rechercher un produit…" style="width:100%;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.88rem;padding:9px 12px;outline:none;margin-top:6px;margin-bottom:2px;box-sizing:border-box" oninput="filterOB()">
       <div id="ob-list" style="margin-top:6px"></div>
     </div>
@@ -2045,7 +2056,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.11.20-1640';
+var APP_VERSION = '2026.11.23-1100';
 var MANUEL_URL = 'manuel-isoprod.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -3004,6 +3015,7 @@ function ecranAutoOpen(tries){
 // Pas de correctif technique invisible ici. tag = qui est concerné :
 //   'all' (tout le monde), 'admin' (admin/direction), 'maint' (maintenance), 'stock' (ajout de stock), 'reprint' (réimpressions)
 var NEWS = [
+  {n:109, d:'23/11/2026', tag:'stock', t:'Nouvelle commande : filtres Bas / Presque bas / Fournisseur', x:'Dans « Nouvelle commande », des boutons filtrent la liste : produits en stock bas, presque bas (marge réglable dans Admin, 50 % par défaut), ou les deux, et une liste permet de ne voir que les produits d\'un fournisseur (se cale sur le fournisseur choisi). Le bouton « Cocher les produits affichés » coche tout d\'un coup (sauf les produits déjà commandés, marqués « déjà commandé »). Les filtres ne font que masquer des lignes : les cases cochées restent.'},
   {n:108, d:'20/11/2026', tag:'all', t:'Emport : statut « Emport récupéré »', x:'Dans le détail d\'une commande disponible à l\'emport, le bouton « Récupéré par le client » enregistre le retrait (date et nom). Le statut passe alors de « Disponible à l\'emport » à « Emport récupéré » (vert plein), avec son choix dans le filtre Statut. Une croix permet d\'annuler. Le bandeau d\'alerte ne prévient plus pour une commande déjà récupérée.'},
   {n:107, d:'20/11/2026', tag:'admin', t:'Tableau de bord › Commandes : un seul statut, de la production à la livraison', x:'La colonne Depuis revient et la colonne Livraison disparaît : une commande terminée et expédiée affiche directement son statut de livraison (camion, Livré en vert plein, Problème en rouge plein), en cliquant on voit les étapes. Le filtre unique « Statut » regroupe tout : Attente production, Production en cours, Produite, Terminée (toutes les commandes terminées, livrées ou non), Disponible à l\'emport, Emport récupéré, Pris en charge, En acheminement, En livraison, Livraison manquée, À retirer, Livré, Problème, Avec SAV, À confirmer, En production (tout). Nouvelles couleurs de livraison.'},
   {n:106, d:'20/11/2026', tag:'admin', t:'Tableau de bord › Commandes : colonne Livraison toujours visible', x:'Le tableau est un peu plus compact (marges réduites, formats et producteurs sur plusieurs lignes) pour que la colonne Livraison ne soit plus coupée sur un écran moyen.'},
@@ -3683,6 +3695,30 @@ function itemBelowThreshold(item, overrideQty){
   return pieces <= thresh;
 }
 
+// « Presque bas » : au-dessus du seuil d'alerte, mais à moins de X % au-dessus (X = settings/presqueBasPct, 50 par défaut).
+var PRESQUE_BAS_PCT = 50;
+function itemPresqueBas(item){
+  if(!item || item.muted) return false;
+  var thresh = effectiveAlertPcs(item);
+  if(!thresh) return false;
+  var pieces = itemTotalPieces(item);
+  return pieces > thresh && pieces <= thresh * (1 + PRESQUE_BAS_PCT/100);
+}
+function loadPresqueBasPct(cb){
+  fbg('settings/presqueBasPct').then(function(snap){
+    var v = parseInt(snap.val(), 10);
+    if(v > 0 && v <= 1000) PRESQUE_BAS_PCT = v;
+    var inp = document.getElementById('admin-presquebas-inp'); if(inp) inp.value = PRESQUE_BAS_PCT;
+    if(cb) cb();
+  }).catch(function(){ if(cb) cb(); });
+}
+function savePresqueBasPct(){
+  var inp = document.getElementById('admin-presquebas-inp'); if(!inp) return;
+  var v = parseInt(inp.value, 10);
+  if(!(v > 0 && v <= 1000)){ toast('Entre un pourcentage entre 1 et 1000', 1); return; }
+  fbs('settings/presqueBasPct', v).then(function(){ PRESQUE_BAS_PCT = v; toast('✓ Seuil « presque bas » enregistré'); }).catch(function(){ toast('Erreur d\'enregistrement', 1); });
+}
+
 // ── INVENTAIRE PÉRIODIQUE (déclenchement automatique) ──
 // Dès qu'un mouvement de stock fait passer un article sous son seuil
 // d'alerte (mêmes règles que l'onglet Alertes, isLowStock ci-dessus), on
@@ -4279,9 +4315,12 @@ function openOrderModal(){
   document.getElementById('ob-search').value='';
   document.getElementById('ord-date').value='';
   populateSupplierSelect();
+  obFilterStock = 'all'; obFilterSup = '';
   buildOB();
+  buildOBFilters(); filterOB();
   obColisRefreshAll();
   om('m-order');
+  loadPresqueBasPct(function(){ buildOBFilters(); filterOB(); });
 }
 
 // ── FOURNISSEURS ──
@@ -4310,6 +4349,15 @@ function ordSupplierChanged(){
   var wrap = document.getElementById('ord-s-other-wrap');
   if(!sel || !wrap) return;
   wrap.style.display = sel.value==='__other__' ? '' : 'none';
+  // Le filtre fournisseur se cale sur le fournisseur choisi (s'il a des produits), modifiable ensuite
+  var fs = document.getElementById('ob-f-sup');
+  if(fs){
+    var want = (sel.value && sel.value!=='__other__') ? sel.value : '';
+    var hit = null; if(want) Array.prototype.forEach.call(fs.options, function(o){ if(!hit && o.value && o.value.toLowerCase() === want.toLowerCase()) hit = o.value; });
+    obFilterSup = hit ? hit : (want ? obFilterSup : '');
+    fs.value = obFilterSup;
+    filterOB();
+  }
   obColisRefreshAll();
 }
 
@@ -4363,17 +4411,79 @@ function obColisRefreshAll(){ Object.keys(obItemsById).forEach(obColisUpdate); }
 // Filtre la liste de produits par nom, sans jamais toucher aux cases déjà
 // cochées — masque juste les lignes non correspondantes, et masque une
 // catégorie entière si plus aucune de ses lignes n'est visible.
+var obFilterStock = 'all', obFilterSup = '';
+function obSupKeys(item){ return itemFourns(item).map(function(f){ return String(f.nom||'').trim().toLowerCase(); }).filter(Boolean); }
+function obRowMatches(row, q){
+  if(q && (row.dataset.search||'').indexOf(q) < 0) return false;
+  var low = row.dataset.low === '1', near = row.dataset.near === '1';
+  if(obFilterStock === 'low' && !low) return false;
+  if(obFilterStock === 'near' && !near) return false;
+  if(obFilterStock === 'both' && !(low || near)) return false;
+  if(obFilterSup){
+    var sups = (row.dataset.sup||'').split('|').filter(Boolean);
+    if(obFilterSup === '__none__'){ if(sups.length) return false; }
+    else if(sups.indexOf(obFilterSup.toLowerCase()) < 0) return false;
+  }
+  return true;
+}
+// Filtre la liste (nom, stock bas / presque bas, fournisseur) sans jamais toucher aux cases déjà
+// cochées — masque juste les lignes non correspondantes, et masque une catégorie entière si plus
+// aucune de ses lignes n'est visible.
 function filterOB(){
   var q = (document.getElementById('ob-search').value||'').trim().toLowerCase();
   document.querySelectorAll('.ob-cat').forEach(function(catDiv){
     var anyVisible = false;
     catDiv.querySelectorAll('.ob-row').forEach(function(row){
-      var match = !q || (row.dataset.search||'').indexOf(q) >= 0;
+      var match = obRowMatches(row, q);
       row.style.display = match ? 'flex' : 'none';
       if(match) anyVisible = true;
     });
     catDiv.style.display = anyVisible ? '' : 'none';
   });
+  var nb = document.getElementById('ob-f-count');
+  if(nb) nb.textContent = Array.prototype.filter.call(document.querySelectorAll('.ob-row'), function(r){ return r.style.display !== 'none'; }).length + ' produit(s) affiché(s)';
+  document.querySelectorAll('.ob-fchip').forEach(function(c){
+    var on = c.dataset.k === obFilterStock;
+    c.style.background = on ? 'var(--acc)' : 'var(--sur)'; c.style.color = on ? '#000' : 'var(--txt)'; c.style.borderColor = on ? 'var(--acc)' : 'var(--brd)';
+  });
+}
+function obSetStockFilter(k){ obFilterStock = k; filterOB(); }
+function obSetSupFilter(v){ obFilterSup = v; filterOB(); }
+function obCheckVisible(){
+  var n = 0;
+  document.querySelectorAll('.ob-row').forEach(function(row){
+    if(row.style.display === 'none' || row.dataset.ordered === '1') return;
+    var iid = row.id.replace('obrow-',''), cb = document.getElementById('obc-'+iid);
+    if(cb && !cb.checked){ cb.checked = true; togOB(iid); n++; }
+  });
+  toast(n ? '✓ '+n+' produit(s) coché(s) — renseigne les quantités' : 'Rien de plus à cocher');
+}
+function buildOBFilters(){
+  var el = document.getElementById('ob-filters'); if(!el) return;
+  var nLow = 0, nNear = 0, sups = {}, supNames = {}, nNone = 0;
+  Object.keys(obItemsById).forEach(function(id){
+    var it = obItemsById[id];
+    if(isLowStock(it)) nLow++; else if(itemPresqueBas(it)) nNear++;
+    var ks = itemFourns(it).map(function(f){ return String(f.nom||'').trim(); }).filter(Boolean);
+    if(!ks.length) nNone++;
+    var seen = {};
+    ks.forEach(function(k){ var lk = k.toLowerCase(); if(seen[lk]) return; seen[lk] = 1; if(!supNames[lk]) supNames[lk] = k; sups[lk] = (sups[lk]||0) + 1; });
+  });
+  var chip = function(k, label){ return '<button type="button" class="ob-fchip" data-k="'+k+'" onclick="obSetStockFilter(\''+k+'\')" style="font-size:.74rem;font-weight:700;padding:5px 10px;border-radius:99px;border:1.5px solid var(--brd);background:var(--sur);color:var(--txt);cursor:pointer;font-family:Open Sans,sans-serif">'+label+'</button>'; };
+  var names = Object.keys(sups).sort(function(a,b){ return supNames[a].localeCompare(supNames[b],'fr'); });
+  el.innerHTML = '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px">'+
+      chip('all','Tous')+chip('low','⚠ Bas ('+nLow+')')+chip('near','🟠 Presque bas ('+nNear+')')+chip('both','Bas + presque bas ('+(nLow+nNear)+')')+
+    '</div>'+
+    '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">'+
+      '<select id="ob-f-sup" onchange="obSetSupFilter(this.value)" style="flex:1;min-width:150px;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.8rem;padding:7px 8px;outline:none">'+
+        '<option value="">Tous les fournisseurs</option>'+
+        names.map(function(n){ return '<option value="'+esc(supNames[n])+'">'+esc(supNames[n])+' ('+sups[n]+')</option>'; }).join('')+
+        '<option value="__none__">Sans fournisseur ('+nNone+')</option>'+
+      '</select>'+
+      '<button type="button" onclick="obCheckVisible()" style="font-size:.74rem;font-weight:700;padding:7px 10px;border-radius:8px;border:1.5px solid var(--grn);background:none;color:var(--grn);cursor:pointer;font-family:Open Sans,sans-serif">☑ Cocher les produits affichés</button>'+
+    '</div>'+
+    '<div id="ob-f-count" style="font-size:.7rem;color:var(--mut);margin:4px 0 2px"></div>';
+  var fs = document.getElementById('ob-f-sup'); if(fs) fs.value = obFilterSup;
 }
 
 function buildOB(){
@@ -4413,6 +4523,11 @@ function buildOB(){
         row.id = 'obrow-' + item.id;
         row.className = 'ob-row';
         row.dataset.search = item.name.toLowerCase();
+        row.dataset.low = isLowStock(item) ? '1' : '';
+        row.dataset.near = (!isLowStock(item) && itemPresqueBas(item)) ? '1' : '';
+        row.dataset.sup = obSupKeys(item).join('|');
+        var inOrd = !!findInProgressOrderForItem(S.orders, item.id);
+        row.dataset.ordered = inOrd ? '1' : '';
         row.style.cssText = 'display:flex;align-items:center;gap:12px;padding:12px 14px;border-top:1px solid var(--brd);background:var(--card);transition:background .15s';
         // Checkbox
         var cb = document.createElement('input');
@@ -4441,6 +4556,17 @@ function buildOB(){
           badge.style.cssText = 'font-size:.65rem;font-weight:700;color:var(--red);background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.35);border-radius:6px;padding:2px 7px;display:inline-block';
           badge.textContent = '⚠ Stock bas — ' + itemTotalPieces(item).toLocaleString('fr-FR') + ' pcs restant(s)';
           txt.appendChild(badge);
+        } else if(itemPresqueBas(item)){
+          var badge2 = document.createElement('span');
+          badge2.style.cssText = 'font-size:.65rem;font-weight:700;color:#c2410c;background:rgba(234,88,12,.12);border:1px solid rgba(234,88,12,.4);border-radius:6px;padding:2px 7px;display:inline-block';
+          badge2.textContent = '🟠 Presque bas — ' + itemTotalPieces(item).toLocaleString('fr-FR') + ' pcs restant(s)';
+          txt.appendChild(badge2);
+        }
+        if(inOrd){
+          var badge3 = document.createElement('span');
+          badge3.style.cssText = 'font-size:.65rem;font-weight:700;color:var(--mut);background:var(--sur);border:1px solid var(--brd);border-radius:6px;padding:2px 7px;display:inline-block;margin-left:5px';
+          badge3.textContent = '📦 déjà commandé';
+          txt.appendChild(badge3);
         }
         row.appendChild(txt);
         // Contrôle (masqué tant que non coché) : quantité commandée saisie
@@ -15797,6 +15923,7 @@ function delPrestataire(id){
 }
 
 function renderSuppliers(){
+  loadPresqueBasPct();
   ensureDefaultSuppliers().then(function(data){
     var el = document.getElementById('admin-supplier-list');
     if(!el) return;
