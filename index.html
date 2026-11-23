@@ -2057,7 +2057,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.11.23-1130';
+var APP_VERSION = '2026.11.23-1145';
 var MANUEL_URL = 'manuel-isoprod.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -3016,6 +3016,7 @@ function ecranAutoOpen(tries){
 // Pas de correctif technique invisible ici. tag = qui est concerné :
 //   'all' (tout le monde), 'admin' (admin/direction), 'maint' (maintenance), 'stock' (ajout de stock), 'reprint' (réimpressions)
 var NEWS = [
+  {n:111, d:'23/11/2026', tag:'stock', t:'Nouvelle commande : le seuil d\'alerte affiché', x:'Sur les lignes « Stock bas » et « Presque bas » de Nouvelle commande, le seuil d\'alerte du produit est maintenant indiqué à côté du stock restant.'},
   {n:110, d:'23/11/2026', tag:'admin', t:'Admin : PDF des références fournisseurs à compléter', x:'Dans Admin › Fournisseurs, le bouton « PDF : références fournisseurs à compléter » imprime tous les composants (Badges, Porte-clés, Pins…) classés par famille et catégorie, avec les fournisseurs déjà saisis et deux colonnes vides (Fournisseur, Réf. fournisseur) à remplir à la main.'},
   {n:109, d:'23/11/2026', tag:'stock', t:'Nouvelle commande : filtres Bas / Presque bas / Fournisseur', x:'Dans « Nouvelle commande », des boutons filtrent la liste : produits en stock bas, presque bas (marge réglable dans Admin, 50 % par défaut), ou les deux, et une liste permet de ne voir que les produits d\'un fournisseur (se cale sur le fournisseur choisi). Le bouton « Cocher les produits affichés » coche tout d\'un coup (sauf les produits déjà commandés, marqués « déjà commandé »). Les filtres ne font que masquer des lignes : les cases cochées restent.'},
   {n:108, d:'20/11/2026', tag:'all', t:'Emport : statut « Emport récupéré »', x:'Dans le détail d\'une commande disponible à l\'emport, le bouton « Récupéré par le client » enregistre le retrait (date et nom). Le statut passe alors de « Disponible à l\'emport » à « Emport récupéré » (vert plein), avec son choix dans le filtre Statut. Une croix permet d\'annuler. Le bandeau d\'alerte ne prévient plus pour une commande déjà récupérée.'},
@@ -4556,12 +4557,12 @@ function buildOB(){
         if(isLowStock(item)){
           var badge = document.createElement('span');
           badge.style.cssText = 'font-size:.65rem;font-weight:700;color:var(--red);background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.35);border-radius:6px;padding:2px 7px;display:inline-block';
-          badge.textContent = '⚠ Stock bas — ' + itemTotalPieces(item).toLocaleString('fr-FR') + ' pcs restant(s)';
+          badge.textContent = '⚠ Stock bas — ' + itemTotalPieces(item).toLocaleString('fr-FR') + ' pcs restant(s) · seuil ' + effectiveAlertPcs(item).toLocaleString('fr-FR') + ' pcs';
           txt.appendChild(badge);
         } else if(itemPresqueBas(item)){
           var badge2 = document.createElement('span');
           badge2.style.cssText = 'font-size:.65rem;font-weight:700;color:#c2410c;background:rgba(234,88,12,.12);border:1px solid rgba(234,88,12,.4);border-radius:6px;padding:2px 7px;display:inline-block';
-          badge2.textContent = '🟠 Presque bas — ' + itemTotalPieces(item).toLocaleString('fr-FR') + ' pcs restant(s)';
+          badge2.textContent = '🟠 Presque bas — ' + itemTotalPieces(item).toLocaleString('fr-FR') + ' pcs restant(s) · seuil ' + effectiveAlertPcs(item).toLocaleString('fr-FR') + ' pcs';
           txt.appendChild(badge2);
         }
         if(inOrd){
