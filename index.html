@@ -2057,7 +2057,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.11.23-1145';
+var APP_VERSION = '2026.11.23-1200';
 var MANUEL_URL = 'manuel-isoprod.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -3016,6 +3016,7 @@ function ecranAutoOpen(tries){
 // Pas de correctif technique invisible ici. tag = qui est concerné :
 //   'all' (tout le monde), 'admin' (admin/direction), 'maint' (maintenance), 'stock' (ajout de stock), 'reprint' (réimpressions)
 var NEWS = [
+  {n:112, d:'23/11/2026', tag:'all', t:'Stock › Inventaire : boutons CSV et PDF réparés', x:'Les boutons « Exporter le stock » (CSV et PDF, Atelier et Réserve) ne faisaient plus rien depuis le nettoyage du 19/11 : leur code avait été retiré par erreur. C\'est rétabli.'},
   {n:111, d:'23/11/2026', tag:'stock', t:'Nouvelle commande : le seuil d\'alerte affiché', x:'Sur les lignes « Stock bas » et « Presque bas » de Nouvelle commande, le seuil d\'alerte du produit est maintenant indiqué à côté du stock restant.'},
   {n:110, d:'23/11/2026', tag:'admin', t:'Admin : PDF des références fournisseurs à compléter', x:'Dans Admin › Fournisseurs, le bouton « PDF : références fournisseurs à compléter » imprime tous les composants (Badges, Porte-clés, Pins…) classés par famille et catégorie, avec les fournisseurs déjà saisis et deux colonnes vides (Fournisseur, Réf. fournisseur) à remplir à la main.'},
   {n:109, d:'23/11/2026', tag:'stock', t:'Nouvelle commande : filtres Bas / Presque bas / Fournisseur', x:'Dans « Nouvelle commande », des boutons filtrent la liste : produits en stock bas, presque bas (marge réglable dans Admin, 50 % par défaut), ou les deux, et une liste permet de ne voir que les produits d\'un fournisseur (se cale sur le fournisseur choisi). Le bouton « Cocher les produits affichés » coche tout d\'un coup (sauf les produits déjà commandés, marqués « déjà commandé »). Les filtres ne font que masquer des lignes : les cases cochées restent.'},
@@ -7431,6 +7432,146 @@ function invCleanStaleFlags(){
     });
   });
 }
+// Fonctions d'export appelées par les boutons CSV / PDF ci-dessous (retirées par erreur lors du nettoyage du 19/11, car appelées via un nom construit)
+function buildInventaireExportData(zone, famOpt){
+  var dbp = zone==='atelier' ? 'items' : 'reserve_items';
+  var zoneLabel = zone==='atelier' ? 'Atelier' : 'Réserve';
+  var fam = famOpt || zoneFamille[zone] || 'badge_magnet';
+  var famLbl = famLabel(fam).replace(/^\S+\s/, '').replace('&amp;','&');
+  zoneLabel = zoneLabel + ' · ' + famLbl;
+  var dateLabel = new Date().toLocaleDateString('fr-FR');
+
+  var catsData = S.cats
+    .filter(function(cat){ return catFamille(cat)===fam; })
+    // Les lignes liées sont exclues : la vraie référence est déjà exportée
+    // une fois, depuis sa catégorie d'origine — l'inclure ici compterait le
+    // même stock deux fois sur la feuille d'inventaire.
+    .map(function(cat){ return {cat:cat, items:(cat[dbp]||[]).filter(function(i){return !i.linked;}).slice().sort(function(a,b){return a.name.localeCompare(b.name);})}; })
+    .filter(function(c){ return c.items.length; });
+
+  // Éclate un article en une ligne par taille de carton quand plusieurs
+  // tailles coexistent — une seule colonne "comptés" ne peut pas recevoir
+  // deux nombres différents, donc chaque taille doit avoir sa propre ligne.
+  // Ajoute une ligne "TOTAL" en plus pour vérifier que la somme retombe juste,
+  // et une ligne "carton ouvert" sous chaque taille comptée, pour noter les
+  // pièces en vrac d'un carton déjà entamé (retiré du compte de cartons mais
+  // pas forcément entièrement utilisé).
+  var u = famUnit(fam);
+  function expandItemRows(item){
+    var out = [];
+    if(item.batches && item.batches.length > 1){
+      item.batches.forEach(function(b){
+        out.push({name: item.name+' — '+u+' de '+b.ppc.toLocaleString('fr-FR')+' pcs', ppc:b.ppc, qty:b.qty, pcs:b.qty*b.ppc, isTotal:false});
+        out.push({name: item.name+' — '+u+' de '+b.ppc.toLocaleString('fr-FR')+' pcs OUVERT (pièces en vrac)', ppc:'—', qty:'—', pcs:'—', isOpen:true});
+      });
+      out.push({name: item.name+' — TOTAL (toutes tailles, '+u+'s pleins + vrac)', ppc:'—', qty:item.qty||0, pcs:itemTotalPieces(item), isTotal:true});
+      return out;
+    }
+    out.push({name:item.name, ppc:currentPpc(item)||'—', qty:item.qty||0, pcs:itemTotalPieces(item), isTotal:false});
+    out.push({name:item.name+' — '+u+' OUVERT (pièces en vrac)', ppc:'—', qty:'—', pcs:'—', isOpen:true});
+    return out;
+  }
+
+  return {unit:u, zone:zone, dbp:dbp, zoneLabel:zoneLabel, fam:fam, famLbl:famLbl, dateLabel:dateLabel, catsData:catsData, expandItemRows:expandItemRows};
+}
+
+function exportInventaireCSV(zone, fam){
+  var d = buildInventaireExportData(zone, fam);
+  if(!d.catsData.length){ toast('Aucune référence dans cette zone', 1); return; }
+
+  var csvRows = [['Catégorie','Référence','Pièces/'+d.unit,uCap(d.unit)+'s (théorique)','Pièces (théorique)',uCap(d.unit)+'s comptés','Pièces comptées','Écart (pièces)']];
+  d.catsData.forEach(function(c){
+    c.items.forEach(function(item){
+      d.expandItemRows(item).forEach(function(r){
+        var cartonsComptesCell = r.isTotal ? '(somme ci-dessus)' : (r.isOpen ? 'N/A' : '');
+        var piecesComptesCell  = r.isTotal ? '(somme ci-dessus)' : '';
+        csvRows.push([c.cat.name, r.name, r.ppc, r.qty, r.pcs, cartonsComptesCell, piecesComptesCell, '']);
+      });
+    });
+  });
+  var csv = 'Inventaire '+d.zoneLabel+' - '+d.dateLabel+'\n'+csvRows.map(function(r){return r.join(';');}).join('\n');
+  var blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url; a.download = 'inventaire_'+d.zone+'_'+d.fam+'_'+d.dateLabel.replace(/\//g,'-')+'.csv';
+  a.click(); URL.revokeObjectURL(url);
+  toast('✅ CSV exporté !');
+}
+
+function exportInventairePDF(zone, fam){
+  var d = buildInventaireExportData(zone, fam);
+  if(!d.catsData.length){ toast('Aucune référence dans cette zone', 1); return; }
+  var zoneLabel = d.zoneLabel, fam = d.fam, dateLabel = d.dateLabel, catsData = d.catsData, expandItemRows = d.expandItemRows;
+
+  // ── PDF (fond clair, pensé pour être imprimé et rempli au stylo) ──
+  var jsPDF = window.jspdf ? window.jspdf.jsPDF : null;
+  if(!jsPDF){ toast('⚠️ PDF indisponible', 1); return; }
+  var doc = new jsPDF({unit:'pt', format:'a4', orientation:'landscape'});
+  var pageW = doc.internal.pageSize.getWidth();
+  var margin = 30;
+  function drawHead(){ return pdfHeader(doc, pageW, 'Inventaire — '+zoneLabel, 'Date : '+dateLabel); }
+  var y = drawHead();
+
+  catsData.forEach(function(c){
+    if(y > 470){ doc.addPage(); y = drawHead(); }
+    pdfSectionTitle(doc, c.cat.name, margin, y+12);
+    y += 20;
+
+    var totalRowIndexes = [];
+    var openRowIndexes = [];
+    var body = [];
+    c.items.forEach(function(item){
+      expandItemRows(item).forEach(function(r){
+        if(r.isTotal) totalRowIndexes.push(body.length);
+        if(r.isOpen) openRowIndexes.push(body.length);
+        body.push([
+          r.name,
+          typeof r.ppc==='number' ? r.ppc.toLocaleString('fr-FR') : r.ppc,
+          r.qty+'',
+          r.pcs.toLocaleString('fr-FR'),
+          r.isTotal ? '(somme ci-dessus)' : (r.isOpen ? 'N/A' : ''),
+          r.isTotal ? '(somme ci-dessus)' : '',
+          ''
+        ]);
+      });
+    });
+
+    doc.autoTable({
+      startY: y,
+      margin: {left:margin, right:margin},
+      head: [['Référence','Pcs/'+d.unit,uCap(d.unit)+'s (théo.)','Pièces (théo.)',uCap(d.unit)+'s comptés','Pièces comptées','Écart']],
+      body: body,
+      theme: 'grid',
+      styles: {fontSize:9, cellPadding:5, textColor:PDF_C.txt, lineColor:PDF_C.brd},
+      headStyles: pdfTableHead(),
+      columnStyles: {
+        4: {minCellWidth:80}, // comptés — colonne large pour écrire
+        5: {minCellWidth:80}, // Pièces comptées
+        6: {minCellWidth:60}  // Écart
+      },
+      didParseCell: function(data){
+        // Lignes "TOTAL" : repère visuel pour vérifier la somme
+        if(totalRowIndexes.indexOf(data.row.index) >= 0 && data.section==='body'){
+          data.cell.styles.fontStyle = 'bold';
+          data.cell.styles.fillColor = PDF_C.accLight;
+        }
+        // Lignes "carton ouvert" : repère distinct (pièces en vrac à noter)
+        if(openRowIndexes.indexOf(data.row.index) >= 0 && data.section==='body'){
+          data.cell.styles.fontStyle = 'italic';
+          data.cell.styles.fillColor = [224, 233, 250];
+          data.cell.styles.textColor = PDF_C.blu;
+        }
+      },
+      didDrawPage: function(data){ y = data.cursor.y; }
+    });
+    y = doc.lastAutoTable.finalY + 20;
+  });
+
+  pdfFooterAllPages(doc);
+  doc.save('inventaire_'+zone+'_'+fam+'_'+dateLabel.replace(/\//g,'-')+'.pdf');
+  toast('✅ PDF exporté !');
+}
+
 // Export du stock (CSV / PDF) : regroupé dans l'onglet Inventaire, par famille et par emplacement
 var invExportFam = null;
 function invExportFams(){ var p = invPole(); return STOCK_FAMS.filter(function(f){ return f[2] === p; }); }
