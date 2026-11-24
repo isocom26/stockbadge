@@ -2057,7 +2057,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.11.24-1020';
+var APP_VERSION = '2026.11.24-1040';
 var MANUEL_URL = 'manuel-isoprod.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -3016,6 +3016,7 @@ function ecranAutoOpen(tries){
 // Pas de correctif technique invisible ici. tag = qui est concerné :
 //   'all' (tout le monde), 'admin' (admin/direction), 'maint' (maintenance), 'stock' (ajout de stock), 'reprint' (réimpressions)
 var NEWS = [
+  {n:116, d:'24/11/2026', tag:'all', t:'Import des expéditions : emports annoncés enregistrables à la main', x:'Dans la fenêtre d\'import, les emports annoncés par EBP pour des commandes pas encore terminées sont listés et le bouton « Enregistrer » reste actif même si tout le reste est déjà connu : on peut ainsi redéposer l\'export EBP pour mémoriser les emports (case « À l\'emport » du contrôle qualité).'},
   {n:115, d:'24/11/2026', tag:'all', t:'Contrôle qualité : emport obligatoire à cocher', x:'Quand l\'export EBP a annoncé un emport, le contrôle qualité ne peut pas être validé tant que la case « 🚶 À l\'emport » n\'est pas cochée (message rouge et case mise en évidence).'},
   {n:114, d:'24/11/2026', tag:'all', t:'Contrôle qualité : case « À l\'emport » seulement pour les emports', x:'L\'import du soir retient les commandes que l\'export EBP annonce en emport (Transporteur prévu) même si elles ne sont pas terminées. Dans le contrôle qualité, la petite case « 🚶 À l\'emport » n\'apparaît que pour ces commandes, décochée : c\'est le collaborateur qui la coche. Case plus compacte.'},
   {n:113, d:'24/11/2026', tag:'all', t:'Contrôle qualité : case « Commande à l\'emport »', x:'Sur la carte d\'une commande à contrôler, une case « 🚶 Commande à l\'emport » : cochée, la validation du contrôle marque aussi la commande « Disponible à l\'emport » (date, alerte, statut dans le tableau). Rien n\'est enregistré tant que le contrôle n\'est pas validé. La case n\'apparaît pas si la commande est déjà disponible ou expédiée avec un colis.'},
@@ -10322,6 +10323,7 @@ function simpRender(){
     h += '</tbody></table></div>';
   }
   if(SIMP.empWait) h += '<div style="font-size:.74rem;color:var(--mut);margin-top:10px">🚶 '+SIMP.empWait+' emport(s) / autre(s) mode(s) ignoré(s) : la commande n\'est pas encore terminée (ils seront proposés à un prochain import, une fois prête).</div>';
+  if((SIMP.empPrevu||[]).length){ var byP = (S_cmdIndex && S_cmdIndex.byId) || {}; h += '<div style="font-size:.76rem;margin-top:10px">🚶 <strong>'+SIMP.empPrevu.length+' emport(s) annoncé(s) par EBP</strong> (commande pas encore terminée) — mémorisé(s) pour le contrôle qualité : '+SIMP.empPrevu.map(function(x){ var oc = byP[x.orderId]; return esc(oc ? simpOrderLabel(oc) : x.orderId); }).join(', ')+'</div>'; }
   if(SIMP.emports.length){
     h += '<div style="margin-top:10px;font-weight:800;font-size:.82rem">🚶 Emports et autres modes (sans colis)</div>';
     var by = (S_cmdIndex && S_cmdIndex.byId) || {};
@@ -10341,7 +10343,7 @@ function simpRender(){
     var nFixUi = SIMP.rows.filter(function(r){ return r.state === 'dup' && r.dateFix && r.on; }).length;
     h += '<div style="font-size:.76rem;color:var(--mut);margin-top:10px">'+nCol+' colis à enregistrer dont '+nConf+' à confirmer ; '+nEmp+' emport(s) ; '+nBl+' BL mémorisé(s) sur leur commande.'+
       (nIgn ? '<br><strong style="color:var(--acc)">📚 '+nIgn+' colis sans commande rattachée seront ignorés (import historique) ; coche-les à la main pour les ajouter.</strong>' : '')+(nSide ? '<br><strong style="color:var(--acc)">'+nSide+' colis non rattaché(s) seront mis de côté dans « Colis à rattacher » : rien ne se perd.</strong>' : '')+(nHp ? '<br>'+nHp+' colis marqué(s) « hors production » (consultables dans la liste « Hors production »).' : '')+(nFixUi ? '<br><strong style="color:var(--acc)">📅 '+nFixUi+' colis déjà enregistré(s) : la date d\'expédition sera corrigée d\'après le fichier.</strong>' : '')+'</div>'+
-      '<button class="btn bpri" style="width:100%;margin-top:8px" '+((nCol+nEmp+nSide+nHp+nBl+nFixUi) ? '' : 'disabled ')+'onclick="simpApply()">✅ Enregistrer</button>';
+      '<button class="btn bpri" style="width:100%;margin-top:8px" '+((nCol+nEmp+nSide+nHp+nBl+nFixUi+(SIMP.empPrevu||[]).length) ? '' : 'disabled ')+'onclick="simpApply()">✅ Enregistrer</button>';
   }
   var nO = simpOrphList().length, nH = simpHpList().length, nA = simpArchList().length, nE = simpEtiqList().length;
   var tb = function(v, label, n, on){ return '<button onclick="simpView(\''+(SIMP.view === v ? '' : v)+'\')" style="flex:1 1 140px;padding:8px;border-radius:8px;border:1.5px solid '+(n ? 'var(--acc)' : 'var(--brd)')+';background:'+(on ? 'var(--card)' : 'none')+';color:var(--txt);font-weight:700;font-size:.78rem;cursor:pointer">'+label+' ('+n+')</button>'; };
