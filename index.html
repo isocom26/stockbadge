@@ -2057,7 +2057,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.11.24-1000';
+var APP_VERSION = '2026.11.24-1020';
 var MANUEL_URL = 'manuel-isoprod.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -3016,6 +3016,7 @@ function ecranAutoOpen(tries){
 // Pas de correctif technique invisible ici. tag = qui est concerné :
 //   'all' (tout le monde), 'admin' (admin/direction), 'maint' (maintenance), 'stock' (ajout de stock), 'reprint' (réimpressions)
 var NEWS = [
+  {n:115, d:'24/11/2026', tag:'all', t:'Contrôle qualité : emport obligatoire à cocher', x:'Quand l\'export EBP a annoncé un emport, le contrôle qualité ne peut pas être validé tant que la case « 🚶 À l\'emport » n\'est pas cochée (message rouge et case mise en évidence).'},
   {n:114, d:'24/11/2026', tag:'all', t:'Contrôle qualité : case « À l\'emport » seulement pour les emports', x:'L\'import du soir retient les commandes que l\'export EBP annonce en emport (Transporteur prévu) même si elles ne sont pas terminées. Dans le contrôle qualité, la petite case « 🚶 À l\'emport » n\'apparaît que pour ces commandes, décochée : c\'est le collaborateur qui la coche. Case plus compacte.'},
   {n:113, d:'24/11/2026', tag:'all', t:'Contrôle qualité : case « Commande à l\'emport »', x:'Sur la carte d\'une commande à contrôler, une case « 🚶 Commande à l\'emport » : cochée, la validation du contrôle marque aussi la commande « Disponible à l\'emport » (date, alerte, statut dans le tableau). Rien n\'est enregistré tant que le contrôle n\'est pas validé. La case n\'apparaît pas si la commande est déjà disponible ou expédiée avec un colis.'},
   {n:112, d:'23/11/2026', tag:'all', t:'Stock › Inventaire : boutons CSV et PDF réparés', x:'Les boutons « Exporter le stock » (CSV et PDF, Atelier et Réserve) ne faisaient plus rien depuis le nettoyage du 19/11 : leur code avait été retiré par erreur. C\'est rétabli.'},
@@ -17371,6 +17372,14 @@ function cqHandleConfirm(btn){
     renderQualite();
     return;
   }
+  // Emport annoncé par EBP : la case « À l'emport » doit être cochée pour valider
+  var cqeBox = document.getElementById('cqe-'+cqKey);
+  if(cqeBox && !cqeBox.checked){
+    toast('🚶 Commande à l\'emport : coche « À l\'emport » pour valider', 1);
+    var lb = cqeBox.parentNode; if(lb && lb.scrollIntoView) lb.scrollIntoView({block:'center', behavior:'smooth'});
+    if(lb){ lb.style.boxShadow = '0 0 0 3px rgba(220,38,38,.55)'; setTimeout(function(){ lb.style.boxShadow = ''; }, 2500); }
+    return;
+  }
   document.getElementById('cf-title').textContent = '🔍 Contrôle Qualité';
   var msg = 'Valider le contrôle qualité de la commande ' + cmd + ' ?';
   var warn = '';
@@ -17404,6 +17413,8 @@ function cqHandleBulk(btn){
 }
 
 function cqRunBulk(lineRefs, cq, cmdIdForCq, cqKey){
+  var cqeG = document.getElementById('cqe-'+cqKey);
+  if(cq === 'checked' && cqeG && !cqeG.checked){ toast('🚶 Commande à l\'emport : coche « À l\'emport » pour valider', 1); return; }
   var now = Date.now();
   var cqEmpEl = cqKey ? document.getElementById('cqe-'+cqKey) : null;
   var wantEmport = !!(cqEmpEl && cqEmpEl.checked && cq === 'checked');
