@@ -2057,7 +2057,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.11.23-1200';
+var APP_VERSION = '2026.11.24-0930';
 var MANUEL_URL = 'manuel-isoprod.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -3016,6 +3016,7 @@ function ecranAutoOpen(tries){
 // Pas de correctif technique invisible ici. tag = qui est concerné :
 //   'all' (tout le monde), 'admin' (admin/direction), 'maint' (maintenance), 'stock' (ajout de stock), 'reprint' (réimpressions)
 var NEWS = [
+  {n:113, d:'24/11/2026', tag:'all', t:'Contrôle qualité : case « Commande à l\'emport »', x:'Sur la carte d\'une commande à contrôler, une case « 🛍 Commande à l\'emport » : cochée, la validation du contrôle marque aussi la commande « Disponible à l\'emport » (date, alerte, statut dans le tableau). Rien n\'est enregistré tant que le contrôle n\'est pas validé. La case n\'apparaît pas si la commande est déjà disponible ou expédiée avec un colis.'},
   {n:112, d:'23/11/2026', tag:'all', t:'Stock › Inventaire : boutons CSV et PDF réparés', x:'Les boutons « Exporter le stock » (CSV et PDF, Atelier et Réserve) ne faisaient plus rien depuis le nettoyage du 19/11 : leur code avait été retiré par erreur. C\'est rétabli.'},
   {n:111, d:'23/11/2026', tag:'stock', t:'Nouvelle commande : le seuil d\'alerte affiché', x:'Sur les lignes « Stock bas » et « Presque bas » de Nouvelle commande, le seuil d\'alerte du produit est maintenant indiqué à côté du stock restant.'},
   {n:110, d:'23/11/2026', tag:'admin', t:'Admin : PDF des références fournisseurs à compléter', x:'Dans Admin › Fournisseurs, le bouton « PDF : références fournisseurs à compléter » imprime tous les composants (Badges, Porte-clés, Pins…) classés par famille et catégorie, avec les fournisseurs déjà saisis et deux colonnes vides (Fournisseur, Réf. fournisseur) à remplir à la main.'},
@@ -9596,7 +9597,11 @@ function dashLivSubmit(cmdId){
 // commandes/{id}/emportDispo = {at, byName, byUid, setShip?} ; pose aussi la date de remise (livraison.shipAt) si elle n'existe pas encore.
 function emportDispoSet(cmdId){
   if(!canSuiviSaisie()) return;
-  var c = ((S_cmdIndex && S_cmdIndex.byId) || {})[cmdId]; if(!c) return;
+  emportDispoWrite(cmdId, false);
+}
+// Écriture « Disponible à l'emport » (sans contrôle de droit : aussi appelée par la validation du contrôle qualité). Renvoie la promesse d'écriture.
+function emportDispoWrite(cmdId, silent){
+  var c = ((S_cmdIndex && S_cmdIndex.byId) || {})[cmdId]; if(!c) return Promise.resolve();
   var now = Date.now(), ed = {at:now, byName:getMyName()}, upd = {};
   if(me && me.uid) ed.byUid = me.uid;
   if(c.livraison && c.livraison.mode){
@@ -9607,9 +9612,20 @@ function emportDispoSet(cmdId){
     upd['livraison'] = lv; ed.setShip = true;
   }
   upd['emportDispo'] = ed;
-  fbu('commandes/'+cmdId, upd)
-    .then(function(){ toast('✅ Disponible à l\'emport'); dashSuiviRefreshAll(cmdId); })
+  return fbu('commandes/'+cmdId, upd)
+    .then(function(){ if(!silent) toast('✅ Disponible à l\'emport'); dashSuiviRefreshAll(cmdId); })
     .catch(function(){ toast('Erreur d\'enregistrement', 1); });
+}
+// Case « Commande à l'emport » du contrôle qualité : seulement si la commande n'est pas déjà disponible / expédiée avec un colis
+function cqEmportBoxHtml(cqKey, cmdId, pole){
+  if(pole === 'numerique' || !cmdId) return '';
+  var c = ((S_cmdIndex && S_cmdIndex.byId) || {})[cmdId]; if(!c) return '';
+  if(c.emportDispo && c.emportDispo.at) return '';
+  if(c.colis && Object.keys(c.colis).length) return '';
+  if(c.livraison && c.livraison.mode && c.livraison.mode !== 'Emport') return '';
+  return '<label style="display:flex;align-items:center;gap:10px;padding:10px 12px;margin-bottom:8px;border:1.5px solid #92400e;border-radius:10px;background:rgba(146,64,14,.08);cursor:pointer;font-family:Open Sans,sans-serif;font-weight:800;font-size:.86rem;color:#92400e">'+
+    '<input type="checkbox" id="cqe-'+cqKey+'" style="width:20px;height:20px;accent-color:#92400e"> 🛍 Commande à l\'emport'+
+    '<span style="font-weight:600;font-size:.7rem;color:var(--mut);margin-left:auto">« Disponible » dès la validation</span></label>';
 }
 function emportDispoUndo(cmdId){
   if(!canSuiviSaisie()) return;
@@ -17295,7 +17311,7 @@ function cqGroupCard(items, cmdNom, cmdFormats, qtyState){
     alertesHtml += '<div style="background:rgba(245,158,11,.14);border:1.5px solid var(--org,#f59e0b);border-radius:10px;padding:8px 12px;margin-bottom:8px;font-size:.8rem;font-weight:800;color:var(--org,#f59e0b)">⏳ En attente du contrôle qualité du pôle numérique<div style="font-weight:600;font-size:.76rem;margin-top:2px">Le contrôle badges est le dernier avant l\'expédition.</div></div>';
   }
   if(cqStatus === 'pending'){
-    acts = qtyBadgeHtml + alertesHtml + '<button class="btn bsuc" style="width:100%;padding:11px;font-size:0.92rem;font-family:Open Sans,sans-serif;font-weight:700'+(numBlocked?';opacity:.45':'')+'" '+
+    acts = qtyBadgeHtml + alertesHtml + (numBlocked ? '' : cqEmportBoxHtml(cqKey, items.cmdObjId, gPoleC)) + '<button class="btn bsuc" style="width:100%;padding:11px;font-size:0.92rem;font-family:Open Sans,sans-serif;font-weight:700'+(numBlocked?';opacity:.45':'')+'" '+
       'data-cqkey="'+cqKey+'" data-cmd="'+l0.cmd+'" '+
       'data-digital="'+digitalInCmd.join(', ')+'" data-presentoir="'+presentoirInCmd.join(', ')+'" '+
       'onclick="cqHandleConfirm(this)">'+(numBlocked?'🔒 En attente du pôle numérique':'✅ Valider le contrôle')+'</button>';
@@ -17358,6 +17374,8 @@ function cqHandleConfirm(btn){
   var warn = '';
   if(digital) warn += '<br><br>🔴 <strong>Vérifier la présence :</strong> '+digital;
   if(presentoir) warn += '<br><br>🔴 <strong>Vérifier le présentoir :</strong> '+presentoir;
+  var cqEmpBox = document.getElementById('cqe-'+cqKey);
+  if(cqEmpBox && cqEmpBox.checked) warn += '<br><br>🛍 <strong>La commande sera aussi « Disponible à l\'emport ».</strong>';
   if(warn){
     document.getElementById('cf-msg').innerHTML = msg + warn;
   } else {
@@ -17385,6 +17403,9 @@ function cqHandleBulk(btn){
 
 function cqRunBulk(lineRefs, cq, cmdIdForCq, cqKey){
   var now = Date.now();
+  var cqEmpEl = cqKey ? document.getElementById('cqe-'+cqKey) : null;
+  var wantEmport = !!(cqEmpEl && cqEmpEl.checked && cq === 'checked');
+  var empCmdId = cmdIdForCq || ((cqKey && window._cqIds && window._cqIds[cqKey] && window._cqIds[cqKey].id) || '');
   var cqBy = getMyName();
   var cqMeta = (cqKey && window._cqIds && window._cqIds[cqKey]) || {};
   // Contrôle du pôle numérique : trace sur la commande (champ à part, celui des badges n'est pas touché)
@@ -17429,7 +17450,10 @@ function cqRunBulk(lineRefs, cq, cmdIdForCq, cqKey){
   });
 
   Promise.all(preW.concat(promises)).then(function(){
-    toast(cq==='checked'?'✅ Commande contrôlée !':cq==='archived'?'📦 Archivée !':'↩ Remise en attente');
+    // Case « Commande à l'emport » : posée seulement une fois le contrôle enregistré
+    return wantEmport && empCmdId ? emportDispoWrite(empCmdId, true) : null;
+  }).then(function(){
+    toast(cq==='checked'?'✅ Commande contrôlée !'+(wantEmport ? ' 🛍 Disponible à l\'emport' : ''):cq==='archived'?'📦 Archivée !':'↩ Remise en attente');
     renderQualite();
     polesSync(cmdIdForCq || cqMeta.id);
   });
