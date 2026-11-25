@@ -2057,7 +2057,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.11.24-1040';
+var APP_VERSION = '2026.11.25-1510';
 var MANUEL_URL = 'manuel-isoprod.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -3016,6 +3016,7 @@ function ecranAutoOpen(tries){
 // Pas de correctif technique invisible ici. tag = qui est concerné :
 //   'all' (tout le monde), 'admin' (admin/direction), 'maint' (maintenance), 'stock' (ajout de stock), 'reprint' (réimpressions)
 var NEWS = [
+  {n:117, d:'25/11/2026', tag:'all', t:'Étiquette client : plus de « À confirmer »', x:'Un colis saisi pour une commande « Étiquette fournie par le client » n\'est plus à confirmer par mail (le client a déjà son suivi) : plus de bandeau ni de pastille CONF pour ces commandes, y compris celles déjà saisies.'},
   {n:116, d:'24/11/2026', tag:'all', t:'Import des expéditions : emports annoncés enregistrables à la main', x:'Dans la fenêtre d\'import, les emports annoncés par EBP pour des commandes pas encore terminées sont listés et le bouton « Enregistrer » reste actif même si tout le reste est déjà connu : on peut ainsi redéposer l\'export EBP pour mémoriser les emports (case « À l\'emport » du contrôle qualité).'},
   {n:115, d:'24/11/2026', tag:'all', t:'Contrôle qualité : emport obligatoire à cocher', x:'Quand l\'export EBP a annoncé un emport, le contrôle qualité ne peut pas être validé tant que la case « 🚶 À l\'emport » n\'est pas cochée (message rouge et case mise en évidence).'},
   {n:114, d:'24/11/2026', tag:'all', t:'Contrôle qualité : case « À l\'emport » seulement pour les emports', x:'L\'import du soir retient les commandes que l\'export EBP annonce en emport (Transporteur prévu) même si elles ne sont pas terminées. Dans le contrôle qualité, la petite case « 🚶 À l\'emport » n\'apparaît que pour ces commandes, décochée : c\'est le collaborateur qui la coche. Case plus compacte.'},
@@ -9198,7 +9199,9 @@ function colisList(c){
   return Object.keys(m).map(function(id){ return m[id] && typeof m[id] === 'object' ? Object.assign({id:id}, m[id]) : null; })
     .filter(Boolean).sort(function(a,b){ return (a.at||0)-(b.at||0); });
 }
-function suiviPending(c){ return colisList(c).filter(function(k){ return !(k.conf && k.conf.at); }); }
+// Étiquette fournie par le client : le client a déjà son n° de suivi, il n'y a aucun mail à envoyer → jamais « à confirmer »
+function colisSansConfirm(k){ return !!(k && k.src === 'etiquette client'); }
+function suiviPending(c){ return colisList(c).filter(function(k){ return !(k.conf && k.conf.at) && !colisSansConfirm(k); }); }
 function suiviPendingCmds(){
   var byId = (S_cmdIndex && S_cmdIndex.byId) || {}, out = [];
   Object.keys(byId).forEach(function(cid){
@@ -9447,16 +9450,16 @@ function suiviModalHtml(){
 // ── Lignes de colis (fiche commande et fenêtre) ──
 function suiviColisRowsHtml(cmdId, list, withDelete){
   return list.map(function(k){
-    var ok = !!(k.conf && k.conf.at);
+    var ok = !!(k.conf && k.conf.at) || colisSansConfirm(k);
     var col = ok ? 'var(--grn)' : 'var(--acc)';
     var d = k.at ? new Date(k.at).toLocaleDateString('fr-FR') : '—';
-    var can = withDelete && (iAm || (canSuiviSaisie() && !ok));
+    var can = withDelete && (iAm || (canSuiviSaisie() && !(k.conf && k.conf.at)));
     return '<div style="border-top:1px solid var(--brd);padding:7px 0;font-size:.82rem">'+
       '<div style="display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap">'+
         '<span><strong>'+esc(k.transp||'—')+'</strong> · '+(suiviTrackUrl(k.transp,k.num) ? '<a href="'+esc(suiviTrackUrl(k.transp,k.num))+'" target="_blank" rel="noopener noreferrer" title="Ouvrir le suivi chez le transporteur" style="font-family:monospace;font-size:.86rem;word-break:break-all;color:var(--acc);text-decoration:underline">'+esc(k.num||'')+' ↗</a>' : '<span style="font-family:monospace;font-size:.86rem;word-break:break-all">'+esc(k.num||'')+'</span>')+'</span>'+
         '<span style="font-size:.7rem;font-weight:800;padding:2px 8px;border-radius:99px;border:1px solid '+col+';color:'+col+'">'+(ok?'✅ Confirmé':'🟠 À confirmer')+'</span>'+
       '</div>'+
-      '<div style="font-size:.72rem;color:var(--mut)">Ajouté le '+d+(k.src === 'import' ? '' : ' par '+esc(k.byName||'—'))+(ok ? ' · confirmé le '+new Date(k.conf.at).toLocaleDateString('fr-FR')+(k.conf.auto ? '' : ' par '+esc(k.conf.byName||'—')) : '')+'</div>'+
+      '<div style="font-size:.72rem;color:var(--mut)">Ajouté le '+d+(k.src === 'import' ? '' : ' par '+esc(k.byName||'—'))+(ok && k.conf && k.conf.at ? ' · confirmé le '+new Date(k.conf.at).toLocaleDateString('fr-FR')+(k.conf.auto ? '' : ' par '+esc(k.conf.byName||'—')) : '')+'</div>'+
       '<div style="display:flex;gap:6px;margin-top:5px">'+
         '<button onclick="suiviCopy(\''+cmdId+'\',\''+k.id+'\')" style="padding:4px 10px;border-radius:8px;border:1px solid var(--brd);background:none;color:var(--txt);font-size:.72rem;cursor:pointer">📋 Copier le n°</button>'+
         (can ? '<button onclick="suiviDeleteColis(\''+cmdId+'\',\''+k.id+'\')" style="padding:4px 10px;border-radius:8px;border:1px solid var(--red);background:none;color:var(--red);font-size:.72rem;cursor:pointer">Supprimer</button>' : '')+
@@ -9512,7 +9515,7 @@ function suiviCopy(cmdId, kid){
 // ── Bloc sur la fiche commande ──
 function dashSuiviBlockHtml(c){
   var list = colisList(c);
-  var pend = list.filter(function(k){ return !(k.conf && k.conf.at); });
+  var pend = list.filter(function(k){ return !(k.conf && k.conf.at) && !colisSansConfirm(k); });
   var html = '<div style="margin-top:14px;border:1.5px solid var(--brd);border-radius:12px;padding:12px;background:var(--card);text-align:left">'+
     '<div style="font-family:Open Sans,sans-serif;font-weight:800;font-size:.92rem;margin-bottom:6px">📮 Suivi d\'expédition'+(list.length?' ('+list.length+' colis)':'')+'</div>';
   if(!list.length) html += '<div style="font-size:.8rem;color:var(--mut);margin-bottom:8px">Aucun colis renseigné pour cette commande.</div>';
@@ -10575,7 +10578,9 @@ function simpEtiqSave(orderId, bl){
   if(simpAllNums()[num.replace(/\s+/g, '').toUpperCase()]){ toast('Ce n° de suivi est déjà enregistré', 1); return; }
   try{ localStorage.setItem('simpEtiqLastTr', tr); }catch(e){}   // le transporteur choisi est repris pour la saisie suivante
   var now = Date.now(), upd = {};
-  upd['colis/'+gid()] = simpColisEntry(tr, num.replace(/\s+/g, ''), bl, c, now, 'etiquette client');
+  var ek = simpColisEntry(tr, num.replace(/\s+/g, ''), bl, c, now, 'etiquette client');
+  if(!(ek.conf && ek.conf.at)) ek.conf = {at:now, byName:'Étiquette client', auto:true};   // rien à confirmer par mail
+  upd['colis/'+gid()] = ek;
   upd['etiqClient/'+bl+'/done'] = {at:now, byName:getMyName(), kind:'colis'};
   fbu('commandes/'+orderId, upd).then(function(){ toast('✅ N° de suivi enregistré'); S_dash.commandes = dashCommandesArray(); if(typeof dashRunSearch === 'function') dashRunSearch(); setTimeout(simpRender, 300); })
     .catch(function(){ toast('Erreur d\'enregistrement', 1); });
