@@ -929,7 +929,7 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
     </div>
     <div class="ff" style="margin-bottom:8px">
       <label>Description</label>
-      <input type="text" id="grp-interv-desc" placeholder="Ex: Nettoyage hebdomadaire" style="width:100%;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.88rem;padding:9px 12px;outline:none;margin-top:4px">
+      <textarea rows="3" id="grp-interv-desc" placeholder="Ex: Nettoyage hebdomadaire" style="resize:vertical;font-family:inherit;line-height:1.35;width:100%;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.88rem;padding:9px 12px;outline:none;margin-top:4px"></textarea>
     </div>
     <div class="ff" style="margin-bottom:10px">
       <label style="margin-bottom:6px;display:block">Machines concernées</label>
@@ -2022,7 +2022,7 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{background:rgba(255,
         <option value="Panne">🔴 Panne</option>
       </select>
     </div>
-    <div class="ff"><label>Description *</label><input type="text" id="interv-desc" placeholder="Décrivez l'intervention..."></div>
+    <div class="ff"><label>Description *</label><textarea rows="3" id="interv-desc" placeholder="Décrivez l'intervention..." style="width:100%;background:var(--card);border:1.5px solid var(--brd);border-radius:10px;color:var(--txt);font-family:'DM Sans',sans-serif;font-size:.95rem;padding:11px 14px;outline:none;resize:vertical;line-height:1.35"></textarea></div>
     <div class="ff"><label>Statut de la panne</label>
       <select id="interv-panne">
         <option value="none">Pas de panne</option>
@@ -2057,7 +2057,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.11.25-1510';
+var APP_VERSION = '2026.11.26-0915';
 var MANUEL_URL = 'manuel-isoprod.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -3016,6 +3016,7 @@ function ecranAutoOpen(tries){
 // Pas de correctif technique invisible ici. tag = qui est concerné :
 //   'all' (tout le monde), 'admin' (admin/direction), 'maint' (maintenance), 'stock' (ajout de stock), 'reprint' (réimpressions)
 var NEWS = [
+  {n:118, d:'26/11/2026', tag:'all', t:'Maintenance : description d\'intervention sur plusieurs lignes', x:'Le champ « Description » d\'une intervention (machine, groupe, prestataire) est maintenant une zone de texte de plusieurs lignes, agrandissable : on peut écrire une observation complète. Les retours à la ligne sont conservés à l\'affichage dans l\'historique.'},
   {n:117, d:'25/11/2026', tag:'all', t:'Étiquette client : plus de « À confirmer »', x:'Un colis saisi pour une commande « Étiquette fournie par le client » n\'est plus à confirmer par mail (le client a déjà son suivi) : plus de bandeau ni de pastille CONF pour ces commandes, y compris celles déjà saisies.'},
   {n:116, d:'24/11/2026', tag:'all', t:'Import des expéditions : emports annoncés enregistrables à la main', x:'Dans la fenêtre d\'import, les emports annoncés par EBP pour des commandes pas encore terminées sont listés et le bouton « Enregistrer » reste actif même si tout le reste est déjà connu : on peut ainsi redéposer l\'export EBP pour mémoriser les emports (case « À l\'emport » du contrôle qualité).'},
   {n:115, d:'24/11/2026', tag:'all', t:'Contrôle qualité : emport obligatoire à cocher', x:'Quand l\'export EBP a annoncé un emport, le contrôle qualité ne peut pas être validé tant que la case « 🚶 À l\'emport » n\'est pas cochée (message rouge et case mise en évidence).'},
@@ -14981,7 +14982,7 @@ function renderMachHistory(m){
         '</div>'+
         '<span style="font-size:.75rem;color:var(--mut)">'+d+'</span>'+
       '</div>'+
-      (i.desc?'<div style="font-size:.82rem;color:var(--txt);margin-bottom:4px">'+esc(i.desc)+'</div>':'')+
+      (i.desc?'<div style="font-size:.82rem;color:var(--txt);margin-bottom:4px;white-space:pre-wrap;word-break:break-word">'+esc(i.desc)+'</div>':'')+
       '<div style="font-size:.75rem;color:var(--mut)">'+
         'Par : <strong>'+(i.by||'—')+'</strong>'+
         (coutTotal>0?' · 💰 <strong style="color:var(--txt)">'+coutTotal.toFixed(2)+' €</strong>':'')+'</div>'+
@@ -15029,7 +15030,7 @@ function openAddInterv(){
         intervTypeOptionsHtml()+
       '</select></div>'+
       '<div class="ff" style="margin-bottom:8px"><label>Description *</label>'+
-      '<input type="text" id="interv-desc" placeholder="Décrivez l\'intervention" style="width:100%;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.88rem;padding:9px;outline:none;margin-top:4px;box-sizing:border-box"></div>'+
+      '<textarea rows="4" id="interv-desc" placeholder="Décrivez l\'intervention" style="resize:vertical;font-family:inherit;line-height:1.35;width:100%;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.88rem;padding:9px;outline:none;margin-top:4px;box-sizing:border-box"></textarea></div>'+
       '<div class="ff" style="margin-bottom:8px"><label>Statut machine après intervention</label>'+
       '<select id="interv-status" style="width:100%;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.88rem;padding:9px;outline:none;margin-top:4px">'+
         '<option value="ok">En service</option>'+
@@ -15689,7 +15690,7 @@ function renderPlateauHistory(item){
         '</div>'+
         '<span style="font-size:.75rem;color:var(--mut)">'+d+'</span>'+
       '</div>'+
-      (i.desc?'<div style="font-size:.82rem;color:var(--txt);margin-bottom:4px">'+esc(i.desc)+'</div>':'')+
+      (i.desc?'<div style="font-size:.82rem;color:var(--txt);margin-bottom:4px;white-space:pre-wrap;word-break:break-word">'+esc(i.desc)+'</div>':'')+
       '<div style="font-size:.75rem;color:var(--mut)">'+
         'Par : <strong>'+(i.by||'—')+'</strong>'+
         (coutTotal>0?' · 💰 <strong style="color:var(--txt)">'+coutTotal.toFixed(2)+' €</strong>':'')+'</div>'+
@@ -15724,7 +15725,7 @@ function openAddPlateauInterv(){
         intervTypeOptionsHtml()+
       '</select></div>'+
       '<div class="ff" style="margin-bottom:8px"><label>Description *</label>'+
-      '<input type="text" id="pinterv-desc" placeholder="Décrivez l\'intervention" style="width:100%;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.88rem;padding:9px;outline:none;margin-top:4px;box-sizing:border-box"></div>'+
+      '<textarea rows="4" id="pinterv-desc" placeholder="Décrivez l\'intervention" style="resize:vertical;font-family:inherit;line-height:1.35;width:100%;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.88rem;padding:9px;outline:none;margin-top:4px;box-sizing:border-box"></textarea></div>'+
       '<div class="ff" style="margin-bottom:8px"><label>Statut après intervention</label>'+
       '<select id="pinterv-status" style="width:100%;background:var(--sur);border:1.5px solid var(--brd);border-radius:8px;color:var(--txt);font-size:.88rem;padding:9px;outline:none;margin-top:4px">'+
         Object.keys(PLATEAU_STATUTS).map(function(k){ return '<option value="'+k+'">'+PLATEAU_STATUTS[k].label+'</option>'; }).join('')+
