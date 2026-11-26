@@ -2057,7 +2057,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.11.26-1030';
+var APP_VERSION = '2026.11.26-1040';
 var MANUEL_URL = 'manuel-isoprod.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -3016,7 +3016,7 @@ function ecranAutoOpen(tries){
 // Pas de correctif technique invisible ici. tag = qui est concerné :
 //   'all' (tout le monde), 'admin' (admin/direction), 'maint' (maintenance), 'stock' (ajout de stock), 'reprint' (réimpressions)
 var NEWS = [
-  {n:120, d:'26/11/2026', tag:'all', t:'Livraison : statut « Retard », statut dans la fiche et alerte', x:'Nouveau statut jaune « ⏱ Retard » quand le transporteur signale un colis retardé (dans le tableau et dans le filtre Statut). Dans la fiche d\'une commande, chaque colis affiche maintenant son statut de livraison et son dernier événement sous « Confirmé » (clic = détail des étapes). Les personnes qui reçoivent les alertes de livraison voient aussi un bandeau « Colis en retard » (une fois par colis) et la pastille LIV reste tant que le colis est en retard, pour pouvoir lancer une réclamation.'},
+  {n:120, d:'26/11/2026', tag:'all', t:'Livraison : statut « Retard », statut dans la fiche et alerte', x:'Nouveau statut jaune « ⏱ Retard » quand le transporteur signale un colis retardé (dans le tableau et dans le filtre Statut). Dans la fiche d\'une commande, chaque colis affiche maintenant son statut de livraison et son dernier événement sous « Confirmé » (clic = détail des étapes). Les personnes qui reçoivent les alertes de livraison voient aussi un bandeau « Colis en retard » (une fois par colis) et la pastille LIV reste tant que le colis est en retard, pour pouvoir lancer une réclamation. Ces alertes (retard et problème) ont leur propre droit dans Admin > Droits : « Reçoit les alertes de livraison » (admin et direction les reçoivent toujours) ; il n\'est plus lié au droit de saisie des suivis.'},
   {n:119, d:'26/11/2026', tag:'all', t:'Étiquettes client : liste mise à jour et date de départ', x:'Une commande dont le n° de suivi a déjà été saisi ailleurs (tableau, fiche commande) sort maintenant de la liste « Étiquette client » et du compteur. On peut aussi choisir la date de départ dans la liste (aujourd\'hui par défaut) avant d\'enregistrer le n° de suivi.'},
   {n:118, d:'26/11/2026', tag:'all', t:'Maintenance : description d\'intervention sur plusieurs lignes', x:'Le champ « Description » d\'une intervention (machine, groupe, prestataire) est maintenant une zone de texte de plusieurs lignes, agrandissable : on peut écrire une observation complète. Les retours à la ligne sont conservés à l\'affichage dans l\'historique.'},
   {n:117, d:'25/11/2026', tag:'all', t:'Étiquette client : plus de « À confirmer »', x:'Un colis saisi pour une commande « Étiquette fournie par le client » n\'est plus à confirmer par mail (le client a déjà son suivi) : plus de bandeau ni de pastille CONF pour ces commandes, y compris celles déjà saisies.'},
@@ -3429,7 +3429,7 @@ var RIGHTS_TREE = [
     {id:'search',     btn:'sub-search',     label:'🔍 Recherche',      actions:[]}
   ]},
   {key:'dashboard', label:'📈 Tableau de bord', def:function(P,d){return d;}, subs:[
-    {id:'dash_recherche',  btn:'dash-tab-recherche',  label:'🔍 Commandes',  actions:['suiviSaisie','suiviConf','emportAlert']},
+    {id:'dash_recherche',  btn:'dash-tab-recherche',  label:'🔍 Commandes',  actions:['suiviSaisie','suiviConf','livAlert','emportAlert']},
     {id:'dash_synthese',   btn:'dash-tab-synthese',   label:'📋 Synthèse',   actions:[]},
     {id:'dash_aujourdhui', btn:'dash-tab-aujourdhui', label:'🏭 Aujourd\'hui', actions:[]},
     {id:'dash_capacite',   btn:'dash-tab-capacite',   label:'⚡ Capacité',   actions:[]},
@@ -3502,7 +3502,7 @@ var RIGHTS_TEMPLATES = {
   direction: {label:'👔 Direction', desc:'Accès complet sauf Admin et Ma production.', role:'direction', isProducer:false,
     tops:['production','stock','dashboard','maintenance','meeting','planning','stats','espace'],
     subs:['depiautage','reprint','qualite','search','atelier','reserve','alertes','commandes','inventaire','journal','dash_recherche','dash_synthese','dash_aujourdhui','dash_capacite','dash_sav'],
-    actions:['addStock','maintenance','machCats','reprint','orders','sav','maintNotif','savAlert','emportAlert','suiviSaisie','suiviConf','ecranAtelier','planningEdit']},
+    actions:['addStock','maintenance','machCats','reprint','orders','sav','maintNotif','savAlert','emportAlert','suiviSaisie','suiviConf','livAlert','ecranAtelier','planningEdit']},
   lecture: {label:'👁️ Consultation', desc:'Lecture seule : recherche, stock, tableau de bord (Commandes, Synthèse).', role:'employee', isProducer:false,
     tops:['production','stock','dashboard','planning'],
     subs:['search','atelier','reserve','alertes','dash_recherche','dash_synthese'],
@@ -9346,7 +9346,7 @@ function livOptionsHtml(){
   return '<option value="">Livraison : tout</option>'+LIV_STATUTS.map(function(s){ return '<option value="'+s.k+'">'+s.l+'</option>'; }).join('')+'<option value="none">— Pas d\'info</option>';
 }
 // Alerte « Problème » : bandeau rouge pour ceux qui gèrent les expéditions, une seule fois par colis et par appareil
-function livCanSee(){ return !!(me && (iAm || isDir || canSuiviSaisie())); }
+function livCanSee(){ return !!(me && (iAm || isDir || (permsLoaded && me_perms && me_perms.livAlert === true))); }   // droit dédié « Reçoit les alertes de livraison » (indépendant de la saisie des suivis)
 function livProblemItems(){
   var byId = (S_cmdIndex && S_cmdIndex.byId) || {}, out = [];
   Object.keys(byId).forEach(function(cid){
@@ -10768,6 +10768,7 @@ var PERMS_LIST = [
   {key:'savAlert',   label:'🔔 Reçoit les alertes SAV (bandeau + pastille quand un SAV est déclaré) — admin les reçoit toujours'},
   {key:'emportAlert', label:'🚶 Reçoit les alertes « Disponible à l\'emport » (bandeau + notification quand une commande est déposée à l\'accueil) — admin et direction les reçoivent toujours'},
   {key:'suiviSaisie', label:'📮 Peut saisir les suivis d\'expédition (colis, n° de suivi) — admin et direction l\'ont toujours'},
+  {key:'livAlert',  label:'⏱ Reçoit les alertes de livraison (bandeau « Colis en retard » / « Problème de livraison » + pastille LIV) — admin et direction les reçoivent toujours'},
   {key:'suiviConf',  label:'✅ Confirme les expéditions et reçoit l\'alerte « à confirmer » (bandeau + pastille CONF) — admin et direction l\'ont toujours'},
   {key:'planningEdit', label:'✏️ Peut modifier le Planning (absences, congés, fermetures, agenda) — admin l\'a toujours ; sans ce droit, le Planning est en consultation'},
   {key:'ecranAtelier', label:'📺 Voit le bouton « Écran atelier » (affichage TV) — admin et direction l\'ont toujours'},
