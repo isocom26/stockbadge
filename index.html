@@ -2057,7 +2057,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.11.26-1010';
+var APP_VERSION = '2026.11.26-1030';
 var MANUEL_URL = 'manuel-isoprod.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -3016,6 +3016,7 @@ function ecranAutoOpen(tries){
 // Pas de correctif technique invisible ici. tag = qui est concerné :
 //   'all' (tout le monde), 'admin' (admin/direction), 'maint' (maintenance), 'stock' (ajout de stock), 'reprint' (réimpressions)
 var NEWS = [
+  {n:120, d:'26/11/2026', tag:'all', t:'Livraison : statut « Retard », statut dans la fiche et alerte', x:'Nouveau statut jaune « ⏱ Retard » quand le transporteur signale un colis retardé (dans le tableau et dans le filtre Statut). Dans la fiche d\'une commande, chaque colis affiche maintenant son statut de livraison et son dernier événement sous « Confirmé » (clic = détail des étapes). Les personnes qui reçoivent les alertes de livraison voient aussi un bandeau « Colis en retard » (une fois par colis) et la pastille LIV reste tant que le colis est en retard, pour pouvoir lancer une réclamation.'},
   {n:119, d:'26/11/2026', tag:'all', t:'Étiquettes client : liste mise à jour et date de départ', x:'Une commande dont le n° de suivi a déjà été saisi ailleurs (tableau, fiche commande) sort maintenant de la liste « Étiquette client » et du compteur. On peut aussi choisir la date de départ dans la liste (aujourd\'hui par défaut) avant d\'enregistrer le n° de suivi.'},
   {n:118, d:'26/11/2026', tag:'all', t:'Maintenance : description d\'intervention sur plusieurs lignes', x:'Le champ « Description » d\'une intervention (machine, groupe, prestataire) est maintenant une zone de texte de plusieurs lignes, agrandissable : on peut écrire une observation complète. Les retours à la ligne sont conservés à l\'affichage dans l\'historique.'},
   {n:117, d:'25/11/2026', tag:'all', t:'Étiquette client : plus de « À confirmer »', x:'Un colis saisi pour une commande « Étiquette fournie par le client » n\'est plus à confirmer par mail (le client a déjà son suivi) : plus de bandeau ni de pastille CONF pour ces commandes, y compris celles déjà saisies.'},
@@ -9220,6 +9221,7 @@ function suiviPendingCmds(){
 var LIV_STATUTS = [
   {k:'pris',      l:'Pris en charge',  c:'#64748b', bg:'rgba(100,116,139,.16)'},
   {k:'transit',   l:'En acheminement', c:'#0284c7', bg:'rgba(2,132,199,.14)'},
+  {k:'retard',    l:'Retard',          c:'#ca8a04', bg:'#facc15', solid:true, ico:'⏱', fg:'#422006'},
   {k:'livraison', l:'En livraison',    c:'#0d9488', bg:'rgba(13,148,136,.15)'},
   {k:'manque',    l:'Livraison manquée', c:'#db2777', bg:'rgba(219,39,119,.14)'},
   {k:'retirer',   l:'À retirer',       c:'#65a30d', bg:'rgba(101,163,13,.17)'},
@@ -9227,7 +9229,21 @@ var LIV_STATUTS = [
   {k:'probleme',  l:'Problème',        c:'#dc2626', bg:'#dc2626', solid:true, ico:'⚠'}
 ];
 function livInfo(key){ for(var i = 0; i < LIV_STATUTS.length; i++){ if(LIV_STATUTS[i].k === key) return LIV_STATUTS[i]; } return null; }
-function livKeyOfColis(k){ return k && k.liv && livInfo(k.liv.st) ? k.liv.st : null; }
+// « Retard » : le transporteur signale un colis retardé (le dernier événement utile, en ignorant les simples messages d'information) alors que le colis est encore en route
+function livRetardDe(liv){
+  var ev = liv && Array.isArray(liv.ev) ? liv.ev : [];
+  for(var i = 0; i < ev.length; i++){
+    var l = String(ev[i].l || '');
+    if(/destinataire inform|avisage|sms|mail/i.test(l)) continue;
+    return /retard/i.test(l);
+  }
+  return !!(liv && /retard/i.test(liv.lbl || ''));
+}
+function livKeyOfColis(k){
+  if(!(k && k.liv && livInfo(k.liv.st))) return null;
+  var st = k.liv.st;
+  return ((st === 'transit' || st === 'pris') && livRetardDe(k.liv)) ? 'retard' : st;
+}
 // Statut d'une commande : « Problème » d'abord, sinon le colis le moins avancé (ordre de LIV_STATUTS). null = aucune info.
 function dashLivCmd(c){
   var list = colisList(c).filter(function(k){ return String(k.num || '').trim() !== ''; });
@@ -9235,6 +9251,7 @@ function dashLivCmd(c){
   if(!keys.length) return null;
   var key = null;
   if(keys.indexOf('probleme') >= 0) key = 'probleme';
+  else if(keys.indexOf('retard') >= 0) key = 'retard';
   else { var min = 99; keys.forEach(function(x){ var i = LIV_STATUTS.findIndex(function(s){ return s.k === x; }); if(i < min) min = i; }); key = LIV_STATUTS[min].k; }
   var nbLivre = keys.filter(function(x){ return x === 'livre'; }).length;
   return {key:key, total:list.length, livre:nbLivre};
@@ -9243,7 +9260,7 @@ function livPillHtml(key, sub){
   var i = livInfo(key); if(!i) return '';
   var ico = i.ico || '🚚';
   var st = i.solid
-    ? 'background:'+i.bg+';color:#fff;border:1px solid '+i.c
+    ? 'background:'+i.bg+';color:'+(i.fg || '#fff')+';border:1px solid '+i.c
     : 'background:'+i.bg+';color:'+i.c+';border:1px solid '+i.c;
   return '<span style="display:inline-block;font-size:.74rem;font-family:Open Sans,sans-serif;font-weight:800;padding:3px 9px;border-radius:99px;'+st+';white-space:nowrap">'+ico+' '+i.l+'</span>'+(sub ? '<div style="font-size:.66rem;color:var(--mut);margin-top:2px;white-space:nowrap">'+sub+'</div>' : '');
 }
@@ -9334,7 +9351,7 @@ function livProblemItems(){
   var byId = (S_cmdIndex && S_cmdIndex.byId) || {}, out = [];
   Object.keys(byId).forEach(function(cid){
     var c = byId[cid]; if(!c) return;
-    colisList(c).forEach(function(k){ if(livKeyOfColis(k) === 'probleme') out.push({cmdId:cid, c:c, k:k, sig:k.id+'@'+((k.liv && k.liv.at) || 0)}); });
+    colisList(c).forEach(function(k){ var lk = livKeyOfColis(k); if(lk === 'probleme') out.push({cmdId:cid, c:c, k:k, sig:k.id+'@'+((k.liv && k.liv.at) || 0)}); else if(lk === 'retard') out.push({cmdId:cid, c:c, k:k, retard:true, sig:k.id+'@retard'}); });
   });
   return out;
 }
@@ -9352,7 +9369,10 @@ function livAlertsUpdate(){
   var unseen = items.filter(function(it){ return seen.indexOf(it.sig) < 0; });
   var tx = document.getElementById('liv-banner-text');
   if(!unseen.length){ hideTopBanner('liv-banner'); return; }
-  if(tx) tx.textContent = unseen.length === 1 ? '🚨 Problème de livraison : ' + (unseen[0].c.nom || unseen[0].c.cmd || '?') + (unseen[0].k.num ? ' — ' + (unseen[0].k.transp||'') + ' ' + unseen[0].k.num : '') : '🚨 ' + unseen.length + ' colis en problème de livraison';
+  if(tx){
+    var nbR = unseen.filter(function(it){ return it.retard; }).length, nbP = unseen.length - nbR;
+    tx.textContent = unseen.length === 1 ? (unseen[0].retard ? '⏱ Colis en retard : ' : '🚨 Problème de livraison : ') + (unseen[0].c.nom || unseen[0].c.cmd || '?') + (unseen[0].k.num ? ' — ' + (unseen[0].k.transp||'') + ' ' + unseen[0].k.num : '') : (nbP && nbR ? '🚨 ' + nbP + ' colis en problème, ⏱ ' + nbR + ' en retard' : nbR ? '⏱ ' + nbR + ' colis en retard de livraison' : '🚨 ' + nbP + ' colis en problème de livraison');
+  }
   showTopBanner('liv-banner');
 }
 function livMarkAllSeen(){ livSeenSet(livProblemItems().map(function(it){ return it.sig; })); hideTopBanner('liv-banner'); }
@@ -9364,7 +9384,8 @@ function livGoToList(){
     switchGroup('dashboard');
     dashSwitchSection('recherche');
     var s = document.getElementById('dash-search-situation');
-    if(s){ s.value = 'l:probleme'; dashRunSearch(); } else { window._dashPresetSituation = 'l:probleme'; }
+    var its = livProblemItems(), fk = (its.length && its.every(function(it){ return it.retard; })) ? 'l:retard' : 'l:probleme';
+    if(s){ s.value = fk; dashRunSearch(); } else { window._dashPresetSituation = fk; }
   }
 }
 function suiviSeenKey(){ return 'isoprod_suivi_seen_' + (me && me.uid ? me.uid : 'x'); }
@@ -9450,6 +9471,13 @@ function suiviModalHtml(){
 }
 
 // ── Lignes de colis (fiche commande et fenêtre) ──
+// Statut de livraison du colis (sous « Confirmé ») : pastille + dernier événement, clic = détail des étapes
+function livFicheLineHtml(cmdId, k){
+  var key = livKeyOfColis(k); if(!key) return '';
+  var lv = k.liv || {}, ev = lv.lbl ? esc(lv.lbl)+(lv.at ? ' · '+esc(livFmtDate(lv.at)) : '') : '';
+  return '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:5px;cursor:pointer" title="Voir le détail des étapes" onclick="livOpenDetail(\''+esc(cmdId)+'\')">'+livPillHtml(key, '')+
+    (ev ? '<span style="font-size:.72rem;color:var(--mut)">'+ev+'</span>' : '')+'</div>';
+}
 function suiviColisRowsHtml(cmdId, list, withDelete){
   return list.map(function(k){
     var ok = !!(k.conf && k.conf.at) || colisSansConfirm(k);
@@ -9462,6 +9490,7 @@ function suiviColisRowsHtml(cmdId, list, withDelete){
         '<span style="font-size:.7rem;font-weight:800;padding:2px 8px;border-radius:99px;border:1px solid '+col+';color:'+col+'">'+(ok?'✅ Confirmé':'🟠 À confirmer')+'</span>'+
       '</div>'+
       '<div style="font-size:.72rem;color:var(--mut)">Ajouté le '+d+(k.src === 'import' ? '' : ' par '+esc(k.byName||'—'))+(ok && k.conf && k.conf.at ? ' · confirmé le '+new Date(k.conf.at).toLocaleDateString('fr-FR')+(k.conf.auto ? '' : ' par '+esc(k.conf.byName||'—')) : '')+'</div>'+
+      livFicheLineHtml(cmdId, k)+
       '<div style="display:flex;gap:6px;margin-top:5px">'+
         '<button onclick="suiviCopy(\''+cmdId+'\',\''+k.id+'\')" style="padding:4px 10px;border-radius:8px;border:1px solid var(--brd);background:none;color:var(--txt);font-size:.72rem;cursor:pointer">📋 Copier le n°</button>'+
         (can ? '<button onclick="suiviDeleteColis(\''+cmdId+'\',\''+k.id+'\')" style="padding:4px 10px;border-radius:8px;border:1px solid var(--red);background:none;color:var(--red);font-size:.72rem;cursor:pointer">Supprimer</button>' : '')+
