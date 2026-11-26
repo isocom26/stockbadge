@@ -2057,7 +2057,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.11.26-1040';
+var APP_VERSION = '2026.11.26-1050';
 var MANUEL_URL = 'manuel-isoprod.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -3016,6 +3016,7 @@ function ecranAutoOpen(tries){
 // Pas de correctif technique invisible ici. tag = qui est concerné :
 //   'all' (tout le monde), 'admin' (admin/direction), 'maint' (maintenance), 'stock' (ajout de stock), 'reprint' (réimpressions)
 var NEWS = [
+  {n:121, d:'26/11/2026', tag:'admin', t:'Droits : confirmer et recevoir l\'alerte « à confirmer » séparés', x:'Dans Admin > Droits, « Peut confirmer les expéditions » (le bouton) et « Reçoit l\'alerte à confirmer » (bandeau + pastille CONF) sont deux cases distinctes. Admin et direction ont toujours les deux. Les personnes qui recevaient l\'alerte grâce à l\'ancienne case doivent être cochées sur la nouvelle.'},
   {n:120, d:'26/11/2026', tag:'all', t:'Livraison : statut « Retard », statut dans la fiche et alerte', x:'Nouveau statut jaune « ⏱ Retard » quand le transporteur signale un colis retardé (dans le tableau et dans le filtre Statut). Dans la fiche d\'une commande, chaque colis affiche maintenant son statut de livraison et son dernier événement sous « Confirmé » (clic = détail des étapes). Les personnes qui reçoivent les alertes de livraison voient aussi un bandeau « Colis en retard » (une fois par colis) et la pastille LIV reste tant que le colis est en retard, pour pouvoir lancer une réclamation. Ces alertes (retard et problème) ont leur propre droit dans Admin > Droits : « Reçoit les alertes de livraison » (admin et direction les reçoivent toujours) ; il n\'est plus lié au droit de saisie des suivis.'},
   {n:119, d:'26/11/2026', tag:'all', t:'Étiquettes client : liste mise à jour et date de départ', x:'Une commande dont le n° de suivi a déjà été saisi ailleurs (tableau, fiche commande) sort maintenant de la liste « Étiquette client » et du compteur. On peut aussi choisir la date de départ dans la liste (aujourd\'hui par défaut) avant d\'enregistrer le n° de suivi.'},
   {n:118, d:'26/11/2026', tag:'all', t:'Maintenance : description d\'intervention sur plusieurs lignes', x:'Le champ « Description » d\'une intervention (machine, groupe, prestataire) est maintenant une zone de texte de plusieurs lignes, agrandissable : on peut écrire une observation complète. Les retours à la ligne sont conservés à l\'affichage dans l\'historique.'},
@@ -3429,7 +3430,7 @@ var RIGHTS_TREE = [
     {id:'search',     btn:'sub-search',     label:'🔍 Recherche',      actions:[]}
   ]},
   {key:'dashboard', label:'📈 Tableau de bord', def:function(P,d){return d;}, subs:[
-    {id:'dash_recherche',  btn:'dash-tab-recherche',  label:'🔍 Commandes',  actions:['suiviSaisie','suiviConf','livAlert','emportAlert']},
+    {id:'dash_recherche',  btn:'dash-tab-recherche',  label:'🔍 Commandes',  actions:['suiviSaisie','suiviConf','suiviConfAlert','livAlert','emportAlert']},
     {id:'dash_synthese',   btn:'dash-tab-synthese',   label:'📋 Synthèse',   actions:[]},
     {id:'dash_aujourdhui', btn:'dash-tab-aujourdhui', label:'🏭 Aujourd\'hui', actions:[]},
     {id:'dash_capacite',   btn:'dash-tab-capacite',   label:'⚡ Capacité',   actions:[]},
@@ -3502,7 +3503,7 @@ var RIGHTS_TEMPLATES = {
   direction: {label:'👔 Direction', desc:'Accès complet sauf Admin et Ma production.', role:'direction', isProducer:false,
     tops:['production','stock','dashboard','maintenance','meeting','planning','stats','espace'],
     subs:['depiautage','reprint','qualite','search','atelier','reserve','alertes','commandes','inventaire','journal','dash_recherche','dash_synthese','dash_aujourdhui','dash_capacite','dash_sav'],
-    actions:['addStock','maintenance','machCats','reprint','orders','sav','maintNotif','savAlert','emportAlert','suiviSaisie','suiviConf','livAlert','ecranAtelier','planningEdit']},
+    actions:['addStock','maintenance','machCats','reprint','orders','sav','maintNotif','savAlert','emportAlert','suiviSaisie','suiviConf','suiviConfAlert','livAlert','ecranAtelier','planningEdit']},
   lecture: {label:'👁️ Consultation', desc:'Lecture seule : recherche, stock, tableau de bord (Commandes, Synthèse).', role:'employee', isProducer:false,
     tops:['production','stock','dashboard','planning'],
     subs:['search','atelier','reserve','alertes','dash_recherche','dash_synthese'],
@@ -9117,6 +9118,8 @@ function changeMyEmail(){
 // ══════════════════════════════════════════════════════════════
 function canSuiviSaisie(){ return !!(iAm || isDir || (permsLoaded && me_perms && me_perms.suiviSaisie === true)); }
 function canSuiviConf(){ return !!(iAm || isDir || (permsLoaded && me_perms && me_perms.suiviConf === true)); }
+// Alerte « à confirmer » (bandeau + pastille CONF) : droit distinct de celui de confirmer
+function canSuiviConfAlert(){ return !!(iAm || isDir || (permsLoaded && me_perms && me_perms.suiviConfAlert === true)); }
 var TRANSP_DEFAUT = [['colissimo','Colissimo'],['chrono','Chronopost'],['dsv','DSV'],['jouve','Jouve'],['safal','Safal']];
 var TRANSP_URL_DEFAUT = {
   colissimo:'https://www.laposte.fr/outils/suivre-vos-envois?code={num}',
@@ -9414,7 +9417,7 @@ function suiviLabel(it){
   return (it.c.nom || it.c.cmd || '?') + (k ? ' — ' + (k.transp||'') + ' ' + (k.num||'') : '');
 }
 function suiviAlertsUpdate(){
-  if(!me || !canSuiviConf()){ hideTopBanner('suivi-banner'); suiviUpdateDot(0); return; }
+  if(!me || !canSuiviConfAlert()){ hideTopBanner('suivi-banner'); suiviUpdateDot(0); return; }
   var pend = suiviPendingCmds();
   suiviUpdateDot(pend.length);
   var dp = document.getElementById('dash-panel-recherche'); if(dp && dp.style.display !== 'none' && typeof dashRunSearch === 'function'){ S_dash.commandes = dashCommandesArray(); dashRunSearch(); }
@@ -10769,7 +10772,8 @@ var PERMS_LIST = [
   {key:'emportAlert', label:'🚶 Reçoit les alertes « Disponible à l\'emport » (bandeau + notification quand une commande est déposée à l\'accueil) — admin et direction les reçoivent toujours'},
   {key:'suiviSaisie', label:'📮 Peut saisir les suivis d\'expédition (colis, n° de suivi) — admin et direction l\'ont toujours'},
   {key:'livAlert',  label:'⏱ Reçoit les alertes de livraison (bandeau « Colis en retard » / « Problème de livraison » + pastille LIV) — admin et direction les reçoivent toujours'},
-  {key:'suiviConf',  label:'✅ Confirme les expéditions et reçoit l\'alerte « à confirmer » (bandeau + pastille CONF) — admin et direction l\'ont toujours'},
+  {key:'suiviConf',  label:'✅ Peut confirmer les expéditions (bouton « Confirmé (mail envoyé) ») — admin et direction l\'ont toujours'},
+  {key:'suiviConfAlert',  label:'🟠 Reçoit l\'alerte « à confirmer » (bandeau + pastille CONF) — admin et direction la reçoivent toujours'},
   {key:'planningEdit', label:'✏️ Peut modifier le Planning (absences, congés, fermetures, agenda) — admin l\'a toujours ; sans ce droit, le Planning est en consultation'},
   {key:'ecranAtelier', label:'📺 Voit le bouton « Écran atelier » (affichage TV) — admin et direction l\'ont toujours'},
 ];
