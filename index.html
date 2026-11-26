@@ -2057,7 +2057,7 @@ var AUTO_FORMAT_FIXED = 'MAG8054'; // Format fixe machine automatique
 // chaque livraison d'un nouveau index.html (commande `date +"%Y.%m.%d-%H%M"`
 // juste avant copie finale), jamais tapée à la main : ça évite d'oublier de
 // la changer (et donc que le bandeau ne s'affiche jamais sur les tablettes).
-var APP_VERSION = '2026.11.26-0915';
+var APP_VERSION = '2026.11.26-1010';
 var MANUEL_URL = 'manuel-isoprod.pdf';
 var PDFJS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 var _man = {doc:null, zoom:1, io:null, token:0, blob:null, g:null, lastTap:0, bound:false};
@@ -3016,6 +3016,7 @@ function ecranAutoOpen(tries){
 // Pas de correctif technique invisible ici. tag = qui est concerné :
 //   'all' (tout le monde), 'admin' (admin/direction), 'maint' (maintenance), 'stock' (ajout de stock), 'reprint' (réimpressions)
 var NEWS = [
+  {n:119, d:'26/11/2026', tag:'all', t:'Étiquettes client : liste mise à jour et date de départ', x:'Une commande dont le n° de suivi a déjà été saisi ailleurs (tableau, fiche commande) sort maintenant de la liste « Étiquette client » et du compteur. On peut aussi choisir la date de départ dans la liste (aujourd\'hui par défaut) avant d\'enregistrer le n° de suivi.'},
   {n:118, d:'26/11/2026', tag:'all', t:'Maintenance : description d\'intervention sur plusieurs lignes', x:'Le champ « Description » d\'une intervention (machine, groupe, prestataire) est maintenant une zone de texte de plusieurs lignes, agrandissable : on peut écrire une observation complète. Les retours à la ligne sont conservés à l\'affichage dans l\'historique.'},
   {n:117, d:'25/11/2026', tag:'all', t:'Étiquette client : plus de « À confirmer »', x:'Un colis saisi pour une commande « Étiquette fournie par le client » n\'est plus à confirmer par mail (le client a déjà son suivi) : plus de bandeau ni de pastille CONF pour ces commandes, y compris celles déjà saisies.'},
   {n:116, d:'24/11/2026', tag:'all', t:'Import des expéditions : emports annoncés enregistrables à la main', x:'Dans la fenêtre d\'import, les emports annoncés par EBP pour des commandes pas encore terminées sont listés et le bouton « Enregistrer » reste actif même si tout le reste est déjà connu : on peut ainsi redéposer l\'export EBP pour mémoriser les emports (case « À l\'emport » du contrôle qualité).'},
@@ -10536,13 +10537,15 @@ function simpEtiqList(){
   var byId = (S_cmdIndex && S_cmdIndex.byId) || {}, out = [];
   Object.keys(byId).forEach(function(id){
     var c = byId[id]; if(!c || !c.etiqClient || typeof c.etiqClient !== 'object') return;
-    var cl = colisList(c);
-    Object.keys(c.etiqClient).forEach(function(bl){
-      var ent = c.etiqClient[bl];
-      if(!ent || ent.done) return;
-      if(cl.some(function(k){ return k.bl === bl; })) return;   // déjà rattaché par un import
-      out.push({orderId:id, c:c, bl:bl, ent:ent});
-    });
+    var cl = colisList(c), eb = c.etiqClient;
+    // colis déjà là : rattaché par un import (même BL) ou saisi à la main ailleurs (tableau, fiche) sans BL → un colis « libre » éteint une entrée, la plus ancienne d'abord
+    var libres = cl.filter(function(k){ return !(k.bl && eb[k.bl]); }).length;
+    Object.keys(eb).filter(function(bl){ var e = eb[bl]; return e && !e.done && !cl.some(function(k){ return k.bl === bl; }); })
+      .sort(function(a, b){ return (eb[a].at||0)-(eb[b].at||0); })
+      .forEach(function(bl){
+        if(libres > 0){ libres--; return; }
+        out.push({orderId:id, c:c, bl:bl, ent:eb[bl]});
+      });
   });
   return out.sort(function(a, b){ return (a.ent.at||0)-(b.ent.at||0); });
 }
@@ -10561,6 +10564,7 @@ function simpEtiqHtml(){
         (tr ? '<span style="align-self:center;font-weight:700">'+esc(tr)+'</span>' :
           '<select id="simp-et-tr-'+id+'" style="background:var(--sur);color:var(--txt);border:1px solid var(--brd);border-radius:6px;font-size:.74rem;padding:4px">'+
           '<option value="">Transporteur…</option>'+cat.map(function(t){ return '<option value="'+esc(t.label)+'"'+(t.label === lastTr ? ' selected' : '')+'>'+esc(t.label)+'</option>'; }).join('')+'</select>')+
+        '<input type="date" id="simp-et-date-'+id+'" value="'+suiviTodayIso()+'" max="'+suiviTodayIso()+'" title="Date de départ" style="background:var(--sur);border:1px solid var(--brd);border-radius:6px;color:var(--txt);font-size:.74rem;padding:4px 6px">'+
         '<input type="text" id="simp-et-num-'+id+'" placeholder="N° de suivi" autocomplete="off" style="flex:1;min-width:140px;background:var(--sur);border:1px solid var(--brd);border-radius:6px;color:var(--txt);font-size:.76rem;padding:5px 8px;font-family:monospace">'+
         '<button onclick="simpEtiqSave(\''+x.orderId+'\',\''+x.bl+'\')" style="padding:5px 10px;border-radius:6px;border:1px solid var(--grn);background:none;color:var(--grn);font-size:.74rem;font-weight:700;cursor:pointer">Enregistrer</button>'+
         '<button onclick="simpEtiqNone(\''+x.orderId+'\',\''+x.bl+'\')" title="Le client vient la chercher, ou aucun suivi ne sera donné" style="padding:5px 10px;border-radius:6px;border:1px solid var(--brd);background:none;color:var(--mut);font-size:.74rem;font-weight:700;cursor:pointer">Pas de suivi</button>'+
@@ -10579,7 +10583,7 @@ function simpEtiqSave(orderId, bl){
   if(simpAllNums()[num.replace(/\s+/g, '').toUpperCase()]){ toast('Ce n° de suivi est déjà enregistré', 1); return; }
   try{ localStorage.setItem('simpEtiqLastTr', tr); }catch(e){}   // le transporteur choisi est repris pour la saisie suivante
   var now = Date.now(), upd = {};
-  var ek = simpColisEntry(tr, num.replace(/\s+/g, ''), bl, c, now, 'etiquette client');
+  var ek = simpColisEntry(tr, num.replace(/\s+/g, ''), bl, c, now, 'etiquette client', suiviReadDate('simp-et-date-'+bl));
   if(!(ek.conf && ek.conf.at)) ek.conf = {at:now, byName:'Étiquette client', auto:true};   // rien à confirmer par mail
   upd['colis/'+gid()] = ek;
   upd['etiqClient/'+bl+'/done'] = {at:now, byName:getMyName(), kind:'colis'};
